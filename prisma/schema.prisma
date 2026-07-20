@@ -1,0 +1,209 @@
+// Financial Management System — Prisma schema
+// PostgreSQL (Supabase) for production. Enum values are modelled as strings.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL") // pooled connection (Supabase pgBouncer, port 6543)
+  directUrl = env("DIRECT_URL") // direct connection (port 5432) — used for migrations/db push
+}
+
+// ---------------------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String? // null if Google-only login
+  googleId      String?   @unique // null if password-only login
+  displayName   String?
+  role          String    @default("user") // 'admin' | 'user'
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// Auth.js adapter tables (Google OAuth account linking + sessions)
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------------------
+// Domain
+// ---------------------------------------------------------------------------
+
+model Contact {
+  id              Int      @id @default(autoincrement())
+  firstName       String
+  lastName        String?
+  phone           String?
+  phone2          String?
+  email           String?
+  tz              String? // Israeli ID — optional, for identity verification on some Kesher charges
+  address         String?
+  city            String?
+  numHouse        String?
+  entrance        String?
+  floor           String?
+  apartmentNumber String?
+  kesherClientRef String?  @unique // Kesher ClientRef / ClientReference
+  obligations     Obligation[]
+  transactions    Transaction[]
+  creditCards     CreditCard[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// Saved payment methods — TOKENIZED. We intentionally store ONLY a Kesher token
+// (a merchant-scoped reference, useless without our Kesher credentials) plus
+// display-only, non-sensitive metadata. We NEVER store the full card number
+// (PAN) or CVV/CVV2 — doing so would drag the whole system into PCI DSS scope
+// and storing CVV is prohibited outright. New cards are captured via Kesher's
+// hosted payment page (GetLinkToken), which returns the token.
+model CreditCard {
+  id         Int      @id @default(autoincrement())
+  contactId  Int
+  contact    Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  token      String // Kesher payment token — charge against this, not raw card data
+  last4      String? // display only, e.g. "1234"
+  expiry     String? // MMYY — display / expiry tracking (not sensitive on its own)
+  brand      String? // Visa / Mastercard / Isracard … (Kesher CreditCardCompany)
+  holderName String?
+  label      String? // optional nickname, e.g. "כרטיס עסקי"
+  isDefault  Boolean  @default(false)
+  obligations Obligation[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([contactId])
+}
+
+model Category {
+  id           Int      @id @default(autoincrement())
+  mainCategory String // repeats across rows, e.g. "פירות"
+  category     String   @unique // unique per row, e.g. "תפוח"
+  defaultPrice Decimal  @default(0)
+  obligations  Obligation[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Obligation {
+  id                        Int      @id @default(autoincrement())
+  kind                      String // 'expense' | 'income'
+  categoryId                Int?
+  category                  Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  contactId                 Int? // NULL => standalone (shows in הכנסות/הוצאות)
+  contact                   Contact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  kesherObligationReference String?  @unique // Kesher ObligationReference
+  recurringAmount           Decimal      @default(0) // Kesher "Sum"
+  numPayments               Int          @default(9999) // 9999 = unlimited/ongoing
+  // How the amount + numPayments are interpreted & charged:
+  //  'recurring'    = הוראת קבע — recurringAmount charged each period (9999 = ongoing)
+  //  'installments' = תשלומים — recurringAmount is the TOTAL, split into numPayments
+  //  'onetime'      = חד פעמי — a single charge (numPayments = 1)
+  chargeType                String       @default("recurring")
+  chargeDay                 Int? // day of month
+  // Saved card (token) that funds this obligation when paymentMethod = 'credit'.
+  creditCardId              Int?
+  creditCard                CreditCard?  @relation(fields: [creditCardId], references: [id], onDelete: SetNull)
+  startDate                 DateTime
+  status                    String       @default("active")
+  // 'active'|'paused'|'cancelled'|'pending_bank_auth'|'bank_auth_cancelled'
+  // |'payment_method_cancelled'|'finished'|'init_error'
+  paymentMethod             String       @default("credit") // 'credit'|'bank'|'cash'|'check'|'bit'
+  comment                   String?
+  transactions              Transaction[]
+  createdAt                 DateTime     @default(now())
+  updatedAt                 DateTime     @updatedAt
+}
+
+model Transaction {
+  id                  Int      @id @default(autoincrement())
+  obligationId        Int?
+  obligation          Obligation? @relation(fields: [obligationId], references: [id], onDelete: SetNull)
+  contactId           Int? // denormalized link for standalone/manual convenience
+  contact             Contact?    @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  source              String // 'api' | 'manual'
+  kesherNumTransaction String?    @unique // Kesher NumTransaction
+  uniqNum             String? // our unique id sent to Kesher, max 19 chars
+  amount              Decimal
+  currency            Int         @default(1) // 1=ILS 2=USD 826=GBP 978=EUR
+  transactionDate     DateTime
+  transactionType     String // 'debit' | 'credit'
+  chargeOptionType    String // 'credit'|'bank'|'cash'|'check'|'bit'
+  statusCode          Int? // -> KesherStatus.code
+  statusText          String?
+  cardLast4           String?
+  cardExpiry          String? // MMYY
+  bank                String?
+  branch              String?
+  account             String?
+  authNum             String? // Kesher OKNum
+  comment             String?
+  receiptDocNumber    String?
+  receiptLink         String? // DocumentsDetails.PdfLink
+  kind                String // 'expense' | 'income'
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([obligationId])
+  @@index([contactId])
+}
+
+// Static reference table for Kesher internal status codes.
+model KesherStatus {
+  code        Int    @id
+  description String
+}
+
+model KesherSettings {
+  id            Int    @id @default(autoincrement())
+  projectNumber String?
+  // Hosted payment page (GetLinkToken secure-page flow). Both come from the
+  // Kesher admin panel where the payment page is configured.
+  paymentPageId  Int? // e.g. 1
+  paymentPageUrl String? // base URL of the hosted page to redirect the payer to
+  // KESHER_API_USERNAME / KESHER_API_PASSWORD live in env secrets, NOT here.
+  updatedAt     DateTime @updatedAt @default(now())
+}
+
+// Raw log of every inbound Kesher webhook payload (audit / debugging).
+model WebhookLog {
+  id          Int      @id @default(autoincrement())
+  entityType  String? // 'transaction' | 'obligation' | 'customer' | 'unknown'
+  payload     String // raw JSON body
+  headers     String? // JSON of selected headers
+  status      String   @default("received") // 'received' | 'processed' | 'error'
+  error       String?
+  createdAt   DateTime @default(now())
+}

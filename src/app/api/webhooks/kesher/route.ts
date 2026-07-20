@@ -1,0 +1,361 @@
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+
+// ---------------------------------------------------------------------------
+// Kesher webhook receiver — the PRIMARY sync mechanism (spec §2).
+// Kesher pushes here on every create/update of Transaction, Obligation,
+// Customer. We log every payload, then upsert into our tables.
+//
+// Auth: Kesher's docs don't fully specify webhook signing. We accept a shared
+// secret via ?secret= query param OR the X-Kesher-Secret header. This needs
+// confirmation with Kesher support — flagged in the README.
+// ---------------------------------------------------------------------------
+
+function pick<T = unknown>(obj: Record<string, unknown>, ...keys: string[]): T | undefined {
+  for (const k of keys) {
+    if (obj[k] !== undefined && obj[k] !== null) return obj[k] as T;
+  }
+  return undefined;
+}
+
+function toStr(v: unknown): string | undefined {
+  if (v === undefined || v === null) return undefined;
+  return String(v);
+}
+
+/** Kesher `Sum`/`Total` fields are decimal shekels (NOT agorot) per the API docs. */
+function toAmount(v: unknown): number | undefined {
+  if (v === undefined || v === null) return undefined;
+  const n = typeof v === "string" ? parseFloat(v) : (v as number);
+  return Number.isNaN(n) ? undefined : n;
+}
+
+function detectEntity(body: Record<string, unknown>): "transaction" | "obligation" | "customer" | "unknown" {
+  // Kesher's webhook entities are named CrmTransaction / CrmObligation /
+  // CrmCustomer (per the Webhook doc). Detect by explicit type or nested key.
+  const explicit = toStr(pick(body, "EntityType", "Type", "entity"))?.toLowerCase();
+  const hasKey = (k: string) => Object.prototype.hasOwnProperty.call(body, k);
+  if (explicit?.includes("trans") || hasKey("CrmTransaction")) return "transaction";
+  if (explicit?.includes("oblig") || hasKey("CrmObligation")) return "obligation";
+  if (explicit?.includes("cust") || explicit?.includes("client") || hasKey("CrmCustomer"))
+    return "customer";
+  // Infer from fields present.
+  if (pick(body, "NumTransaction", "num_transaction")) return "transaction";
+  if (pick(body, "ObligationReference", "obligation_reference")) return "obligation";
+  if (pick(body, "ClientRef", "ClientReference", "client_ref")) return "customer";
+  return "unknown";
+}
+
+/** Kesher wraps the payload under CrmTransaction/CrmObligation/CrmCustomer — unwrap it. */
+function unwrapCrm(body: Record<string, unknown>): Record<string, unknown> {
+  for (const k of ["CrmTransaction", "CrmObligation", "CrmCustomer"]) {
+    const inner = body[k];
+    if (inner && typeof inner === "object") return { ...body, ...(inner as Record<string, unknown>) };
+  }
+  return body;
+}
+
+export async function POST(req: Request) {
+  const url = new URL(req.url);
+  const expected = process.env.KESHER_WEBHOOK_SECRET;
+  const provided = url.searchParams.get("secret") ?? req.headers.get("x-kesher-secret");
+
+  const rawText = await req.text();
+
+  // Always log the raw payload first (audit/debug), before validation.
+  const headersLog = JSON.stringify({
+    "content-type": req.headers.get("content-type"),
+    "user-agent": req.headers.get("user-agent"),
+  });
+
+  if (expected && provided !== expected) {
+    await prisma.webhookLog.create({
+      data: { payload: rawText, headers: headersLog, status: "error", error: "unauthorized (bad secret)" },
+    });
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    body = JSON.parse(rawText);
+  } catch {
+    await prisma.webhookLog.create({
+      data: { payload: rawText, headers: headersLog, status: "error", error: "invalid JSON" },
+    });
+    return NextResponse.json({ error: "invalid json" }, { status: 400 });
+  }
+
+  // Some Kesher payloads nest the object under `Json` / `Data`.
+  if (typeof body.Json === "string") {
+    try {
+      body = { ...body, ...JSON.parse(body.Json as string) };
+    } catch {
+      /* ignore */
+    }
+  }
+  const inner = (body.Data ?? body.data) as Record<string, unknown> | undefined;
+  if (inner && typeof inner === "object") body = { ...body, ...inner };
+
+  const entityType = detectEntity(body);
+  body = unwrapCrm(body); // flatten CrmTransaction/CrmObligation/CrmCustomer wrappers
+  const log = await prisma.webhookLog.create({
+    data: { entityType, payload: rawText, headers: headersLog, status: "received" },
+  });
+
+  try {
+    // STRICT FILTER: we only save data that belongs to records tracked in OUR
+    // system (obligations/contacts we created or already imported, and charges
+    // we initiated). Everything else Kesher pushes is logged as "ignored" —
+    // kept in WebhookLog for audit, but no rows are created.
+    let outcome: "processed" | "ignored" = "ignored";
+    if (entityType === "customer") outcome = await upsertCustomer(body);
+    else if (entityType === "obligation") outcome = await upsertObligation(body);
+    else if (entityType === "transaction") outcome = await upsertTransaction(body);
+
+    await prisma.webhookLog.update({ where: { id: log.id }, data: { status: outcome } });
+    return NextResponse.json({ ok: true, entityType, outcome });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "processing error";
+    await prisma.webhookLog.update({ where: { id: log.id }, data: { status: "error", error: message } });
+    console.error("Webhook processing error:", err);
+    // Return 200 so Kesher doesn't hammer retries for a data issue on our side,
+    // but the error is recorded in WebhookLog for debugging.
+    return NextResponse.json({ ok: false, error: message });
+  }
+}
+
+async function upsertCustomer(body: Record<string, unknown>): Promise<"processed" | "ignored"> {
+  const clientRef = toStr(pick(body, "ClientRef", "ClientReference", "client_ref"));
+  if (!clientRef) throw new Error("customer payload missing ClientRef");
+
+  // Update-only: we don't auto-create contacts from account-wide webhook noise.
+  const existing = await prisma.contact.findUnique({ where: { kesherClientRef: clientRef } });
+  if (!existing) return "ignored";
+
+  const firstName = toStr(pick(body, "FirstName", "first_name")) ?? "";
+  const lastName = toStr(pick(body, "LastName", "last_name"));
+  await prisma.contact.update({
+    where: { id: existing.id },
+    data: {
+      firstName: firstName || existing.firstName,
+      lastName,
+      phone: toStr(pick(body, "Phone", "phone")),
+      phone2: toStr(pick(body, "Phone2", "phone2")),
+      email: toStr(pick(body, "Email", "email")),
+      tz: toStr(pick(body, "TZ", "tz")),
+      address: toStr(pick(body, "Address", "address")),
+      city: toStr(pick(body, "City", "city")),
+    },
+  });
+  return "processed";
+}
+
+async function upsertObligation(body: Record<string, unknown>): Promise<"processed" | "ignored"> {
+  const ref = toStr(pick(body, "ObligationReference", "obligation_reference"));
+  if (!ref) throw new Error("obligation payload missing ObligationReference");
+
+  // Case A activation: a PENDING obligation we created for a payment-page hok
+  // carries our id back via addactiondata ("obligation:<id>"). On the hok's
+  // first webhook, stamp Kesher's reference onto it and activate it.
+  const addData = toStr(pick(body, "AddData", "addactiondata", "AddActionData", "ObligationApiIdentity"));
+  const m = addData?.match(/obligation:(\d+)/);
+  if (m) {
+    const pending = await prisma.obligation.findUnique({ where: { id: Number(m[1]) } });
+    if (pending && !pending.kesherObligationReference) {
+      await prisma.obligation.update({
+        where: { id: pending.id },
+        data: { kesherObligationReference: ref, status: "active" },
+      });
+      return "processed";
+    }
+  }
+
+  // Update-only: we sync status/amount changes for obligations WE track, but
+  // don't auto-create obligations from account-wide webhook noise.
+  const existing = await prisma.obligation.findUnique({ where: { kesherObligationReference: ref } });
+  if (!existing) return "ignored";
+
+  const statusRaw = pick(body, "ObligationStatus", "Status", "status");
+  await prisma.obligation.update({
+    where: { id: existing.id },
+    data: {
+      recurringAmount: toAmount(pick(body, "Sum", "sum")) ?? existing.recurringAmount,
+      numPayments: Number(pick(body, "NumPayments", "num_payments") ?? existing.numPayments),
+      chargeDay: pick(body, "ChargeDay", "charge_day")
+        ? Number(pick(body, "ChargeDay", "charge_day"))
+        : existing.chargeDay,
+      status: mapObligationStatus(statusRaw),
+    },
+  });
+  return "processed";
+}
+
+async function upsertTransaction(body: Record<string, unknown>): Promise<"processed" | "ignored"> {
+  const numTransaction = toStr(pick(body, "NumTransaction", "num_transaction"));
+  const uniqNum = toStr(pick(body, "UniqNum", "uniq_num"));
+  if (!numTransaction && !uniqNum) throw new Error("transaction payload missing NumTransaction/UniqNum");
+
+  // Link to obligation via ObligationReference.
+  const oblRef = toStr(pick(body, "ObligationReference", "obligation_reference"));
+  let obligation = oblRef
+    ? await prisma.obligation.findUnique({ where: { kesherObligationReference: oblRef } })
+    : null;
+
+  // Case A: a payment-page hok's first charge may arrive carrying our
+  // addactiondata ("obligation:<id>") before the ref is stamped — activate it.
+  if (!obligation && oblRef) {
+    const addData = toStr(pick(body, "AddData", "addactiondata", "AddActionData"));
+    const m = addData?.match(/obligation:(\d+)/);
+    if (m) {
+      const pending = await prisma.obligation.findUnique({ where: { id: Number(m[1]) } });
+      if (pending && !pending.kesherObligationReference) {
+        obligation = await prisma.obligation.update({
+          where: { id: pending.id },
+          data: { kesherObligationReference: oblRef, status: "active" },
+        });
+      }
+    }
+  }
+
+  // STRICT FILTER: accept only transactions that belong to an obligation we
+  // track, or that we initiated ourselves (already recorded by NumTransaction /
+  // our UniqNum). Everything else in the account's daily activity is ignored.
+  const ours = numTransaction
+    ? await prisma.transaction.findUnique({ where: { kesherNumTransaction: numTransaction } })
+    : await prisma.transaction.findFirst({ where: { uniqNum } });
+  if (!obligation && !ours) return "ignored";
+
+  // KesherStatus is the internal status code (matches our KesherStatus table).
+  const statusCode = pick(body, "KesherStatus", "StatusCode", "status_code");
+  // DocumentsDetails may be an object { PdfLink, PdfLinkCopy, DocNumber }.
+  const docs = pick(body, "DocumentsDetails") as Record<string, unknown> | undefined;
+  const data = {
+    obligationId: obligation?.id ?? null,
+    contactId: obligation?.contactId ?? null,
+    source: "api" as const,
+    kesherNumTransaction: numTransaction ?? null,
+    uniqNum: uniqNum ?? null,
+    // `Sum`/`Total` are decimal shekels per the API docs — no agorot conversion.
+    amount: toAmount(pick(body, "Sum", "Total", "Amount", "sum")) ?? 0,
+    currency: Number(pick(body, "Currency", "currency") ?? 1),
+    transactionDate: parseDate(pick(body, "TransactionDate", "Date", "transaction_date")),
+    transactionType: (toStr(pick(body, "TransactionType")) === "credit" ? "credit" : "debit") as
+      | "credit"
+      | "debit",
+    chargeOptionType: mapChargeOption(toStr(pick(body, "ChargeOptionType", "ChargeOption", "PaymentMethod"))),
+    statusCode: statusCode !== undefined ? Number(statusCode) : null,
+    statusText: toStr(pick(body, "Status", "StatusText", "ResultMessage")),
+    // `CardMumber` is Kesher's (mis-spelled) field for the card's last 4 digits.
+    cardLast4: toStr(pick(body, "CardMumber", "CardLast4", "Last4")),
+    // `ExpairyDate` (their spelling) is MMYY.
+    cardExpiry: toStr(pick(body, "ExpairyDate", "ExpireDate", "CardExpiry")),
+    bank: toStr(pick(body, "Bank")),
+    branch: toStr(pick(body, "Branch")),
+    account: toStr(pick(body, "AccountNumber", "Account")),
+    authNum: toStr(pick(body, "OKNum", "AuthNum")),
+    receiptDocNumber: toStr(docs?.DocNumber ?? pick(body, "DocNumber", "ReceiptDocNumber")),
+    receiptLink: toStr(docs?.PdfLink ?? pick(body, "PdfLink", "ReceiptLink")),
+    kind: (obligation?.kind ?? "income") as "income" | "expense",
+  };
+
+  if (ours) {
+    // Keep our local obligation/contact linkage when the payload doesn't carry one.
+    await prisma.transaction.update({
+      where: { id: ours.id },
+      data: {
+        ...data,
+        obligationId: obligation?.id ?? ours.obligationId,
+        contactId: obligation?.contactId ?? ours.contactId,
+      },
+    });
+  } else {
+    await prisma.transaction.create({ data });
+  }
+
+  // If this payload carries a card Token (e.g. from the hosted payment page),
+  // save it as a CreditCard for the resolved contact so it can be reused.
+  await maybeSaveCardToken(body, obligation?.contactId ?? null, data);
+  return "processed";
+}
+
+/**
+ * Save a card token from a webhook payload when possible. The hosted payment
+ * page echoes our `addactiondata` back (as AddData "contact:<id>"), so we can
+ * link the returned token to the right contact.
+ */
+async function maybeSaveCardToken(
+  body: Record<string, unknown>,
+  fallbackContactId: number | null,
+  tx: { cardLast4?: string | null; cardExpiry?: string | null },
+) {
+  const token = toStr(pick(body, "Token", "token"));
+  if (!token) return;
+
+  // Resolve the contact: AddData "contact:<id>" → ClientRef → linked obligation.
+  let contactId = fallbackContactId;
+  const addData = toStr(pick(body, "AddData", "addactiondata", "AddActionData"));
+  const m = addData?.match(/contact:(\d+)/);
+  if (m) contactId = Number(m[1]);
+  if (!contactId) {
+    const clientRef = toStr(pick(body, "ClientRef", "ClientReference"));
+    if (clientRef) {
+      const c = await prisma.contact.findUnique({ where: { kesherClientRef: clientRef } });
+      contactId = c?.id ?? null;
+    }
+  }
+  if (!contactId) return;
+
+  const existing = await prisma.creditCard.findFirst({ where: { contactId, token } });
+  if (existing) return; // already saved
+
+  const count = await prisma.creditCard.count({ where: { contactId } });
+  await prisma.creditCard.create({
+    data: {
+      contactId,
+      token,
+      last4: tx.cardLast4 ?? toStr(pick(body, "CardMumber", "CardLast4")),
+      expiry: tx.cardExpiry ?? toStr(pick(body, "ExpairyDate", "ExpireDate")),
+      brand: toStr(pick(body, "IssuerCompany", "CardType", "CreditCardCompany")),
+      holderName: toStr(pick(body, "CardName", "Name")),
+      isDefault: count === 0,
+    },
+  });
+}
+
+function parseDate(v: unknown): Date {
+  if (!v) return new Date();
+  const d = new Date(String(v));
+  return Number.isNaN(d.getTime()) ? new Date() : d;
+}
+
+function mapChargeOption(v?: string): "credit" | "bank" | "cash" | "check" | "bit" {
+  const s = v?.toLowerCase() ?? "";
+  if (s.includes("bank")) return "bank";
+  if (s.includes("cash")) return "cash";
+  if (s.includes("check")) return "check";
+  if (s.includes("bit")) return "bit";
+  return "credit";
+}
+
+// Kesher's ObligationStatus arrives as an integer code (webhook) or a string.
+// Integer→status mapping is best-effort; verify exact codes with Kesher and
+// adjust here if needed.
+const OBLIGATION_STATUS_BY_CODE: Record<number, string> = {
+  1: "active",
+  2: "paused",
+  3: "cancelled",
+  4: "pending_bank_auth",
+  5: "bank_auth_cancelled",
+  6: "payment_method_cancelled",
+  7: "finished",
+  8: "init_error",
+};
+
+function mapObligationStatus(v?: unknown): string {
+  if (typeof v === "number" || (typeof v === "string" && /^\d+$/.test(v))) {
+    return OBLIGATION_STATUS_BY_CODE[Number(v)] ?? "active";
+  }
+  const s = String(v ?? "").toLowerCase();
+  const known = Object.values(OBLIGATION_STATUS_BY_CODE);
+  return known.includes(s) ? s : "active";
+}
