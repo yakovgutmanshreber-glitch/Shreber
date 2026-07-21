@@ -41,6 +41,7 @@ interface Transaction {
   transactionType: string;
   chargeOptionType: string;
   statusCode: number | null;
+  statusText: string | null;
   kind: string;
   source: string;
   comment: string | null;
@@ -236,7 +237,7 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
                         <td className="td">{formatCurrency(t.amount, t.currency)}</td>
                         <td className="td">{t.source === "api" ? "קשר" : "ידני"}</td>
                         <td className="td">
-                          <TxStatusBadge code={t.statusCode} />
+                          <TxStatusBadge code={t.statusCode} text={t.statusText} />
                         </td>
                         <td className="td text-gray-500">{t.comment ?? "—"}</td>
                       </tr>

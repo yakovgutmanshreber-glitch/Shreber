@@ -30,6 +30,7 @@ interface Transaction {
   currency: number;
   transactionDate: string;
   statusCode: number | null;
+  statusText: string | null;
   source: string;
   comment: string | null;
   obligation: { category: { category: string } | null } | null;
@@ -161,7 +162,7 @@ export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
                   <td className="td font-medium">{formatCurrency(t.amount, t.currency)}</td>
                   <td className="td">{t.source === "api" ? "קשר" : "ידני"}</td>
                   <td className="td">
-                    <TxStatusBadge code={t.statusCode} />
+                    <TxStatusBadge code={t.statusCode} text={t.statusText} />
                   </td>
                   <td className="td text-gray-500">{t.comment ?? "—"}</td>
                 </tr>

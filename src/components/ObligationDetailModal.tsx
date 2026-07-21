@@ -104,7 +104,10 @@ export function ObligationDetailModal({
                       <td className="td font-medium">{formatCurrency(t.amount, t.currency)}</td>
                       <td className="td">{t.source === "api" ? "קשר" : "ידני"}</td>
                       <td className="td">
-                        <TxStatusBadge code={(t as { statusCode?: number | null }).statusCode} />
+                        <TxStatusBadge
+                          code={(t as { statusCode?: number | null }).statusCode}
+                          text={(t as { statusText?: string | null }).statusText}
+                        />
                       </td>
                       <td className="td text-gray-500">{t.comment ?? "—"}</td>
                       <td className="td text-left">

@@ -88,16 +88,33 @@ export function ObligationStatusBadge({ status }: { status: string }) {
   );
 }
 
-export function TxStatusBadge({ code }: { code: number | null | undefined }) {
-  if (code === null || code === undefined) return <span className="text-gray-400">—</span>;
-  const success = KESHER_SUCCESS_CODES.has(code);
-  const failed = [5, 6, 7, 9, 14, 15, 16, 23].includes(code);
+export function TxStatusBadge({
+  code,
+  text,
+}: {
+  code: number | null | undefined;
+  text?: string | null;
+}) {
+  if ((code === null || code === undefined) && !text) {
+    return <span className="text-gray-400">—</span>;
+  }
+  const declineText = !!text && /סירוב|נדח|declin|fail|נכשל|בוטל/i.test(text);
+  const success =
+    code !== null && code !== undefined && KESHER_SUCCESS_CODES.has(code) && !declineText;
+  const failed =
+    declineText || (code !== null && code !== undefined && [5, 6, 7, 9, 14, 15, 16, 23].includes(code));
   const cls = success
     ? "bg-green-100 text-green-700"
     : failed
       ? "bg-red-100 text-red-700"
       : "bg-yellow-100 text-yellow-700";
-  return <span className={`badge ${cls}`}>{KESHER_STATUS[code] ?? `קוד ${code}`}</span>;
+  // Prefer Kesher's own wording (e.g. "סירוב") when we have it; else the code label.
+  const label =
+    (failed && text) ||
+    (code !== null && code !== undefined ? KESHER_STATUS[code] : undefined) ||
+    text ||
+    `קוד ${code}`;
+  return <span className={`badge ${cls}`}>{label}</span>;
 }
 
 export function EmptyState({ message }: { message: string }) {

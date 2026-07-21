@@ -112,21 +112,25 @@ export const POST = handler(async (req) => {
 
   // Kesher returns Status:true even for DECLINES ("סירוב") — a real approval has
   // an authorization number. No auth (or an explicit decline) = the charge failed.
-  // Exception: a recurring הוראת קבע may be created WITHOUT an immediate charge
-  // (future start date) — a returned ObligationReference means the hok was set up
-  // successfully; Kesher will charge (and webhook us) on the schedule.
   const hokCreated = isRecurring && Boolean(oblRef);
   const explicitDecline = /סירוב|נדח|declin|fail/i.test(res.message ?? "");
-  const declined =
-    !res.mock && !hokCreated && (!authNum || explicitDecline);
-  if (declined) {
+  const chargeApproved = Boolean(res.mock) || (Boolean(authNum) && !explicitDecline);
+
+  // For a הוראת קבע the hok is created in Kesher even if the FIRST charge is
+  // declined — Kesher owns it now, so we still create the obligation and RECORD
+  // the declined first charge (so the סירוב is visible). For one-time /
+  // installments a decline means nothing was set up: surface an error, persist nothing.
+  if (!hokCreated && !chargeApproved) {
     throw new ApiError(
       res.message ? `החיוב נדחה: ${res.message}` : "החיוב נדחה על ידי חברת האשראי",
       402,
     );
   }
-  // Did money actually move now? (Immediate first charge vs. a scheduled hok.)
-  const chargedNow = Boolean(authNum) || Boolean(res.mock);
+
+  // A first charge was ATTEMPTED if Kesher returned a transaction id or an
+  // explicit decline. A future-dated hok has neither (nothing charged yet) —
+  // that first transaction will arrive later via the webhook.
+  const firstChargeAttempted = chargeApproved || Boolean(numTransaction) || explicitDecline;
 
   // --- charge succeeded: save a new card from the returned token -----------
   if (newCard && saveCard && returnedToken && input.contactId) {
@@ -160,10 +164,10 @@ export const POST = handler(async (req) => {
   });
   const obligation = updated;
 
-  // Record the first transaction ONLY if a charge actually happened now. For a
-  // future-dated הוראת קבע nothing was charged yet — Kesher will send the first
-  // (and every) transaction via the webhook when it charges.
-  const transaction = chargedNow
+  // Record the first transaction whenever a charge was ATTEMPTED — approved OR
+  // declined — so the outcome (עבר בהצלחה / סירוב) is visible. A future-dated hok
+  // hasn't charged yet, so nothing is recorded; the webhook delivers it later.
+  const transaction = firstChargeAttempted
     ? await prisma.transaction.create({
         data: {
           obligationId: obligation.id,
@@ -176,12 +180,16 @@ export const POST = handler(async (req) => {
           transactionDate: new Date(),
           transactionType: "debit",
           chargeOptionType: "credit",
-          // The charge was CONFIRMED above (has an authorization number, not
-          // declined). Store Kesher's internal "settled" status (4 = עבר בהצלחה),
-          // NOT res.code — res.code is the request-envelope code ("000" => 0),
-          // which is not a transaction status and rendered as "קוד 0".
-          statusCode: 4,
-          statusText: res.mock ? "MOCK" : "עבר בהצלחה",
+          // Approved => Kesher's "settled" status (4 = עבר בהצלחה). Declined =>
+          // no settled code; keep Kesher's own wording ("סירוב") in statusText so
+          // the badge shows it in red. (res.code is the request-envelope code, not
+          // a transaction status — never store it here.)
+          statusCode: chargeApproved ? 4 : null,
+          statusText: chargeApproved
+            ? res.mock
+              ? "MOCK"
+              : "עבר בהצלחה"
+            : res.message ?? "סירוב",
           cardLast4: cardNumber?.replace(/\D/g, "").slice(-4),
           cardExpiry: cardExpiry,
           authNum: pick(d, "AuthNum", "OKNum", "AuthCode"),
