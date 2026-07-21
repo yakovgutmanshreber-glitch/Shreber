@@ -48,6 +48,7 @@ export const CURRENCY = {
 
 // Kesher internal status codes (also seeded into the KesherStatus table).
 export const KESHER_STATUS: Record<number, string> = {
+  0: "עבר בהצלחה", // Kesher request code "000" (approved) — normalized to success
   1: "ממתין לשליחה",
   2: "עסקה שבוטלה לפני שידור",
   4: "עבר בהצלחה",
@@ -67,7 +68,7 @@ export const KESHER_STATUS: Record<number, string> = {
 };
 
 // Which status codes represent a "successful/settled" charge.
-export const KESHER_SUCCESS_CODES = new Set([4, 11, 22]);
+export const KESHER_SUCCESS_CODES = new Set([0, 4, 11, 22]);
 
 export function statusLabel<T extends Record<string, string>>(
   map: T,

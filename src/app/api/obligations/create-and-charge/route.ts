@@ -176,8 +176,12 @@ export const POST = handler(async (req) => {
           transactionDate: new Date(),
           transactionType: "debit",
           chargeOptionType: "credit",
-          statusCode: res.code !== undefined ? Number(res.code) : 4,
-          statusText: res.message ?? (res.mock ? "MOCK" : "עבר בהצלחה"),
+          // The charge was CONFIRMED above (has an authorization number, not
+          // declined). Store Kesher's internal "settled" status (4 = עבר בהצלחה),
+          // NOT res.code — res.code is the request-envelope code ("000" => 0),
+          // which is not a transaction status and rendered as "קוד 0".
+          statusCode: 4,
+          statusText: res.mock ? "MOCK" : "עבר בהצלחה",
           cardLast4: cardNumber?.replace(/\D/g, "").slice(-4),
           cardExpiry: cardExpiry,
           authNum: pick(d, "AuthNum", "OKNum", "AuthCode"),
