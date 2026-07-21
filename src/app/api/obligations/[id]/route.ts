@@ -52,18 +52,25 @@ export const PATCH = handler(async (req, ctx) => {
     const dateChanged =
       data.startDate !== undefined &&
       new Date(data.startDate).getTime() !== new Date(existing.startDate).getTime();
+    const numPaymentsChanged =
+      data.numPayments !== undefined &&
+      Number(data.numPayments) !== Number(existing.numPayments);
     const cardChanged =
       data.creditCardId !== undefined && data.creditCardId !== existing.creditCardId;
 
-    // 1) amount / day / start-date / status -> UpdateObligation (legacy API).
-    if (statusChanged || amountChanged || dayChanged || dateChanged) {
+    // 1) amount / day / start-date / num-payments / status -> UpdateObligation.
+    // Send ONLY the fields that changed; leave the rest null (= unchanged) — e.g.
+    // re-sending an old StartDate is rejected by Kesher ("תאריך שגוי").
+    if (statusChanged || amountChanged || dayChanged || dateChanged || numPaymentsChanged) {
       const res = await kesher.updateObligation({
         obligationReference: ref,
-        sum: Number(data.recurringAmount ?? existing.recurringAmount),
-        chargeDay: (data.chargeDay ?? existing.chargeDay) ?? undefined,
-        startDate: String(data.startDate ?? existing.startDate),
-        numPayments: Number(data.numPayments ?? existing.numPayments),
-        status: String(KESHER_OBLIGATION_STATUS_CODE[targetStatus] ?? 1),
+        sum: amountChanged ? Number(data.recurringAmount) : undefined,
+        chargeDay: dayChanged ? (data.chargeDay ?? undefined) : undefined,
+        startDate: dateChanged ? String(data.startDate) : undefined,
+        numPayments: numPaymentsChanged ? Number(data.numPayments) : undefined,
+        status: statusChanged
+          ? String(KESHER_OBLIGATION_STATUS_CODE[targetStatus] ?? 1)
+          : undefined,
       });
       if (!res.ok) {
         throw new ApiError(
@@ -119,12 +126,9 @@ export const DELETE = handler(async (_req, ctx) => {
 
   const ref = existing.kesherObligationReference;
   if (ref && !["cancelled", "finished"].includes(existing.status)) {
+    // Cancel = send only status 3; leave every other field null (unchanged).
     const res = await kesher.updateObligation({
       obligationReference: ref,
-      sum: Number(existing.recurringAmount),
-      chargeDay: existing.chargeDay ?? undefined,
-      startDate: String(existing.startDate),
-      numPayments: Number(existing.numPayments),
       status: String(KESHER_OBLIGATION_STATUS_CODE.cancelled), // 3
     });
     if (!res.ok) {
