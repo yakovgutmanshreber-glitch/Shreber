@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { handler, serialize, ApiError } from "@/lib/api";
 import { obligationSchema } from "@/lib/schemas";
+import { kesher, KesherConfigError } from "@/lib/kesher/client";
+import { KESHER_OBLIGATION_STATUS_CODE } from "@/lib/constants";
 
 async function getId(ctx: { params: Promise<Record<string, string>> }) {
   const { id } = await ctx.params;
@@ -23,10 +25,82 @@ export const GET = handler(async (_req, ctx) => {
   return serialize(obligation);
 });
 
+// PATCH edits an obligation AND mirrors the change into Kesher when Kesher owns
+// the hok (it has a kesherObligationReference). We push to Kesher FIRST — if that
+// fails we do NOT touch the local row, so the two sides never drift apart.
 export const PATCH = handler(async (req, ctx) => {
   const id = await getId(ctx);
   const body = await req.json();
   const data = obligationSchema.partial().parse(body);
+
+  const existing = await prisma.obligation.findUnique({
+    where: { id },
+    include: { creditCard: true },
+  });
+  if (!existing) throw new ApiError("התחייבות לא נמצאה", 404);
+
+  const ref = existing.kesherObligationReference;
+  if (ref) {
+    // --- detect which Kesher-relevant fields changed ----------------------
+    const targetStatus = data.status ?? existing.status;
+    const statusChanged = data.status !== undefined && data.status !== existing.status;
+    const amountChanged =
+      data.recurringAmount !== undefined &&
+      Number(data.recurringAmount) !== Number(existing.recurringAmount);
+    const dayChanged =
+      data.chargeDay !== undefined && data.chargeDay !== existing.chargeDay;
+    const dateChanged =
+      data.startDate !== undefined &&
+      new Date(data.startDate).getTime() !== new Date(existing.startDate).getTime();
+    const cardChanged =
+      data.creditCardId !== undefined && data.creditCardId !== existing.creditCardId;
+
+    // 1) amount / day / start-date / status -> UpdateObligation (legacy API).
+    if (statusChanged || amountChanged || dayChanged || dateChanged) {
+      const res = await kesher.updateObligation({
+        obligationReference: ref,
+        sum: Number(data.recurringAmount ?? existing.recurringAmount),
+        chargeDay: (data.chargeDay ?? existing.chargeDay) ?? undefined,
+        startDate: String(data.startDate ?? existing.startDate),
+        status: String(KESHER_OBLIGATION_STATUS_CODE[targetStatus] ?? 1),
+      });
+      if (!res.ok) {
+        throw new ApiError(
+          `עדכון ההוראה בקשר נכשל: ${res.message ?? "שגיאה"}. השינוי לא נשמר כדי לשמור על סנכרון.`,
+          502,
+        );
+      }
+    }
+
+    // 2) credit-card swap -> ChangeChargeOptionForObligation (REST, Bearer token).
+    if (cardChanged && data.creditCardId) {
+      const card = await prisma.creditCard.findUnique({ where: { id: data.creditCardId } });
+      if (!card) throw new ApiError("כרטיס לא נמצא", 404);
+      try {
+        const res = await kesher.changeChargeOptionForObligation({
+          obligationReference: ref,
+          paymentMethod: "credit",
+          token: card.token,
+          cardExpiry: card.expiry ?? undefined,
+        });
+        if (!res.ok) {
+          throw new ApiError(
+            `החלפת הכרטיס בקשר נכשלה: ${res.message ?? "שגיאה"}. השינוי לא נשמר.`,
+            502,
+          );
+        }
+      } catch (e) {
+        if (e instanceof KesherConfigError) {
+          throw new ApiError(
+            "החלפת כרטיס בהוראת קבע דורשת טוקן API של קשר (KESHER_API_TOKEN) שעדיין לא הוגדר.",
+            400,
+          );
+        }
+        throw e;
+      }
+    }
+  }
+
   const obligation = await prisma.obligation.update({
     where: { id },
     data,
@@ -35,8 +109,30 @@ export const PATCH = handler(async (req, ctx) => {
   return serialize(obligation);
 });
 
+// DELETE removes the local record. If Kesher owns the hok, cancel it there FIRST
+// (status 3) so it stops charging — never leave an orphaned live hok behind.
 export const DELETE = handler(async (_req, ctx) => {
   const id = await getId(ctx);
+  const existing = await prisma.obligation.findUnique({ where: { id } });
+  if (!existing) return { ok: true };
+
+  const ref = existing.kesherObligationReference;
+  if (ref && !["cancelled", "finished"].includes(existing.status)) {
+    const res = await kesher.updateObligation({
+      obligationReference: ref,
+      sum: Number(existing.recurringAmount),
+      chargeDay: existing.chargeDay ?? undefined,
+      startDate: String(existing.startDate),
+      status: String(KESHER_OBLIGATION_STATUS_CODE.cancelled), // 3
+    });
+    if (!res.ok) {
+      throw new ApiError(
+        `ביטול ההוראה בקשר נכשל: ${res.message ?? "שגיאה"}. ההתחייבות לא נמחקה כדי למנוע חיוב ממשיך.`,
+        502,
+      );
+    }
+  }
+
   await prisma.obligation.delete({ where: { id } });
   return { ok: true };
 });

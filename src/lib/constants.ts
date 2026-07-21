@@ -18,6 +18,19 @@ export const OBLIGATION_STATUS = {
 } as const;
 export type ObligationStatus = keyof typeof OBLIGATION_STATUS;
 
+// Kesher's numeric obligation-status codes (used when PUSHING changes to Kesher
+// via UpdateObligation). Inverse of OBLIGATION_STATUS_BY_CODE in the webhook.
+export const KESHER_OBLIGATION_STATUS_CODE: Record<string, number> = {
+  active: 1,
+  paused: 2,
+  cancelled: 3,
+  pending_bank_auth: 4,
+  bank_auth_cancelled: 5,
+  payment_method_cancelled: 6,
+  finished: 7,
+  init_error: 8,
+};
+
 export const PAYMENT_METHOD = {
   credit: "כרטיס אשראי",
   bank: "העברה בנקאית / הו״ק",
