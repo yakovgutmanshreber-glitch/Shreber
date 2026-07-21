@@ -486,14 +486,24 @@ export const kesher = {
   /** Change the payment method on an obligation (REST endpoint, Bearer). */
   async changeChargeOptionForObligation(input: ChangeChargeOptionInput): Promise<KesherResult> {
     if (isMockMode()) return mockLegacy({ changed: true });
+    // Exact shape per the API doc (project 1596). type: 1 = credit card, 2 = bank
+    // (verified: the webhook's ChargeOption.Type is 1 for a tokenized card).
+    // accountOrToken = the card token; expiryOrBranch = card expiry (MMYY).
     return requestRest("POST", "/ChangeChargeOptionForObligation", {
       obligationReference: input.obligationReference,
+      CompanyDeveloperMail:
+        input.companyDeveloperMail ?? process.env.KESHER_DEVELOPER_MAIL ?? undefined,
       addChargeOptionRequest: {
         entity: {
-          type: input.paymentMethod === "bank" ? 1 : 2,
+          tz: input.tz ?? null,
+          bank: input.bank ?? null,
+          name: input.name ?? null,
+          type: input.paymentMethod === "bank" ? 2 : 1,
+          limitSum: null,
+          limitDate: null,
+          hasBankAuth: 0,
           accountOrToken: input.token ?? input.cardNumber,
           expiryOrBranch: input.cardExpiry ?? input.branch,
-          bank: input.bank ?? null,
         },
       },
     });

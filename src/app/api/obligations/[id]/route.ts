@@ -90,6 +90,7 @@ export const PATCH = handler(async (req, ctx) => {
           paymentMethod: "credit",
           token: card.token,
           cardExpiry: card.expiry ?? undefined,
+          name: card.holderName ?? undefined,
         });
         if (!res.ok) {
           throw new ApiError(

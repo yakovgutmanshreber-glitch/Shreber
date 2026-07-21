@@ -82,6 +82,9 @@ export interface ChangeChargeOptionInput {
   cvv?: string;
   bank?: string;
   branch?: string;
+  name?: string;
+  tz?: string;
+  companyDeveloperMail?: string;
 }
 
 export interface ChargeNextCollectionInput {
