@@ -53,8 +53,9 @@ export const POST = handler(async (req) => {
 
   // --- amount to send to Kesher --------------------------------------------
   // installments: Total = the full amount, split into numPayments.
-  // recurring:    Total = the per-period amount (first charge now).
+  // recurring:    Total = the per-period (monthly) amount. Kesher owns the hok.
   const chargeAmount = Number(input.recurringAmount);
+  const isRecurring = input.chargeType === "recurring";
   const { useCardId, cardNumber, cardExpiry, cvv, cardHolder, cardBrand, saveCard, ...oblData } = input;
 
   // Customer details so the transaction isn't anonymous in Kesher.
@@ -73,9 +74,14 @@ export const POST = handler(async (req) => {
       cardNumber: newCard ? cardNumber : undefined,
       cardExpiry: newCard ? cardExpiry : savedCardExpiry,
       cvv: newCard ? cvv : undefined,
-      // Only true installment deals split into payments. A recurring (הוראת קבע)
-      // first charge is the monthly amount as a SINGLE charge; one-time is single too.
-      numPayments: input.chargeType === "installments" ? input.numPayments : 1,
+      // recurring (הוראת קבע): CreditType 10 — Kesher creates the hok and charges
+      //   the monthly amount itself every period (numPayments = months, 9999=ongoing).
+      // installments: split the total into numPayments.
+      // one-time: a single charge.
+      creditType: isRecurring ? 10 : undefined,
+      numPayments:
+        isRecurring || input.chargeType === "installments" ? input.numPayments : 1,
+      startDate: isRecurring ? input.startDate : undefined,
       comment: input.comment ?? undefined,
       tz: contact?.tz ?? undefined,
       firstName: contact?.firstName ?? cardHolder,
@@ -106,14 +112,21 @@ export const POST = handler(async (req) => {
 
   // Kesher returns Status:true even for DECLINES ("סירוב") — a real approval has
   // an authorization number. No auth (or an explicit decline) = the charge failed.
+  // Exception: a recurring הוראת קבע may be created WITHOUT an immediate charge
+  // (future start date) — a returned ObligationReference means the hok was set up
+  // successfully; Kesher will charge (and webhook us) on the schedule.
+  const hokCreated = isRecurring && Boolean(oblRef);
+  const explicitDecline = /סירוב|נדח|declin|fail/i.test(res.message ?? "");
   const declined =
-    !res.mock && (!authNum || /סירוב|נדח|declin|fail/i.test(res.message ?? ""));
+    !res.mock && !hokCreated && (!authNum || explicitDecline);
   if (declined) {
     throw new ApiError(
       res.message ? `החיוב נדחה: ${res.message}` : "החיוב נדחה על ידי חברת האשראי",
       402,
     );
   }
+  // Did money actually move now? (Immediate first charge vs. a scheduled hok.)
+  const chargedNow = Boolean(authNum) || Boolean(res.mock);
 
   // --- charge succeeded: save a new card from the returned token -----------
   if (newCard && saveCard && returnedToken && input.contactId) {
@@ -147,27 +160,32 @@ export const POST = handler(async (req) => {
   });
   const obligation = updated;
 
-  const transaction = await prisma.transaction.create({
-    data: {
-      obligationId: obligation.id,
-      contactId: input.contactId ?? null,
-      source: "api",
-      kesherNumTransaction: numTransaction ?? null,
-      uniqNum,
-      amount: chargeAmount,
-      currency: 1,
-      transactionDate: new Date(),
-      transactionType: "debit",
-      chargeOptionType: "credit",
-      statusCode: res.code !== undefined ? Number(res.code) : 4,
-      statusText: res.message ?? (res.mock ? "MOCK" : "עבר בהצלחה"),
-      cardLast4: cardNumber?.replace(/\D/g, "").slice(-4),
-      cardExpiry: cardExpiry,
-      authNum: pick(d, "AuthNum", "OKNum", "AuthCode"),
-      comment: input.comment ?? null,
-      kind: input.kind,
-    },
-  });
+  // Record the first transaction ONLY if a charge actually happened now. For a
+  // future-dated הוראת קבע nothing was charged yet — Kesher will send the first
+  // (and every) transaction via the webhook when it charges.
+  const transaction = chargedNow
+    ? await prisma.transaction.create({
+        data: {
+          obligationId: obligation.id,
+          contactId: input.contactId ?? null,
+          source: "api",
+          kesherNumTransaction: numTransaction ?? null,
+          uniqNum,
+          amount: chargeAmount,
+          currency: 1,
+          transactionDate: new Date(),
+          transactionType: "debit",
+          chargeOptionType: "credit",
+          statusCode: res.code !== undefined ? Number(res.code) : 4,
+          statusText: res.message ?? (res.mock ? "MOCK" : "עבר בהצלחה"),
+          cardLast4: cardNumber?.replace(/\D/g, "").slice(-4),
+          cardExpiry: cardExpiry,
+          authNum: pick(d, "AuthNum", "OKNum", "AuthCode"),
+          comment: input.comment ?? null,
+          kind: input.kind,
+        },
+      })
+    : null;
 
   return serialize({ ok: true, mock: res.mock ?? false, obligation: updated, transaction });
 }, { admin: false });

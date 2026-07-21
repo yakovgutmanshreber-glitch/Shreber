@@ -85,8 +85,6 @@ export function ObligationForm({
 
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [link, setLink] = useState<string | null>(null); // הוראת קבע payment-page link
-  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     api<Category[]>("/api/categories").then(setCategories).catch(() => {});
@@ -100,9 +98,7 @@ export function ObligationForm({
   }
 
   const isCredit = form.paymentMethod === "credit";
-  const chargesViaKesher = !isEdit && isCredit; // new credit obligation → charge Kesher
-  // Credit הוראת קבע (Case A): Kesher owns the hok, set up via its payment page —
-  // the card is entered on Kesher's page, not here.
+  const chargesViaKesher = !isEdit && isCredit; // new credit obligation → charge/set up in Kesher
   const isRecurringCredit = chargesViaKesher && form.chargeType === "recurring";
   // Non-credit payments (מזומן/צ׳ק/העברה/ביט) are always one-time: no charge-type
   // toggle, no installments, no monthly charge day.
@@ -140,17 +136,10 @@ export function ObligationForm({
 
       if (isEdit) {
         await api(`/api/obligations/${obligation!.id}`, { method: "PATCH", body: base });
-      } else if (isRecurringCredit) {
-        // Case A — Kesher owns the hok: create a pending obligation + a
-        // standing-order payment link. Keep the modal open to show the link.
-        const res = await api<{ url: string }>("/api/obligations/create-recurring-link", {
-          method: "POST",
-          body: base,
-        });
-        setLink(res.url);
-        return;
       } else if (isCredit) {
-        // Create the obligation AND charge the card via Kesher.
+        // Path A — create the obligation AND set it up in Kesher. For הוראת קבע
+        // (CreditType 10) Kesher creates the recurring hok and charges it monthly;
+        // one-time / installments charge immediately. All use a saved/new card.
         if (cardMode === "existing" && !selectedCardId) {
           throw new Error("יש לבחור כרטיס לחיוב");
         }
@@ -181,40 +170,6 @@ export function ObligationForm({
     } finally {
       setSaving(false);
     }
-  }
-
-  // הוראת קבע link was generated — show it to send to the donor.
-  if (link) {
-    return (
-      <div className="space-y-4">
-        <div className="rounded-lg bg-green-50 px-4 py-3 text-sm text-green-800">
-          הוראת הקבע נוצרה כממתינה. שלח את הקישור ללקוח (או פתח אותו) — לאחר שיזין את פרטי הכרטיס
-          בעמוד המאובטח של קשר, קשר יקים את ההוראה ותחייב אוטומטית בכל חודש. כל תשלום ייקלט כאן
-          אוטומטית.
-        </div>
-        <div className="flex gap-2">
-          <input className="input font-mono text-xs" dir="ltr" readOnly value={link} />
-          <button
-            type="button"
-            className="btn-secondary whitespace-nowrap"
-            onClick={() => {
-              navigator.clipboard.writeText(link);
-              setCopied(true);
-            }}
-          >
-            {copied ? "הועתק ✓" : "העתק"}
-          </button>
-        </div>
-        <div className="flex justify-end gap-2">
-          <a href={link} target="_blank" rel="noopener noreferrer" className="btn-primary">
-            פתח את עמוד התשלום
-          </a>
-          <button type="button" className="btn-secondary" onClick={onSaved}>
-            סיום
-          </button>
-        </div>
-      </div>
-    );
   }
 
   return (
@@ -374,16 +329,16 @@ export function ObligationForm({
         )}
       </div>
 
-      {/* הוראת קבע: the card is entered on Kesher's page — no card fields here. */}
+      {/* הוראת קבע (Path A): Kesher owns the hok and charges it every month. */}
       {isRecurringCredit && (
         <div className="rounded-xl border border-brand-100 bg-brand-50/40 p-4 text-sm text-gray-600">
-          🔒 עם השמירה ייווצר קישור לעמוד תשלום מאובטח של קשר. הלקוח יזין שם את פרטי הכרטיס פעם
-          אחת, וקשר יקים הוראת קבע ותחייב אוטומטית בכל חודש — פרטי הכרטיס אינם עוברים דרך המערכת.
+          🔁 עם השמירה תיווצר הוראת קבע בקשר עם הכרטיס שנבחר. מרגע זה <b>קשר אחראית</b> על ההוראה
+          ותחייב את הכרטיס אוטומטית בכל חודש. כל תשלום (הצלחה או סירוב) ייקלט כאן אוטומטית דרך ה-Webhook.
         </div>
       )}
 
-      {/* Credit-card selection — one-time / installments only (not הוראת קבע) */}
-      {chargesViaKesher && !isRecurringCredit && (
+      {/* Credit-card selection — for all credit obligations (הוראת קבע / תשלומים / חד פעמי) */}
+      {chargesViaKesher && (
         <div className="rounded-xl border border-brand-100 bg-brand-50/40 p-4">
           <div className="mb-2 text-sm font-semibold text-gray-700">כרטיס לחיוב</div>
 
@@ -493,9 +448,11 @@ export function ObligationForm({
         />
       </div>
 
-      {chargesViaKesher && !isRecurringCredit && (
+      {chargesViaKesher && (
         <p className="text-xs text-amber-600">
-          ⚠️ שמירה תבצע חיוב בפועל בקשר (או חיוב הדמיה במצב Mock) ותרשום את העסקה הראשונה.
+          {isRecurringCredit
+            ? "⚠️ שמירה תקים הוראת קבע בקשר. אם תאריך ההתחלה הוא היום — יבוצע חיוב ראשון מיד."
+            : "⚠️ שמירה תבצע חיוב בפועל בקשר (או חיוב הדמיה במצב Mock) ותרשום את העסקה הראשונה."}
         </p>
       )}
 
@@ -506,13 +463,13 @@ export function ObligationForm({
         </button>
         <button
           type="submit"
-          className={chargesViaKesher && !isRecurringCredit ? "btn-danger" : "btn-primary"}
+          className={chargesViaKesher ? "btn-danger" : "btn-primary"}
           disabled={saving}
         >
           {saving
             ? "מעבד…"
             : isRecurringCredit
-              ? "צור קישור הוראת קבע"
+              ? "הקם הוראת קבע בקשר"
               : chargesViaKesher
                 ? "צור וחייב בקשר"
                 : "שמירה"}

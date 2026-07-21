@@ -341,7 +341,10 @@ export const kesher = {
         NumTransaction: mockNumTransaction(),
         OKNum: `OK${Math.floor(Math.random() * 1e5)}`,
         Token: input.token ?? `MOCKTOK${last4 ?? "0000"}`,
-        ObligationReference: input.numPayments && input.numPayments !== 1 ? `MOCK-OBL-${Date.now()}` : undefined,
+        ObligationReference:
+          input.creditType === 10 || (input.numPayments && input.numPayments !== 1)
+            ? `MOCK-OBL-${Date.now()}`
+            : undefined,
       });
     }
     const creds = await loadCredentials();
@@ -357,14 +360,24 @@ export const kesher = {
     // CreditType 8 + FirstPayment, with NumPayment = payments AFTER the first
     // and Total = FirstPayment + fixed × NumPayment.
     const totalAgorot = Math.round(input.amount * 100);
-    const n = input.numPayments && input.numPayments > 1 ? input.numPayments : 1;
     let creditType = input.creditType ?? 1; // 1 = regular
     let installmentFields: Record<string, unknown> = {};
-    if (n > 1) {
-      creditType = 8; // תשלומים
-      const fixed = Math.floor(totalAgorot / n);
-      const first = totalAgorot - fixed * (n - 1); // first payment absorbs the remainder
-      installmentFields = { NumPayment: n - 1, FirstPayment: first };
+    if (creditType === 10) {
+      // הוראת קבע (standing order): Kesher creates a recurring hok and charges it
+      // itself every period. Total = the per-period amount; NumPayment = number of
+      // periods (9999 = ongoing/unlimited). No FirstPayment split. Optionally
+      // TransactionDate schedules the first charge (future date => charge deferred).
+      const months = input.numPayments && input.numPayments > 0 ? input.numPayments : 9999;
+      installmentFields = { NumPayment: months };
+      if (input.startDate) installmentFields.TransactionDate = dateOnly(input.startDate);
+    } else {
+      const n = input.numPayments && input.numPayments > 1 ? input.numPayments : 1;
+      if (n > 1) {
+        creditType = 8; // תשלומים
+        const fixed = Math.floor(totalAgorot / n);
+        const first = totalAgorot - fixed * (n - 1); // first payment absorbs the remainder
+        installmentFields = { NumPayment: n - 1, FirstPayment: first };
+      }
     }
 
     const tran: Record<string, unknown> = {

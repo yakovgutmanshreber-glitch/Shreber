@@ -31,7 +31,9 @@ export interface SendTransactionInput {
   tz?: string; // Israeli ID for identity verification
   clientRef?: string;
   numPayments?: number;
-  creditType?: number; // Kesher credit deal type (regular / installments / …)
+  creditType?: number; // Kesher credit deal type (regular / installments / הוראת קבע=10)
+  /** For CreditType 10 (הוראת קבע): first-charge / schedule date. */
+  startDate?: Date | string;
   comment?: string;
   // Customer details — sent so the transaction isn't anonymous ("בעילום שם") in Kesher.
   firstName?: string;
