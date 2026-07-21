@@ -9,6 +9,7 @@ interface AdoptResult {
   fetched?: number;
   created?: number;
   updated?: number;
+  cardSaved?: boolean;
 }
 
 // Link an obligation that already exists in Kesher: enter its אסמכתא or a card
@@ -57,6 +58,7 @@ export function KesherAdoptForm({
             </li>
             <li>נמצאו בקשר: {result.fetched} עסקאות</li>
             <li>נוספו: {result.created} · עודכנו: {result.updated}</li>
+            {result.cardSaved && <li>💳 כרטיס האשראי של ההוראה נוסף ונשמר</li>}
           </ul>
           <p className="mt-2 text-xs text-green-700">
             מעתה כל תשלום חדש בהוראה זו ייקלט אוטומטית דרך ה-Webhook.

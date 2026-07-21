@@ -226,6 +226,7 @@ export interface AdoptResult {
   fetched?: number;
   created?: number;
   updated?: number;
+  cardSaved?: boolean;
 }
 
 export async function adoptKesherObligation(opts: {
@@ -358,6 +359,44 @@ export async function adoptKesherObligation(opts: {
   }
   const linkContactId = obligation.contactId ?? contactId;
 
+  // Adopt the hok's CREDIT CARD too: the charge rows carry the card Token (that's
+  // how token-based adopt matches). Save it as a CreditCard for the contact and
+  // link it to the obligation, so future charges/edits can reference a saved card.
+  let cardSaved = false;
+  const cardToken =
+    (isToken ? input : undefined) ??
+    matched.map((r) => s(r.Token)).find((t) => !!t && /^\d{12,}$/.test(t));
+  if (
+    cardToken &&
+    linkContactId &&
+    chargeOptionToEnum(latest.ChargeOptionType) === "credit"
+  ) {
+    let card = await prisma.creditCard.findFirst({
+      where: { contactId: linkContactId, token: cardToken },
+    });
+    if (!card) {
+      const count = await prisma.creditCard.count({ where: { contactId: linkContactId } });
+      card = await prisma.creditCard.create({
+        data: {
+          contactId: linkContactId,
+          token: cardToken,
+          last4: last4(latest.NumCard),
+          expiry: s(latest.ExpireDate),
+          brand: s(latest.CreditCardCompany) ?? s(latest.Brand),
+          holderName: s(latest.CardName) ?? s(latest.Name),
+          isDefault: count === 0,
+        },
+      });
+      cardSaved = true;
+    }
+    if (obligation.creditCardId !== card.id) {
+      obligation = await prisma.obligation.update({
+        where: { id: obligation.id },
+        data: { creditCardId: card.id },
+      });
+    }
+  }
+
   // Import every transaction of the obligation (idempotent by NumTransaction).
   let created = 0;
   let updated = 0;
@@ -406,5 +445,6 @@ export async function adoptKesherObligation(opts: {
     fetched: matched.length,
     created,
     updated,
+    cardSaved,
   };
 }
