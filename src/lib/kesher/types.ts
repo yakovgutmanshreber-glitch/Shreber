@@ -68,6 +68,8 @@ export interface UpdateObligationInput {
   sum?: number;
   chargeDay?: number;
   startDate?: string;
+  numPayments?: number;
+  /** Kesher numeric status: 1 active / 2 paused / 3 cancelled. null/undefined = unchanged. */
   status?: string;
 }
 

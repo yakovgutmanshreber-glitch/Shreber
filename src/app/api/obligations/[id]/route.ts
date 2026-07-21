@@ -62,6 +62,7 @@ export const PATCH = handler(async (req, ctx) => {
         sum: Number(data.recurringAmount ?? existing.recurringAmount),
         chargeDay: (data.chargeDay ?? existing.chargeDay) ?? undefined,
         startDate: String(data.startDate ?? existing.startDate),
+        numPayments: Number(data.numPayments ?? existing.numPayments),
         status: String(KESHER_OBLIGATION_STATUS_CODE[targetStatus] ?? 1),
       });
       if (!res.ok) {
@@ -123,6 +124,7 @@ export const DELETE = handler(async (_req, ctx) => {
       sum: Number(existing.recurringAmount),
       chargeDay: existing.chargeDay ?? undefined,
       startDate: String(existing.startDate),
+      numPayments: Number(existing.numPayments),
       status: String(KESHER_OBLIGATION_STATUS_CODE.cancelled), // 3
     });
     if (!res.ok) {

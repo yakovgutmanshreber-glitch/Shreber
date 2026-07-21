@@ -467,12 +467,18 @@ export const kesher = {
   /** Update sum/date/status of an existing standing order. */
   async updateObligation(input: UpdateObligationInput): Promise<KesherResult> {
     if (isMockMode()) return mockLegacy({ updated: true });
+    // Field NAMES + ORDER matter (WCF schema, verified live against project 1596):
+    // Day, Sum, status, StartDate, NumPayments, ObligationRef — in this order.
+    // `status` is a NUMBER (1 active / 2 paused / 3 cancelled) or null to leave it
+    // unchanged; Sum/Day are strings; Sum is in SHEKELS. Success = Status:true
+    // (Code 944 "פעולה בוצעה בהצלחה"); a missing hok => Code 989, Status:false.
     const obligDetails: Record<string, unknown> = {
-      ObligationReference: input.obligationReference,
-      Sum: input.sum,
-      Day: input.chargeDay,
-      StartDate: dateOnly(input.startDate),
-      Status: input.status,
+      Day: input.chargeDay != null ? String(input.chargeDay) : null,
+      Sum: input.sum != null ? String(input.sum) : null,
+      status: input.status != null && input.status !== "" ? Number(input.status) : null,
+      StartDate: input.startDate ? dateOnly(input.startDate) : null,
+      NumPayments: input.numPayments ?? null,
+      ObligationRef: input.obligationReference,
     };
     return postLegacy("UpdateObligation", { obligDetails });
   },
