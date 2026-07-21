@@ -288,6 +288,7 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
               obligation={obl}
               transactions={txs}
               contactId={contact.id}
+              contactCards={contact.creditCards}
               onChanged={load}
               onClose={() => setOpenOblId(null)}
             />

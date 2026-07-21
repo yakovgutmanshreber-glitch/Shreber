@@ -346,6 +346,34 @@ export function ObligationForm({
             </select>
           )}
         </div>
+
+        {/* Change the card on a Kesher-owned hok → syncs via ChangeChargeOption. */}
+        {isKesherTracked && isCredit && (
+          <div className="sm:col-span-2">
+            <label className="label">כרטיס אשראי</label>
+            {contactCards.length > 0 ? (
+              <select
+                className="input"
+                value={form.creditCardId ?? ""}
+                onChange={(e) => set("creditCardId", e.target.value ? Number(e.target.value) : null)}
+              >
+                {contactCards.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.brand ?? "כרטיס"} •••• {c.last4 ?? "????"}
+                    {c.isDefault ? " (ברירת מחדל)" : ""}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <p className="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500">
+                אין כרטיסים שמורים לאיש קשר זה. הוסף כרטיס דרך "💳 כרטיסי אשראי" ואז בחר אותו כאן.
+              </p>
+            )}
+            <p className="mt-1 text-xs text-gray-400">
+              בחירת כרטיס אחר תעדכן את אמצעי התשלום של הוראת הקבע בקשר.
+            </p>
+          </div>
+        )}
         {!chargesViaKesher && (
           <div>
             <label className="label">סטטוס</label>

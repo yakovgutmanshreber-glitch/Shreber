@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { api } from "@/lib/client";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { ObligationForm, type ObligationData } from "@/components/ObligationForm";
+import { ObligationForm, type ObligationData, type SavedCard } from "@/components/ObligationForm";
 import { TransactionForm, type TransactionData } from "@/components/TransactionForm";
 import { TxStatusBadge, ConfirmButton } from "@/components/ui";
 
@@ -13,12 +13,14 @@ export function ObligationDetailModal({
   obligation,
   transactions,
   contactId,
+  contactCards = [],
   onChanged,
   onClose,
 }: {
   obligation: ObligationData & { id: number };
   transactions: TransactionData[];
   contactId?: number | null;
+  contactCards?: SavedCard[];
   onChanged: () => void; // reload parent data (keeps modal open)
   onClose: () => void; // close the whole popup
 }) {
@@ -49,6 +51,7 @@ export function ObligationDetailModal({
         <ObligationForm
           obligation={obligation}
           fixedContactId={contactId ?? undefined}
+          contactCards={contactCards}
           onSaved={onChanged}
           onCancel={onClose}
         />
