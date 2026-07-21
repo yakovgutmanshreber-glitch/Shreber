@@ -23,6 +23,7 @@ interface Obligation {
   id: number;
   kind: "income" | "expense";
   categoryId: number | null;
+  chargeType?: "recurring" | "installments" | "onetime";
   recurringAmount: number;
   numPayments: number;
   chargeDay: number | null;
@@ -30,6 +31,8 @@ interface Obligation {
   paymentMethod: string;
   startDate: string;
   comment: string | null;
+  creditCardId?: number | null;
+  kesherObligationReference?: string | null;
   category: { category: string } | null;
 }
 interface Transaction {

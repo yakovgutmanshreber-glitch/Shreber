@@ -33,6 +33,7 @@ export interface ObligationData {
   status?: string;
   paymentMethod?: string;
   comment?: string | null;
+  kesherObligationReference?: string | null;
 }
 
 const BRANDS = ["ויזה", "מאסטרקארד", "ישראכרט", "אמריקן אקספרס", "דיינרס"];
@@ -100,6 +101,10 @@ export function ObligationForm({
   const isCredit = form.paymentMethod === "credit";
   const chargesViaKesher = !isEdit && isCredit; // new credit obligation → charge/set up in Kesher
   const isRecurringCredit = chargesViaKesher && form.chargeType === "recurring";
+  // A hok Kesher owns (imported or created via Kesher). Kesher's UpdateObligation
+  // can change only Sum / Day / StartDate / NumPayments / status — NOT the charge
+  // type or payment method. So lock those two when editing such an obligation.
+  const isKesherTracked = isEdit && Boolean(obligation?.kesherObligationReference);
   // Non-credit payments (מזומן/צ׳ק/העברה/ביט) are always one-time: no charge-type
   // toggle, no installments, no monthly charge day.
   const isOnetime = form.chargeType === "onetime" || !isCredit;
@@ -212,8 +217,9 @@ export function ObligationForm({
           </select>
         </div>
 
-        {/* Charge type toggle — credit only. Non-credit is always one-time. */}
-        {isCredit && (
+        {/* Charge type toggle — credit only, and only when NOT a Kesher-owned hok
+            (Kesher can't convert a הוראת קבע to תשלומים etc.). Non-credit = one-time. */}
+        {isCredit && !isKesherTracked && (
           <div className="sm:col-span-2">
             <label className="label">סוג חיוב</label>
             <div className="grid grid-cols-3 gap-2">
@@ -246,6 +252,23 @@ export function ObligationForm({
                   ? "סכום כולל שמחולק למספר תשלומים"
                   : "חיוב יחיד, ללא חזרה"}
             </p>
+          </div>
+        )}
+
+        {/* Kesher owns this hok — charge type is fixed at creation, read-only. */}
+        {isCredit && isKesherTracked && (
+          <div className="sm:col-span-2">
+            <label className="label">סוג חיוב</label>
+            <div className="input flex items-center justify-between bg-gray-50 text-gray-600">
+              <span>
+                {form.chargeType === "recurring"
+                  ? "הוראת קבע"
+                  : form.chargeType === "installments"
+                    ? "תשלומים"
+                    : "חד פעמי"}
+              </span>
+              <span className="text-xs text-gray-400">נקבע בקשר — לא ניתן לשינוי</span>
+            </div>
           </div>
         )}
 
@@ -303,17 +326,25 @@ export function ObligationForm({
         </div>
         <div>
           <label className="label">אמצעי תשלום</label>
-          <select
-            className="input"
-            value={form.paymentMethod}
-            onChange={(e) => set("paymentMethod", e.target.value)}
-          >
-            {Object.entries(PAYMENT_METHOD).map(([v, l]) => (
-              <option key={v} value={v}>
-                {l}
-              </option>
-            ))}
-          </select>
+          {isKesherTracked ? (
+            // Kesher owns the hok — the payment method is fixed at creation.
+            <div className="input flex items-center justify-between bg-gray-50 text-gray-600">
+              <span>{PAYMENT_METHOD[form.paymentMethod as keyof typeof PAYMENT_METHOD] ?? form.paymentMethod}</span>
+              <span className="text-xs text-gray-400">נקבע בקשר — לא ניתן לשינוי</span>
+            </div>
+          ) : (
+            <select
+              className="input"
+              value={form.paymentMethod}
+              onChange={(e) => set("paymentMethod", e.target.value)}
+            >
+              {Object.entries(PAYMENT_METHOD).map(([v, l]) => (
+                <option key={v} value={v}>
+                  {l}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
         {!chargesViaKesher && (
           <div>
