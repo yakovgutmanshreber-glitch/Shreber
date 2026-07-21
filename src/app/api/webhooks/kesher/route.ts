@@ -23,6 +23,10 @@ function toStr(v: unknown): string | undefined {
   return String(v);
 }
 
+function asObject(v: unknown): Record<string, unknown> | undefined {
+  return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : undefined;
+}
+
 /** Kesher `Sum`/`Total` fields are decimal shekels (NOT agorot) per the API docs. */
 function toAmount(v: unknown): number | undefined {
   if (v === undefined || v === null) return undefined;
@@ -96,8 +100,23 @@ export async function POST(req: Request) {
   const inner = (body.Data ?? body.data) as Record<string, unknown> | undefined;
   if (inner && typeof inner === "object") body = { ...body, ...inner };
 
-  const entityType = detectEntity(body);
-  body = unwrapCrm(body); // flatten CrmTransaction/CrmObligation/CrmCustomer wrappers
+  // Kesher's real webhook is a UNIFIED payload with nested Customer / Transaction
+  // / Obligation / ChargeOption objects (verified live 2026-07-21) — NOT the flat
+  // CrmTransaction/CrmObligation shape. Each entity's own field names already
+  // match what the handlers read, so we flatten the present entity onto the top
+  // level and route it. (Old flat/CrmX format still handled as a fallback.)
+  const obl = asObject(body.Obligation);
+  const txn = asObject(body.Transaction);
+  const cust = asObject(body.Customer);
+  const chargeOpt = asObject(body.ChargeOption);
+  const hasNested = Boolean(obl || txn || cust);
+
+  const entityType: "transaction" | "obligation" | "customer" | "unknown" =
+    txn && pick(txn, "NumTransaction") ? "transaction"
+    : obl && pick(obl, "ObligationReference") ? "obligation"
+    : cust && pick(cust, "ClientRef") ? "customer"
+    : detectEntity(body);
+
   const log = await prisma.webhookLog.create({
     data: { entityType, payload: rawText, headers: headersLog, status: "received" },
   });
@@ -105,12 +124,36 @@ export async function POST(req: Request) {
   try {
     // STRICT FILTER: we only save data that belongs to records tracked in OUR
     // system (obligations/contacts we created or already imported, and charges
-    // we initiated). Everything else Kesher pushes is logged as "ignored" —
-    // kept in WebhookLog for audit, but no rows are created.
+    // we initiated). Everything else Kesher pushes is logged as "ignored".
     let outcome: "processed" | "ignored" = "ignored";
-    if (entityType === "customer") outcome = await upsertCustomer(body);
-    else if (entityType === "obligation") outcome = await upsertObligation(body);
-    else if (entityType === "transaction") outcome = await upsertTransaction(body);
+    const mark = (r: "processed" | "ignored") => {
+      if (r === "processed") outcome = "processed";
+    };
+
+    if (hasNested) {
+      // Obligation status/amount/day sync (e.g. a cancel or edit made in Kesher).
+      if (obl && pick(obl, "ObligationReference")) {
+        const flat: Record<string, unknown> = { ...body, ...obl };
+        if (chargeOpt) flat.ChargeOption = chargeOpt; // keep for card sync later
+        mark(await upsertObligation(flat));
+      }
+      // A real charge (Kesher's monthly hok debit, success or סירוב).
+      if (txn && pick(txn, "NumTransaction")) {
+        const flat: Record<string, unknown> = { ...body, ...txn };
+        if (obl && pick(obl, "ObligationReference")) flat.ObligationReference = obl.ObligationReference;
+        mark(await upsertTransaction(flat));
+      }
+      // Customer detail changes.
+      if (cust && pick(cust, "ClientRef")) {
+        mark(await upsertCustomer({ ...body, ...cust }));
+      }
+    } else {
+      // Legacy flat / CrmX payloads.
+      const flat = unwrapCrm(body);
+      if (entityType === "customer") mark(await upsertCustomer(flat));
+      else if (entityType === "obligation") mark(await upsertObligation(flat));
+      else if (entityType === "transaction") mark(await upsertTransaction(flat));
+    }
 
     await prisma.webhookLog.update({ where: { id: log.id }, data: { status: outcome } });
     return NextResponse.json({ ok: true, entityType, outcome });
