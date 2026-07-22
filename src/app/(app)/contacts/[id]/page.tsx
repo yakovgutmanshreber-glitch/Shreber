@@ -207,16 +207,19 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
                   <th className="th"></th>
                 </tr>
               </thead>
-              {oblGroups.map((group) => {
+              {oblGroups.map((group, gi) => {
                 const collapsed = collapsedCats.has(group.category);
                 return (
-                  <tbody
-                    key={group.category}
-                    className="divide-y divide-gray-100 border-t border-gray-200"
-                  >
+                  <tbody key={group.category} className="divide-y divide-gray-100">
+                    {/* Spacer between category groups (visual gap, like cards) */}
+                    {gi > 0 && (
+                      <tr aria-hidden="true">
+                        <td colSpan={8} className="h-5 p-0" />
+                      </tr>
+                    )}
                     {/* Category group header */}
                     <tr
-                      className="cursor-pointer bg-gray-50 hover:bg-gray-100"
+                      className="cursor-pointer border border-gray-200 bg-gray-50 hover:bg-gray-100"
                       onClick={() => toggleCat(group.category)}
                     >
                       <td className="td font-bold" colSpan={8}>
