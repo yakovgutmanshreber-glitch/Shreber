@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/client";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { PAYMENT_METHOD, statusLabel } from "@/lib/constants";
+import { PAYMENT_METHOD, statusLabel, KESHER_SUCCESS_CODES } from "@/lib/constants";
 import {
   Modal,
   ObligationStatusBadge,
@@ -61,6 +61,22 @@ interface Contact extends ContactData {
   creditCards: CreditCard[];
 }
 
+// A charge "passed" (נגבה) when its Kesher status is a settled/approved code;
+// it "failed" (לא עבר) on a decline (סירוב) or a known failure status.
+const TX_FAILED_CODES = new Set([5, 6, 7, 9, 14, 15, 16, 23]);
+function txPassed(t: Transaction): boolean {
+  return t.statusCode != null && KESHER_SUCCESS_CODES.has(t.statusCode);
+}
+function txFailed(t: Transaction): boolean {
+  if (txPassed(t)) return false;
+  const st = t.statusText ?? "";
+  if (/סירוב|נדח|נכשל|בוטל/.test(st) || /declin|fail/i.test(st)) return true;
+  return t.statusCode != null && TX_FAILED_CODES.has(t.statusCode);
+}
+function sum(txs: Transaction[]): number {
+  return txs.reduce((s, t) => s + Number(t.amount), 0);
+}
+
 export default function ContactProfile({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
@@ -110,11 +126,21 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
       if (!map.has(cat)) map.set(cat, []);
       map.get(cat)!.push(o);
     }
-    return Array.from(map.entries()).map(([category, obligations]) => ({
-      category,
-      obligations,
-      total: obligations.reduce((s, o) => s + Number(o.recurringAmount), 0),
-    }));
+    return Array.from(map.entries()).map(([category, obligations]) => {
+      const ids = new Set(obligations.map((o) => o.id));
+      const txs = contact.transactions.filter((t) => t.obligationId != null && ids.has(t.obligationId));
+      const passed = txs.filter(txPassed);
+      const failed = txs.filter(txFailed);
+      return {
+        category,
+        obligations,
+        total: obligations.reduce((s, o) => s + Number(o.recurringAmount), 0),
+        collected: sum(passed),
+        passedCount: passed.length,
+        failedTotal: sum(failed),
+        failedCount: failed.length,
+      };
+    });
   })();
 
   const income = contact.transactions
@@ -213,8 +239,17 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
                         ({group.obligations.length})
                       </span>
                     </span>
-                    <span className="text-sm font-normal text-gray-500">
-                      סך הכל: {formatCurrency(group.total)}
+                    <span className="flex flex-wrap items-center justify-end gap-x-4 gap-y-0.5 text-sm font-normal">
+                      <span className="text-gray-500">
+                        נגבה:{" "}
+                        <b className="text-gray-700">{formatCurrency(group.collected)}</b>
+                        <span className="mr-1 text-xs text-gray-400">({group.passedCount} עברו)</span>
+                      </span>
+                      {group.failedCount > 0 && (
+                        <span className="text-red-600">
+                          לא עבר: ({group.failedCount}) {formatCurrency(group.failedTotal)}
+                        </span>
+                      )}
                     </span>
                   </button>
 
@@ -229,7 +264,8 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
                             <th className="th">סכום</th>
                             <th className="th">תשלומים</th>
                             <th className="th">אמצעי</th>
-                            <th className="th">עסקאות</th>
+                            <th className="th">נגבה</th>
+                            <th className="th">לא עבר</th>
                             <th className="th">סטטוס</th>
                             <th className="th"></th>
                           </tr>
@@ -237,7 +273,8 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
                         <tbody className="divide-y divide-gray-100">
                           {group.obligations.map((o) => {
                             const txs = contact.transactions.filter((t) => t.obligationId === o.id);
-                            const txTotal = txs.reduce((s, t) => s + Number(t.amount), 0);
+                            const passedTxs = txs.filter(txPassed);
+                            const failedTxs = txs.filter(txFailed);
                             return (
                               <tr
                                 key={o.id}
@@ -250,9 +287,16 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
                                 <td className="td">{o.numPayments === 9999 ? "∞" : o.numPayments}</td>
                                 <td className="td">{statusLabel(PAYMENT_METHOD, o.paymentMethod)}</td>
                                 <td className="td">
-                                  {txs.length}
-                                  {txs.length > 0 && (
-                                    <span className="mr-1 text-xs text-gray-400">({formatCurrency(txTotal)})</span>
+                                  {formatCurrency(sum(passedTxs))}
+                                  <span className="mr-1 text-xs text-gray-400">({passedTxs.length} עברו)</span>
+                                </td>
+                                <td className="td">
+                                  {failedTxs.length > 0 ? (
+                                    <span className="text-red-600">
+                                      ({failedTxs.length}) {formatCurrency(sum(failedTxs))}
+                                    </span>
+                                  ) : (
+                                    <span className="text-gray-300">—</span>
                                   )}
                                 </td>
                                 <td className="td">
