@@ -240,10 +240,8 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
                       </span>
                     </span>
                     <span className="flex flex-wrap items-center justify-end gap-x-4 gap-y-0.5 text-sm font-normal">
-                      <span className="text-gray-500">
-                        נגבה:{" "}
-                        <b className="text-gray-700">{formatCurrency(group.collected)}</b>
-                        <span className="mr-1 text-xs text-gray-400">({group.passedCount} עברו)</span>
+                      <span className="text-green-600">
+                        עברו: ({group.passedCount}) {formatCurrency(group.collected)}
                       </span>
                       {group.failedCount > 0 && (
                         <span className="text-red-600">
@@ -260,11 +258,10 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
                         <thead className="border-b border-gray-200">
                           <tr>
                             <th className="th">סוג</th>
-                            <th className="th">קטגוריה</th>
                             <th className="th">סכום</th>
                             <th className="th">תשלומים</th>
                             <th className="th">אמצעי</th>
-                            <th className="th">נגבה</th>
+                            <th className="th">עברו</th>
                             <th className="th">לא עבר</th>
                             <th className="th">סטטוס</th>
                             <th className="th"></th>
@@ -282,13 +279,17 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
                                 onClick={() => setOpenOblId(o.id)}
                               >
                                 <td className="td">{o.kind === "income" ? "הכנסה" : "הוצאה"}</td>
-                                <td className="td font-medium">{o.category?.category ?? "—"}</td>
                                 <td className="td">{formatCurrency(o.recurringAmount)}</td>
                                 <td className="td">{o.numPayments === 9999 ? "∞" : o.numPayments}</td>
                                 <td className="td">{statusLabel(PAYMENT_METHOD, o.paymentMethod)}</td>
                                 <td className="td">
-                                  {formatCurrency(sum(passedTxs))}
-                                  <span className="mr-1 text-xs text-gray-400">({passedTxs.length} עברו)</span>
+                                  {passedTxs.length > 0 ? (
+                                    <span className="text-green-600">
+                                      ({passedTxs.length}) {formatCurrency(sum(passedTxs))}
+                                    </span>
+                                  ) : (
+                                    <span className="text-gray-300">—</span>
+                                  )}
                                 </td>
                                 <td className="td">
                                   {failedTxs.length > 0 ? (
@@ -302,7 +303,7 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
                                 <td className="td">
                                   <ObligationStatusBadge status={o.status} />
                                 </td>
-                                <td className="td text-left text-brand-600">פתח ‹</td>
+                                <td className="td text-left text-brand-600">‹</td>
                               </tr>
                             );
                           })}
