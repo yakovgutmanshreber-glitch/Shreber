@@ -34,6 +34,7 @@ export default function SpecialDonationsPage() {
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Row | null>(null);
+  const [filterParsha, setFilterParsha] = useState(""); // "" = all weeks
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -73,6 +74,10 @@ export default function SpecialDonationsPage() {
     });
   }
 
+  // Distinct parsha names present in the data (for the filter dropdown).
+  const parshaOptions = [...new Set(groups.map((g) => g.parsha))];
+  const shown = filterParsha ? groups.filter((g) => g.parsha === filterParsha) : groups;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -83,15 +88,31 @@ export default function SpecialDonationsPage() {
             משויכת לשבוע הנוכחי ומקושרת לאיש קשר
           </p>
         </div>
-        <button
-          className="btn-primary"
-          onClick={() => {
-            setEditing(null);
-            setOpen(true);
-          }}
-        >
-          + הוספת תרומה
-        </button>
+        <div className="flex items-center gap-2">
+          {parshaOptions.length > 0 && (
+            <select
+              className="input max-w-[16rem]"
+              value={filterParsha}
+              onChange={(e) => setFilterParsha(e.target.value)}
+            >
+              <option value="">כל הפרשות</option>
+              {parshaOptions.map((p) => (
+                <option key={p} value={p}>
+                  פרשת {p}
+                </option>
+              ))}
+            </select>
+          )}
+          <button
+            className="btn-primary whitespace-nowrap"
+            onClick={() => {
+              setEditing(null);
+              setOpen(true);
+            }}
+          >
+            + הוספת תרומה
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -100,7 +121,7 @@ export default function SpecialDonationsPage() {
         <EmptyState message="אין עדיין תרומות מיוחדות. הוסף רשומה ראשונה לשבוע זה." />
       ) : (
         <div className="space-y-4">
-          {groups.map((g) => (
+          {shown.map((g) => (
             <div key={g.key} className="card overflow-hidden">
               <div className="flex items-center justify-between bg-gray-50 px-4 py-3">
                 <span className="font-bold text-gray-800">
