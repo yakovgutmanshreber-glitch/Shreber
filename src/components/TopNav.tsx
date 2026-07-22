@@ -9,6 +9,7 @@ const NAV = [
   { href: "/income", label: "הכנסות" },
   { href: "/expenses", label: "הוצאות" },
   { href: "/categories", label: "קטגוריות" },
+  { href: "/special-donations", label: "תרומות מיוחדות" },
   { href: "/reports", label: "דוחות" },
 ];
 

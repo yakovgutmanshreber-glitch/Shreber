@@ -79,8 +79,29 @@ model Contact {
   obligations     Obligation[]
   transactions    Transaction[]
   creditCards     CreditCard[]
+  specialDonations SpecialDonation[]
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+// תרומות מיוחדות — special donations, organized by the weekly Torah portion
+// (parsha). Each record links to a Contact and is tagged to a parsha week.
+model SpecialDonation {
+  id           Int      @id @default(autoincrement())
+  contactId    Int
+  contact      Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  parsha       String // Hebrew parsha name, e.g. "ואתחנן"
+  parshaDate   DateTime // the week's Shabbat date — for ordering + year disambiguation
+  occasion     String? // לרגל (dropdown value)
+  amount       Decimal  @default(0) // סכום
+  donationType String? // סוג (dropdown value)
+  entryDate    DateTime @default(now()) // the date field
+  note         String? // הערה
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([contactId])
+  @@index([parshaDate])
 }
 
 // Saved payment methods — TOKENIZED. We intentionally store ONLY a Kesher token

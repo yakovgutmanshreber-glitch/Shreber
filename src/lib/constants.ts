@@ -40,6 +40,28 @@ export const PAYMENT_METHOD = {
 } as const;
 export type PaymentMethod = keyof typeof PAYMENT_METHOD;
 
+// תרומות מיוחדות dropdowns — STARTER options (adjust to taste).
+export const LEREGEL_OPTIONS = [
+  "לעילוי נשמת",
+  "רפואה שלמה",
+  "הצלחה",
+  "זיווג הגון",
+  "פרנסה טובה",
+  "לידה",
+  "בר מצווה",
+  "חתונה",
+  "יום הולדת",
+  "הכרת הטוב",
+] as const;
+
+export const DONATION_TYPE_OPTIONS = [
+  "נדר",
+  "נדבה",
+  "מעשר",
+  "תרומה",
+  "צדקה",
+] as const;
+
 export const TRANSACTION_TYPE = {
   debit: "חיוב",
   credit: "זיכוי",

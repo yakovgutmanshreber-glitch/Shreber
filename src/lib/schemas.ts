@@ -134,3 +134,14 @@ export const creditCardSchema = z.object({
   label: optionalString,
   isDefault: z.boolean().optional().default(false),
 });
+
+// תרומות מיוחדות — special donation record (linked to a contact, tagged to a
+// parsha week). The server fills parsha/parshaDate from the current week.
+export const specialDonationSchema = z.object({
+  contactId: z.coerce.number().int().positive(),
+  occasion: optionalString, // לרגל
+  amount: z.coerce.number().min(0).default(0), // סכום
+  donationType: optionalString, // סוג
+  entryDate: z.coerce.date().optional(),
+  note: optionalString, // הערה
+});
