@@ -71,6 +71,15 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
   const [cardsOpen, setCardsOpen] = useState(false);
   const [adoptOpen, setAdoptOpen] = useState(false);
   const [openOblId, setOpenOblId] = useState<number | null>(null);
+  // Collapsed category groups in the obligations table (by category name).
+  const [collapsedCats, setCollapsedCats] = useState<Set<string>>(new Set());
+  const toggleCat = (cat: string) =>
+    setCollapsedCats((prev) => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -90,6 +99,23 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
 
   if (loading) return <div className="card p-8 text-center text-gray-400">טוען…</div>;
   if (!contact) return <EmptyState message="איש קשר לא נמצא" />;
+
+  // Group obligations by category for the table (— => "ללא קטגוריה"), preserving
+  // first-seen order. Each group carries the count + total amount for its header.
+  const NO_CATEGORY = "ללא קטגוריה";
+  const oblGroups = (() => {
+    const map = new Map<string, Contact["obligations"]>();
+    for (const o of contact.obligations) {
+      const cat = o.category?.category ?? NO_CATEGORY;
+      if (!map.has(cat)) map.set(cat, []);
+      map.get(cat)!.push(o);
+    }
+    return Array.from(map.entries()).map(([category, obligations]) => ({
+      category,
+      obligations,
+      total: obligations.reduce((s, o) => s + Number(o.recurringAmount), 0),
+    }));
+  })();
 
   const income = contact.transactions
     .filter((t) => t.kind === "income")
@@ -181,35 +207,64 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
                   <th className="th"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
-                {contact.obligations.map((o) => {
-                  const txs = contact.transactions.filter((t) => t.obligationId === o.id);
-                  const txTotal = txs.reduce((s, t) => s + Number(t.amount), 0);
-                  return (
+              {oblGroups.map((group) => {
+                const collapsed = collapsedCats.has(group.category);
+                return (
+                  <tbody
+                    key={group.category}
+                    className="divide-y divide-gray-100 border-t border-gray-200"
+                  >
+                    {/* Category group header */}
                     <tr
-                      key={o.id}
-                      className="cursor-pointer hover:bg-gray-50"
-                      onClick={() => setOpenOblId(o.id)}
+                      className="cursor-pointer bg-gray-50 hover:bg-gray-100"
+                      onClick={() => toggleCat(group.category)}
                     >
-                      <td className="td">{o.kind === "income" ? "הכנסה" : "הוצאה"}</td>
-                      <td className="td font-medium">{o.category?.category ?? "—"}</td>
-                      <td className="td">{formatCurrency(o.recurringAmount)}</td>
-                      <td className="td">{o.numPayments === 9999 ? "∞" : o.numPayments}</td>
-                      <td className="td">{statusLabel(PAYMENT_METHOD, o.paymentMethod)}</td>
-                      <td className="td">
-                        {txs.length}
-                        {txs.length > 0 && (
-                          <span className="mr-1 text-xs text-gray-400">({formatCurrency(txTotal)})</span>
-                        )}
+                      <td className="td font-bold" colSpan={8}>
+                        <div className="flex items-center justify-between">
+                          <span className="flex items-center gap-2">
+                            <span className="text-gray-400">{collapsed ? "▸" : "▾"}</span>
+                            {group.category}
+                            <span className="text-xs font-normal text-gray-400">
+                              ({group.obligations.length})
+                            </span>
+                          </span>
+                          <span className="text-sm font-normal text-gray-500">
+                            סך הכל: {formatCurrency(group.total)}
+                          </span>
+                        </div>
                       </td>
-                      <td className="td">
-                        <ObligationStatusBadge status={o.status} />
-                      </td>
-                      <td className="td text-left text-brand-600">פתח ‹</td>
                     </tr>
-                  );
-                })}
-              </tbody>
+                    {!collapsed &&
+                      group.obligations.map((o) => {
+                        const txs = contact.transactions.filter((t) => t.obligationId === o.id);
+                        const txTotal = txs.reduce((s, t) => s + Number(t.amount), 0);
+                        return (
+                          <tr
+                            key={o.id}
+                            className="cursor-pointer hover:bg-gray-50"
+                            onClick={() => setOpenOblId(o.id)}
+                          >
+                            <td className="td">{o.kind === "income" ? "הכנסה" : "הוצאה"}</td>
+                            <td className="td font-medium">{o.category?.category ?? "—"}</td>
+                            <td className="td">{formatCurrency(o.recurringAmount)}</td>
+                            <td className="td">{o.numPayments === 9999 ? "∞" : o.numPayments}</td>
+                            <td className="td">{statusLabel(PAYMENT_METHOD, o.paymentMethod)}</td>
+                            <td className="td">
+                              {txs.length}
+                              {txs.length > 0 && (
+                                <span className="mr-1 text-xs text-gray-400">({formatCurrency(txTotal)})</span>
+                              )}
+                            </td>
+                            <td className="td">
+                              <ObligationStatusBadge status={o.status} />
+                            </td>
+                            <td className="td text-left text-brand-600">פתח ‹</td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                );
+              })}
             </table>
           </div>
         )}
