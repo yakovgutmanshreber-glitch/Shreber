@@ -193,82 +193,82 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
         {contact.obligations.length === 0 ? (
           <p className="text-sm text-gray-400">אין התחייבויות</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="border-b border-gray-200">
-                <tr>
-                  <th className="th">סוג</th>
-                  <th className="th">קטגוריה</th>
-                  <th className="th">סכום</th>
-                  <th className="th">תשלומים</th>
-                  <th className="th">אמצעי</th>
-                  <th className="th">עסקאות</th>
-                  <th className="th">סטטוס</th>
-                  <th className="th"></th>
-                </tr>
-              </thead>
-              {oblGroups.map((group, gi) => {
-                const collapsed = collapsedCats.has(group.category);
-                return (
-                  <tbody key={group.category} className="divide-y divide-gray-100">
-                    {/* Spacer between category groups (visual gap, like cards) */}
-                    {gi > 0 && (
-                      <tr aria-hidden="true">
-                        <td colSpan={8} className="h-5 p-0" />
-                      </tr>
-                    )}
-                    {/* Category group header */}
-                    <tr
-                      className="cursor-pointer border border-gray-200 bg-gray-50 hover:bg-gray-100"
-                      onClick={() => toggleCat(group.category)}
-                    >
-                      <td className="td font-bold" colSpan={8}>
-                        <div className="flex items-center justify-between">
-                          <span className="flex items-center gap-2">
-                            <span className="text-gray-400">{collapsed ? "▸" : "▾"}</span>
-                            {group.category}
-                            <span className="text-xs font-normal text-gray-400">
-                              ({group.obligations.length})
-                            </span>
-                          </span>
-                          <span className="text-sm font-normal text-gray-500">
-                            סך הכל: {formatCurrency(group.total)}
-                          </span>
-                        </div>
-                      </td>
-                    </tr>
-                    {!collapsed &&
-                      group.obligations.map((o) => {
-                        const txs = contact.transactions.filter((t) => t.obligationId === o.id);
-                        const txTotal = txs.reduce((s, t) => s + Number(t.amount), 0);
-                        return (
-                          <tr
-                            key={o.id}
-                            className="cursor-pointer hover:bg-gray-50"
-                            onClick={() => setOpenOblId(o.id)}
-                          >
-                            <td className="td">{o.kind === "income" ? "הכנסה" : "הוצאה"}</td>
-                            <td className="td font-medium">{o.category?.category ?? "—"}</td>
-                            <td className="td">{formatCurrency(o.recurringAmount)}</td>
-                            <td className="td">{o.numPayments === 9999 ? "∞" : o.numPayments}</td>
-                            <td className="td">{statusLabel(PAYMENT_METHOD, o.paymentMethod)}</td>
-                            <td className="td">
-                              {txs.length}
-                              {txs.length > 0 && (
-                                <span className="mr-1 text-xs text-gray-400">({formatCurrency(txTotal)})</span>
-                              )}
-                            </td>
-                            <td className="td">
-                              <ObligationStatusBadge status={o.status} />
-                            </td>
-                            <td className="td text-left text-brand-600">פתח ‹</td>
+          <div className="space-y-4">
+            {oblGroups.map((group) => {
+              const collapsed = collapsedCats.has(group.category);
+              return (
+                // Each category is its own card (border + shadow), fully wrapping
+                // its header and rows, with a gap between cards.
+                <div key={group.category} className="card overflow-hidden">
+                  {/* Card header — category name, count, total, expand arrow */}
+                  <button
+                    type="button"
+                    onClick={() => toggleCat(group.category)}
+                    className="flex w-full items-center justify-between bg-gray-50 px-4 py-3 text-right hover:bg-gray-100"
+                  >
+                    <span className="flex items-center gap-2 font-bold text-gray-800">
+                      <span className="text-gray-400">{collapsed ? "▸" : "▾"}</span>
+                      {group.category}
+                      <span className="text-xs font-normal text-gray-400">
+                        ({group.obligations.length})
+                      </span>
+                    </span>
+                    <span className="text-sm font-normal text-gray-500">
+                      סך הכל: {formatCurrency(group.total)}
+                    </span>
+                  </button>
+
+                  {/* Card body — the obligation rows, inside the same card */}
+                  {!collapsed && (
+                    <div className="overflow-x-auto border-t border-gray-200">
+                      <table className="w-full">
+                        <thead className="border-b border-gray-200">
+                          <tr>
+                            <th className="th">סוג</th>
+                            <th className="th">קטגוריה</th>
+                            <th className="th">סכום</th>
+                            <th className="th">תשלומים</th>
+                            <th className="th">אמצעי</th>
+                            <th className="th">עסקאות</th>
+                            <th className="th">סטטוס</th>
+                            <th className="th"></th>
                           </tr>
-                        );
-                      })}
-                  </tbody>
-                );
-              })}
-            </table>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {group.obligations.map((o) => {
+                            const txs = contact.transactions.filter((t) => t.obligationId === o.id);
+                            const txTotal = txs.reduce((s, t) => s + Number(t.amount), 0);
+                            return (
+                              <tr
+                                key={o.id}
+                                className="cursor-pointer hover:bg-gray-50"
+                                onClick={() => setOpenOblId(o.id)}
+                              >
+                                <td className="td">{o.kind === "income" ? "הכנסה" : "הוצאה"}</td>
+                                <td className="td font-medium">{o.category?.category ?? "—"}</td>
+                                <td className="td">{formatCurrency(o.recurringAmount)}</td>
+                                <td className="td">{o.numPayments === 9999 ? "∞" : o.numPayments}</td>
+                                <td className="td">{statusLabel(PAYMENT_METHOD, o.paymentMethod)}</td>
+                                <td className="td">
+                                  {txs.length}
+                                  {txs.length > 0 && (
+                                    <span className="mr-1 text-xs text-gray-400">({formatCurrency(txTotal)})</span>
+                                  )}
+                                </td>
+                                <td className="td">
+                                  <ObligationStatusBadge status={o.status} />
+                                </td>
+                                <td className="td text-left text-brand-600">פתח ‹</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 
