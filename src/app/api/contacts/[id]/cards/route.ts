@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { handler, serialize, ApiError } from "@/lib/api";
 import { creditCardSchema, cardEntrySchema } from "@/lib/schemas";
-import { kesher } from "@/lib/kesher/client";
+import { kesher, looksLikeCardNumber } from "@/lib/kesher/client";
 
 /** Best-effort card brand from the number's BIN — display only. */
 function brandFromNumber(num: string): string | null {
@@ -63,6 +63,12 @@ export const POST = handler(async (req, ctx) => {
     };
   } else {
     const parsed = creditCardSchema.parse(body);
+    if (looksLikeCardNumber(parsed.token)) {
+      throw new ApiError(
+        "הערך שהוזן נראה כמו מספר כרטיס ולא כטוקן. יש להזין את פרטי הכרטיס (מספר/תוקף) כדי שקשר יאמת ויחזיר טוקן.",
+        400,
+      );
+    }
     data = {
       token: parsed.token,
       last4: parsed.last4,

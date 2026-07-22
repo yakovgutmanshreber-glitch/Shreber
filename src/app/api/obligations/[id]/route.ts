@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { handler, serialize, ApiError } from "@/lib/api";
 import { obligationSchema } from "@/lib/schemas";
-import { kesher, KesherConfigError } from "@/lib/kesher/client";
+import { kesher, KesherConfigError, looksLikeCardNumber } from "@/lib/kesher/client";
 import { KESHER_OBLIGATION_STATUS_CODE } from "@/lib/constants";
 
 async function getId(ctx: { params: Promise<Record<string, string>> }) {
@@ -84,6 +84,12 @@ export const PATCH = handler(async (req, ctx) => {
     if (cardChanged && data.creditCardId) {
       const card = await prisma.creditCard.findUnique({ where: { id: data.creditCardId } });
       if (!card) throw new ApiError("כרטיס לא נמצא", 404);
+      if (looksLikeCardNumber(card.token)) {
+        throw new ApiError(
+          "לכרטיס זה נשמר מספר כרטיס במקום טוקן תקין של קשר, ולכן לא ניתן להחליף אליו. יש למחוק אותו ולהוסיף מחדש דרך 'כרטיסי אשראי' (הכרטיס יאומת ויקבל טוקן).",
+          400,
+        );
+      }
       try {
         const res = await kesher.changeChargeOptionForObligation({
           obligationReference: ref,

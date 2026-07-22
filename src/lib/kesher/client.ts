@@ -108,6 +108,30 @@ function dateOnly(v?: string | Date | null): string | undefined {
 }
 
 /**
+ * True if a value is almost certainly a raw card number (PAN) rather than a
+ * Kesher token. Real Kesher tokens are ~17 digits, start with "0", and do NOT
+ * pass the Luhn checksum; a PAN is 13–16 digits and DOES pass Luhn. Used to
+ * reject a card number stored where a token belongs (PCI hygiene + avoids
+ * Kesher's cryptic "אמצעי תשלום לא תקין").
+ */
+export function looksLikeCardNumber(v: string | null | undefined): boolean {
+  const d = String(v ?? "").replace(/\D/g, "");
+  if (d.length < 13 || d.length > 16) return false;
+  let sum = 0;
+  let alt = false;
+  for (let i = d.length - 1; i >= 0; i--) {
+    let n = Number(d[i]);
+    if (alt) {
+      n *= 2;
+      if (n > 9) n -= 9;
+    }
+    sum += n;
+    alt = !alt;
+  }
+  return sum % 10 === 0;
+}
+
+/**
  * Kesher expects the card expiry as YYMM (year-then-month). Our UI collects it
  * as MMYY (the order printed on cards), so convert here: "1130" -> "3011".
  */
