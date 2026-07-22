@@ -47,6 +47,11 @@ export const obligationSchema = z.object({
     ])
     .default("active"),
   paymentMethod: z.enum(["credit", "bank", "cash", "check", "bit"]).default("credit"),
+  // Bank / check details (for bank-transfer, הו״ק, and check payments).
+  bank: optionalString,
+  branch: optionalString,
+  account: optionalString,
+  checkNumber: optionalString,
   comment: optionalString,
 });
 

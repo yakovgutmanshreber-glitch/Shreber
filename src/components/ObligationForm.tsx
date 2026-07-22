@@ -32,6 +32,10 @@ export interface ObligationData {
   startDate?: string;
   status?: string;
   paymentMethod?: string;
+  bank?: string | null;
+  branch?: string | null;
+  account?: string | null;
+  checkNumber?: string | null;
   comment?: string | null;
   kesherObligationReference?: string | null;
 }
@@ -64,7 +68,7 @@ export function ObligationForm({
       numPayments: 9999,
       startDate: new Date().toISOString().slice(0, 10),
       status: "active",
-      paymentMethod: "credit",
+      paymentMethod: "cash",
     },
   );
 
@@ -347,6 +351,46 @@ export function ObligationForm({
           )}
         </div>
 
+        {/* Check payment: check number + bank/branch/account. */}
+        {form.paymentMethod === "check" && (
+          <div className="sm:col-span-2 grid grid-cols-2 gap-3 rounded-xl border border-gray-200 bg-gray-50/50 p-3">
+            <div>
+              <label className="label">מספר צ׳ק</label>
+              <input className="input" value={form.checkNumber ?? ""} onChange={(e) => set("checkNumber", e.target.value)} />
+            </div>
+            <div>
+              <label className="label">בנק</label>
+              <input className="input" value={form.bank ?? ""} onChange={(e) => set("bank", e.target.value)} />
+            </div>
+            <div>
+              <label className="label">סניף</label>
+              <input className="input" value={form.branch ?? ""} onChange={(e) => set("branch", e.target.value)} />
+            </div>
+            <div>
+              <label className="label">מספר חשבון</label>
+              <input className="input" value={form.account ?? ""} onChange={(e) => set("account", e.target.value)} />
+            </div>
+          </div>
+        )}
+
+        {/* Bank transfer / הו״ק: bank/branch/account only. */}
+        {form.paymentMethod === "bank" && (
+          <div className="sm:col-span-2 grid grid-cols-3 gap-3 rounded-xl border border-gray-200 bg-gray-50/50 p-3">
+            <div>
+              <label className="label">בנק</label>
+              <input className="input" value={form.bank ?? ""} onChange={(e) => set("bank", e.target.value)} />
+            </div>
+            <div>
+              <label className="label">סניף</label>
+              <input className="input" value={form.branch ?? ""} onChange={(e) => set("branch", e.target.value)} />
+            </div>
+            <div>
+              <label className="label">מספר חשבון</label>
+              <input className="input" value={form.account ?? ""} onChange={(e) => set("account", e.target.value)} />
+            </div>
+          </div>
+        )}
+
         {/* Change the card on a Kesher-owned hok → syncs via ChangeChargeOption. */}
         {isKesherTracked && isCredit && (
           <div className="sm:col-span-2">
@@ -374,7 +418,8 @@ export function ObligationForm({
             </p>
           </div>
         )}
-        {!chargesViaKesher && (
+        {/* Status is set from Kesher's results — only expose it when EDITING. */}
+        {isEdit && (
           <div>
             <label className="label">סטטוס</label>
             <select className="input" value={form.status} onChange={(e) => set("status", e.target.value)}>

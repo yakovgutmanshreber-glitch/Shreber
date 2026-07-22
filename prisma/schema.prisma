@@ -141,6 +141,11 @@ model Obligation {
   // 'active'|'paused'|'cancelled'|'pending_bank_auth'|'bank_auth_cancelled'
   // |'payment_method_cancelled'|'finished'|'init_error'
   paymentMethod             String       @default("credit") // 'credit'|'bank'|'cash'|'check'|'bit'
+  // Bank details for bank-transfer / הו״ק, and check payments (+ checkNumber).
+  bank                      String?
+  branch                    String?
+  account                   String?
+  checkNumber               String?
   comment                   String?
   transactions              Transaction[]
   createdAt                 DateTime     @default(now())
