@@ -32,6 +32,7 @@ interface Row {
   donationType: string | null;
   entryDate: string;
   note: string | null;
+  obligationId: number | null;
 }
 
 const fullName = (c: { firstName: string; lastName: string | null }) =>
@@ -80,6 +81,17 @@ export default function SpecialDonationsPage() {
   async function remove(id: number) {
     await api(`/api/special-donations/${id}`, { method: "DELETE" });
     load();
+  }
+
+  async function toggleObligation(r: Row) {
+    try {
+      await api(`/api/special-donations/${r.id}/obligation`, {
+        method: r.obligationId ? "DELETE" : "POST",
+      });
+      load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "שגיאה");
+    }
   }
 
   // Group records by גליון (category), ordered by the gilyonot list (latest first).
@@ -172,6 +184,7 @@ export default function SpecialDonationsPage() {
                       <th className="th">סכום</th>
                       <th className="th">תאריך</th>
                       <th className="th">הערה</th>
+                      <th className="th">התחייב לשלם</th>
                       <th className="th"></th>
                     </tr>
                   </thead>
@@ -184,6 +197,18 @@ export default function SpecialDonationsPage() {
                         <td className="td">{formatCurrency(r.amount)}</td>
                         <td className="td">{formatDate(r.entryDate)}</td>
                         <td className="td text-gray-500">{r.note ?? "—"}</td>
+                        <td className="td">
+                          <label className="flex items-center gap-2" title="יצירת התחייבות לתשלום">
+                            <input
+                              type="checkbox"
+                              checked={!!r.obligationId}
+                              onChange={() => toggleObligation(r)}
+                            />
+                            {r.obligationId && (
+                              <span className="text-xs text-green-600">✓ נוצרה התחייבות</span>
+                            )}
+                          </label>
+                        </td>
                         <td className="td text-left">
                           <div className="flex justify-end gap-3">
                             <button

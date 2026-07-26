@@ -108,6 +108,7 @@ model SpecialDonation {
   donationType String? // סוג (dropdown value)
   entryDate    DateTime @default(now()) // the date field
   note         String? // הערה
+  obligationId Int?     @unique // set when converted into an Obligation (accepted to pay)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
