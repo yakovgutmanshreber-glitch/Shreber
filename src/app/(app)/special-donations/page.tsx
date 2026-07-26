@@ -3,8 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/client";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { LEREGEL_OPTIONS, DONATION_TYPE_OPTIONS } from "@/lib/constants";
 import { Modal, EmptyState, ConfirmButton } from "@/components/ui";
+
+interface ListOption {
+  id: number;
+  listKey: string;
+  value: string;
+}
 
 interface ContactLite {
   id: number;
@@ -39,23 +44,34 @@ export default function SpecialDonationsPage() {
   const [contacts, setContacts] = useState<ContactLite[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+  const [manageOpen, setManageOpen] = useState(false);
   const [editing, setEditing] = useState<Row | null>(null);
   const [filterGilyon, setFilterGilyon] = useState(""); // "" = all
+  const [options, setOptions] = useState<ListOption[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [data, cts] = await Promise.all([
+    const [data, cts, opts] = await Promise.all([
       api<{ records: Row[]; gilyonot: Gilyon[]; latestGilyonId: number | null }>(
         "/api/special-donations",
       ),
       api<ContactLite[]>("/api/contacts"),
+      api<ListOption[]>("/api/list-options"),
     ]);
     setRecords(data.records);
     setGilyonot(data.gilyonot);
     setLatestGilyonId(data.latestGilyonId);
     setContacts(cts);
+    setOptions(opts);
     setLoading(false);
   }, []);
+
+  const loadOptions = useCallback(async () => {
+    setOptions(await api<ListOption[]>("/api/list-options"));
+  }, []);
+
+  const leregelOptions = options.filter((o) => o.listKey === "leregel").map((o) => o.value);
+  const donationTypeOptions = options.filter((o) => o.listKey === "donationType").map((o) => o.value);
 
   useEffect(() => {
     load();
@@ -113,6 +129,9 @@ export default function SpecialDonationsPage() {
               ))}
             </select>
           )}
+          <button className="btn-secondary whitespace-nowrap" onClick={() => setManageOpen(true)}>
+            ⚙ ניהול רשימות
+          </button>
           <button
             className="btn-primary whitespace-nowrap"
             disabled={gilyonot.length === 0}
@@ -200,6 +219,8 @@ export default function SpecialDonationsPage() {
           contacts={contacts}
           gilyonot={gilyonot}
           defaultGilyonId={latestGilyonId}
+          leregelOptions={leregelOptions}
+          donationTypeOptions={donationTypeOptions}
           record={editing}
           onSaved={() => {
             setOpen(false);
@@ -207,6 +228,23 @@ export default function SpecialDonationsPage() {
           }}
           onCancel={() => setOpen(false)}
         />
+      </Modal>
+
+      <Modal open={manageOpen} onClose={() => setManageOpen(false)} title="ניהול רשימות" wide>
+        <div className="grid gap-6 sm:grid-cols-2">
+          <ListManager
+            title="לרגל"
+            listKey="leregel"
+            items={options.filter((o) => o.listKey === "leregel")}
+            onChanged={loadOptions}
+          />
+          <ListManager
+            title="סוג"
+            listKey="donationType"
+            items={options.filter((o) => o.listKey === "donationType")}
+            onChanged={loadOptions}
+          />
+        </div>
       </Modal>
     </div>
   );
@@ -216,6 +254,8 @@ function DonationForm({
   contacts,
   gilyonot,
   defaultGilyonId,
+  leregelOptions,
+  donationTypeOptions,
   record,
   onSaved,
   onCancel,
@@ -223,6 +263,8 @@ function DonationForm({
   contacts: ContactLite[];
   gilyonot: Gilyon[];
   defaultGilyonId: number | null;
+  leregelOptions: string[];
+  donationTypeOptions: string[];
   record: Row | null;
   onSaved: () => void;
   onCancel: () => void;
@@ -297,7 +339,7 @@ function DonationForm({
           <label className="label">לרגל</label>
           <select className="input" value={form.occasion} onChange={(e) => set("occasion", e.target.value)}>
             <option value="">— בחר —</option>
-            {LEREGEL_OPTIONS.map((o) => (
+            {leregelOptions.map((o) => (
               <option key={o} value={o}>
                 {o}
               </option>
@@ -312,7 +354,7 @@ function DonationForm({
             onChange={(e) => set("donationType", e.target.value)}
           >
             <option value="">— בחר —</option>
-            {DONATION_TYPE_OPTIONS.map((o) => (
+            {donationTypeOptions.map((o) => (
               <option key={o} value={o}>
                 {o}
               </option>
@@ -358,5 +400,75 @@ function DonationForm({
         </button>
       </div>
     </form>
+  );
+}
+
+function ListManager({
+  title,
+  listKey,
+  items,
+  onChanged,
+}: {
+  title: string;
+  listKey: string;
+  items: ListOption[];
+  onChanged: () => void;
+}) {
+  const [value, setValue] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function add(e: React.FormEvent) {
+    e.preventDefault();
+    const v = value.trim();
+    if (!v) return;
+    setBusy(true);
+    try {
+      await api("/api/list-options", { method: "POST", body: { listKey, value: v } });
+      setValue("");
+      onChanged();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(id: number) {
+    await api(`/api/list-options/${id}`, { method: "DELETE" });
+    onChanged();
+  }
+
+  return (
+    <div>
+      <div className="mb-2 text-sm font-semibold text-gray-700">{title}</div>
+      <ul className="mb-3 space-y-1">
+        {items.length === 0 && <li className="text-xs text-gray-400">אין ערכים עדיין</li>}
+        {items.map((o) => (
+          <li
+            key={o.id}
+            className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-1.5 text-sm"
+          >
+            <span>{o.value}</span>
+            <button
+              type="button"
+              className="text-red-500 hover:text-red-700"
+              title="הסר"
+              onClick={() => remove(o.id)}
+            >
+              ✕
+            </button>
+          </li>
+        ))}
+      </ul>
+      <form onSubmit={add} className="flex gap-2">
+        <input
+          className="input"
+          placeholder="הוסף ערך…"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+        />
+        <button type="submit" className="btn-primary whitespace-nowrap !px-3" disabled={busy}>
+          + הוסף
+        </button>
+      </form>
+    </div>
   );
 }

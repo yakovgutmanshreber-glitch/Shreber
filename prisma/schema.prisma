@@ -84,6 +84,17 @@ model Contact {
   updatedAt       DateTime @updatedAt
 }
 
+// Editable dropdown lists (e.g. לרגל / סוג for תרומות מיוחדות). Managed in-app.
+model ListOption {
+  id        Int      @id @default(autoincrement())
+  listKey   String // 'leregel' | 'donationType'
+  value     String
+  createdAt DateTime @default(now())
+
+  @@unique([listKey, value])
+  @@index([listKey])
+}
+
 // תרומות מיוחדות — special donations, organized by גליון (a Category whose
 // mainCategory is "גליון"). Each record links to a Contact and to a גליון.
 model SpecialDonation {
