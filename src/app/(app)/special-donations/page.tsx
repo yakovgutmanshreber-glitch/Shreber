@@ -16,6 +16,12 @@ interface ContactLite {
   firstName: string;
   lastName: string | null;
 }
+interface ContactSummary {
+  obligationTotal: number;
+  paid: number;
+  hasHok: boolean;
+  communications: { date: string; note: string }[];
+}
 interface Gilyon {
   id: number;
   category: string;
@@ -49,19 +55,26 @@ export default function SpecialDonationsPage() {
   const [editing, setEditing] = useState<Row | null>(null);
   const [filterGilyon, setFilterGilyon] = useState(""); // "" = all
   const [options, setOptions] = useState<ListOption[]>([]);
+  const [summaries, setSummaries] = useState<Record<number, ContactSummary>>({});
+  const [months, setMonths] = useState(3); // שיחות window
+  const [threshold, setThreshold] = useState<number | "">(""); // obligation amount filter
 
   const load = useCallback(async () => {
     setLoading(true);
     const [data, cts, opts] = await Promise.all([
-      api<{ records: Row[]; gilyonot: Gilyon[]; latestGilyonId: number | null }>(
-        "/api/special-donations",
-      ),
+      api<{
+        records: Row[];
+        gilyonot: Gilyon[];
+        latestGilyonId: number | null;
+        contactSummaries: Record<number, ContactSummary>;
+      }>("/api/special-donations"),
       api<ContactLite[]>("/api/contacts"),
       api<ListOption[]>("/api/list-options"),
     ]);
     setRecords(data.records);
     setGilyonot(data.gilyonot);
     setLatestGilyonId(data.latestGilyonId);
+    setSummaries(data.contactSummaries ?? {});
     setContacts(cts);
     setOptions(opts);
     setLoading(false);
@@ -157,6 +170,33 @@ export default function SpecialDonationsPage() {
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-4 rounded-xl border border-gray-200 bg-gray-50/60 px-4 py-2 text-sm">
+        <label className="flex items-center gap-2">
+          <span className="text-gray-500">שיחות מ-</span>
+          <select
+            className="input max-w-[9rem] !py-1"
+            value={months}
+            onChange={(e) => setMonths(Number(e.target.value))}
+          >
+            <option value={1}>חודש אחרון</option>
+            <option value={3}>3 חודשים</option>
+            <option value={6}>6 חודשים</option>
+            <option value={12}>12 חודשים</option>
+            <option value={9999}>הכל</option>
+          </select>
+        </label>
+        <label className="flex items-center gap-2">
+          <span className="text-gray-500">הצג התחייבות מעל (₪)</span>
+          <input
+            type="number"
+            className="input max-w-[8rem] !py-1"
+            placeholder="ללא"
+            value={threshold}
+            onChange={(e) => setThreshold(e.target.value ? Number(e.target.value) : "")}
+          />
+        </label>
+      </div>
+
       {loading ? (
         <div className="card p-8 text-center text-gray-400">טוען…</div>
       ) : groups.length === 0 ? (
@@ -191,8 +231,15 @@ export default function SpecialDonationsPage() {
                   <tbody className="divide-y divide-gray-100">
                     {g.rows.map((r) => (
                       <tr key={r.id} className="hover:bg-gray-50">
-                        <td className="td font-medium">{fullName(r.contact)}</td>
-                        <td className="td">{r.occasion ?? "—"}</td>
+                        <td className="td align-top">
+                          <div className="font-medium">{fullName(r.contact)}</div>
+                          <DonorSummary
+                            summary={summaries[r.contactId]}
+                            months={months}
+                            threshold={threshold}
+                          />
+                        </td>
+                        <td className="td align-top">{r.occasion ?? "—"}</td>
                         <td className="td">{r.donationType ?? "—"}</td>
                         <td className="td">{formatCurrency(r.amount)}</td>
                         <td className="td">{formatDate(r.entryDate)}</td>
@@ -494,6 +541,49 @@ function ListManager({
           + הוסף
         </button>
       </form>
+    </div>
+  );
+}
+
+function DonorSummary({
+  summary,
+  months,
+  threshold,
+}: {
+  summary: ContactSummary | undefined;
+  months: number;
+  threshold: number | "";
+}) {
+  if (!summary) return null;
+  const cutoff = months >= 9999 ? 0 : Date.now() - months * 30 * 24 * 3600 * 1000;
+  const comms = summary.communications.filter((c) => new Date(c.date).getTime() >= cutoff);
+  const showObligation = threshold !== "" && summary.obligationTotal > Number(threshold);
+
+  return (
+    <div className="mt-1 space-y-1 text-xs">
+      <div className="flex flex-wrap items-center gap-2">
+        {summary.hasHok && (
+          <span className="rounded bg-brand-100 px-1.5 py-0.5 font-medium text-brand-700">
+            הו״ק לגליון
+          </span>
+        )}
+        {showObligation && (
+          <span className="text-gray-500">
+            התחייבות: <b className="text-gray-700">{formatCurrency(summary.obligationTotal)}</b> · שולם:{" "}
+            <b className="text-green-600">{formatCurrency(summary.paid)}</b>
+          </span>
+        )}
+      </div>
+      {comms.length > 0 && (
+        <div className="max-h-24 overflow-y-auto rounded bg-gray-50 p-1.5 text-gray-600">
+          <div className="mb-0.5 font-medium text-gray-400">שיחות ({comms.length})</div>
+          {comms.map((c, i) => (
+            <div key={i} className="truncate" title={c.note}>
+              <span className="text-gray-400">{formatDate(c.date)}:</span> {c.note}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
