@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/client";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { ObligationForm, type ObligationData, type SavedCard } from "@/components/ObligationForm";
@@ -24,7 +24,7 @@ export function ObligationDetailModal({
   onChanged: () => void; // reload parent data (keeps modal open)
   onClose: () => void; // close the whole popup
 }) {
-  const [tab, setTab] = useState<"details" | "transactions">("details");
+  const [tab, setTab] = useState<"details" | "transactions" | "communications">("details");
   // Which transaction is being added/edited inside the transactions tab.
   const [txEditing, setTxEditing] = useState<"new" | TransactionData | null>(null);
 
@@ -45,9 +45,14 @@ export function ObligationDetailModal({
         <TabBtn active={tab === "transactions"} onClick={() => setTab("transactions")}>
           עסקאות ({transactions.length})
         </TabBtn>
+        <TabBtn active={tab === "communications"} onClick={() => setTab("communications")}>
+          שיחות
+        </TabBtn>
       </div>
 
-      {tab === "details" ? (
+      {tab === "communications" ? (
+        <CommunicationsSection obligationId={obligation.id} />
+      ) : tab === "details" ? (
         <ObligationForm
           obligation={obligation}
           fixedContactId={contactId ?? undefined}
@@ -160,5 +165,106 @@ function TabBtn({
     >
       {children}
     </button>
+  );
+}
+
+interface Communication {
+  id: number;
+  date: string;
+  note: string;
+}
+
+// שיחות — communication log for an obligation (or transaction).
+export function CommunicationsSection({
+  obligationId,
+  transactionId,
+}: {
+  obligationId?: number;
+  transactionId?: number;
+}) {
+  const [rows, setRows] = useState<Communication[]>([]);
+  const [note, setNote] = useState("");
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [busy, setBusy] = useState(false);
+  const query = obligationId ? `obligationId=${obligationId}` : `transactionId=${transactionId}`;
+
+  const load = useCallback(async () => {
+    setRows(await api<Communication[]>(`/api/communications?${query}`));
+  }, [query]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function add(e: React.FormEvent) {
+    e.preventDefault();
+    if (!note.trim()) return;
+    setBusy(true);
+    try {
+      await api("/api/communications", {
+        method: "POST",
+        body: { obligationId, transactionId, date, note },
+      });
+      setNote("");
+      setDate(new Date().toISOString().slice(0, 10));
+      load();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(id: number) {
+    await api(`/api/communications/${id}`, { method: "DELETE" });
+    load();
+  }
+
+  return (
+    <div className="space-y-4">
+      <form onSubmit={add} className="rounded-xl border border-gray-200 bg-gray-50/50 p-3">
+        <div className="mb-2 flex items-center gap-2">
+          <label className="text-sm text-gray-500">תאריך</label>
+          <input
+            type="date"
+            className="input max-w-[10rem]"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+          />
+        </div>
+        <textarea
+          className="input"
+          rows={2}
+          placeholder="מה דיברת עם האדם…"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+        />
+        <div className="mt-2 flex justify-end">
+          <button type="submit" className="btn-primary !py-1.5 text-sm" disabled={busy}>
+            + הוסף שיחה
+          </button>
+        </div>
+      </form>
+
+      {rows.length === 0 ? (
+        <p className="py-4 text-center text-sm text-gray-400">אין עדיין שיחות</p>
+      ) : (
+        <ul className="space-y-2">
+          {rows.map((c) => (
+            <li key={c.id} className="rounded-lg border border-gray-200 px-3 py-2">
+              <div className="mb-0.5 flex items-center justify-between">
+                <span className="text-xs font-medium text-gray-500">{formatDate(c.date)}</span>
+                <ConfirmButton
+                  className="text-xs text-red-500 hover:underline"
+                  message="למחוק שיחה זו?"
+                  onConfirm={() => remove(c.id)}
+                >
+                  מחיקה
+                </ConfirmButton>
+              </div>
+              <p className="whitespace-pre-wrap text-sm text-gray-800">{c.note}</p>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }

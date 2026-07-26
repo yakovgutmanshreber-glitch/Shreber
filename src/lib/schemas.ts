@@ -152,3 +152,11 @@ export const listOptionSchema = z.object({
   listKey: z.enum(["leregel", "donationType"]),
   value: z.string().trim().min(1, "ערך חובה"),
 });
+
+// שיחות — a communication log entry, linked to an Obligation or a Transaction.
+export const communicationSchema = z.object({
+  obligationId: z.coerce.number().int().positive().optional().nullable(),
+  transactionId: z.coerce.number().int().positive().optional().nullable(),
+  date: z.coerce.date().optional(),
+  note: z.string().trim().min(1, "יש להזין תוכן"),
+});

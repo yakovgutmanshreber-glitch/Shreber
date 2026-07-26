@@ -84,6 +84,21 @@ model Contact {
   updatedAt       DateTime @updatedAt
 }
 
+// שיחות — a log of what was discussed, linked to an Obligation or a Transaction.
+model Communication {
+  id            Int          @id @default(autoincrement())
+  obligationId  Int?
+  obligation    Obligation?  @relation(fields: [obligationId], references: [id], onDelete: Cascade)
+  transactionId Int?
+  transaction   Transaction? @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  date          DateTime     @default(now())
+  note          String
+  createdAt     DateTime     @default(now())
+
+  @@index([obligationId])
+  @@index([transactionId])
+}
+
 // Editable dropdown lists (e.g. לרגל / סוג for תרומות מיוחדות). Managed in-app.
 model ListOption {
   id        Int      @id @default(autoincrement())
@@ -182,6 +197,7 @@ model Obligation {
   checkNumber               String?
   comment                   String?
   transactions              Transaction[]
+  communications            Communication[]
   createdAt                 DateTime     @default(now())
   updatedAt                 DateTime     @updatedAt
 }
@@ -212,6 +228,7 @@ model Transaction {
   receiptDocNumber    String?
   receiptLink         String? // DocumentsDetails.PdfLink
   kind                String // 'expense' | 'income'
+  communications      Communication[]
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
