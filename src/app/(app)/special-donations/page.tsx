@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { api } from "@/lib/client";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { Modal, EmptyState, ConfirmButton } from "@/components/ui";
@@ -230,16 +231,21 @@ export default function SpecialDonationsPage() {
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {g.rows.map((r) => (
-                      <tr key={r.id} className="hover:bg-gray-50">
-                        <td className="td align-top">
-                          <div className="font-medium">{fullName(r.contact)}</div>
+                      <tr key={r.id} className="hover:bg-gray-50 [&>td]:align-top">
+                        <td className="td">
+                          <Link
+                            href={`/contacts/${r.contactId}`}
+                            className="font-medium text-brand-700 hover:underline"
+                          >
+                            {fullName(r.contact)} ›
+                          </Link>
                           <DonorSummary
                             summary={summaries[r.contactId]}
                             months={months}
                             threshold={threshold}
                           />
                         </td>
-                        <td className="td align-top">{r.occasion ?? "—"}</td>
+                        <td className="td">{r.occasion ?? "—"}</td>
                         <td className="td">{r.donationType ?? "—"}</td>
                         <td className="td">{formatCurrency(r.amount)}</td>
                         <td className="td">{formatDate(r.entryDate)}</td>
