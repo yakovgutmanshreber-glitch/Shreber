@@ -11,12 +11,17 @@ interface ContactLite {
   firstName: string;
   lastName: string | null;
 }
+interface Gilyon {
+  id: number;
+  category: string;
+  mainCategory: string;
+}
 interface Row {
   id: number;
   contactId: number;
   contact: ContactLite;
-  parsha: string;
-  parshaDate: string;
+  categoryId: number;
+  category: { id: number; category: string };
   occasion: string | null;
   amount: number;
   donationType: string | null;
@@ -28,22 +33,26 @@ const fullName = (c: { firstName: string; lastName: string | null }) =>
   `${c.firstName}${c.lastName ? " " + c.lastName : ""}`;
 
 export default function SpecialDonationsPage() {
-  const [current, setCurrent] = useState<string>("");
   const [records, setRecords] = useState<Row[]>([]);
+  const [gilyonot, setGilyonot] = useState<Gilyon[]>([]);
+  const [latestGilyonId, setLatestGilyonId] = useState<number | null>(null);
   const [contacts, setContacts] = useState<ContactLite[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Row | null>(null);
-  const [filterParsha, setFilterParsha] = useState(""); // "" = all weeks
+  const [filterGilyon, setFilterGilyon] = useState(""); // "" = all
 
   const load = useCallback(async () => {
     setLoading(true);
     const [data, cts] = await Promise.all([
-      api<{ currentParsha: string; records: Row[] }>("/api/special-donations"),
+      api<{ records: Row[]; gilyonot: Gilyon[]; latestGilyonId: number | null }>(
+        "/api/special-donations",
+      ),
       api<ContactLite[]>("/api/contacts"),
     ]);
-    setCurrent(data.currentParsha);
     setRecords(data.records);
+    setGilyonot(data.gilyonot);
+    setLatestGilyonId(data.latestGilyonId);
     setContacts(cts);
     setLoading(false);
   }, []);
@@ -57,26 +66,20 @@ export default function SpecialDonationsPage() {
     load();
   }
 
-  // Group records by parsha week (records arrive newest-week first).
-  const groups: { key: string; parsha: string; rows: Row[]; total: number }[] = [];
-  const byKey = new Map<string, Row[]>();
+  // Group records by גליון (category), ordered by the gilyonot list (latest first).
+  const byCat = new Map<number, Row[]>();
   for (const r of records) {
-    const key = r.parshaDate.slice(0, 10);
-    if (!byKey.has(key)) byKey.set(key, []);
-    byKey.get(key)!.push(r);
+    if (!byCat.has(r.categoryId)) byCat.set(r.categoryId, []);
+    byCat.get(r.categoryId)!.push(r);
   }
-  for (const [key, rows] of byKey) {
-    groups.push({
-      key,
-      parsha: rows[0].parsha,
-      rows,
-      total: rows.reduce((s, r) => s + Number(r.amount), 0),
+  const groups = gilyonot
+    .filter((g) => byCat.has(g.id))
+    .map((g) => {
+      const rows = byCat.get(g.id)!;
+      return { id: g.id, name: g.category, rows, total: rows.reduce((s, r) => s + Number(r.amount), 0) };
     });
-  }
-
-  // Distinct parsha names present in the data (for the filter dropdown).
-  const parshaOptions = [...new Set(groups.map((g) => g.parsha))];
-  const shown = filterParsha ? groups.filter((g) => g.parsha === filterParsha) : groups;
+  const shown = filterGilyon ? groups.filter((g) => String(g.id) === filterGilyon) : groups;
+  const latestName = gilyonot.find((g) => g.id === latestGilyonId)?.category;
 
   return (
     <div className="space-y-6">
@@ -84,27 +87,35 @@ export default function SpecialDonationsPage() {
         <div>
           <h1 className="text-2xl font-bold">תרומות מיוחדות</h1>
           <p className="text-sm text-gray-400">
-            השבוע: <span className="font-semibold text-brand-700">פרשת {current}</span> — כל רשומה
-            משויכת לשבוע הנוכחי ומקושרת לאיש קשר
+            {latestName ? (
+              <>
+                גליון אחרון:{" "}
+                <span className="font-semibold text-brand-700">{latestName}</span> — כברירת מחדל
+                רשומה חדשה משויכת אליו
+              </>
+            ) : (
+              <>אין עדיין גליונות — צור קטגוריה עם קטגוריה ראשית &quot;גליון&quot; בעמוד קטגוריות</>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {parshaOptions.length > 0 && (
+          {groups.length > 0 && (
             <select
               className="input max-w-[16rem]"
-              value={filterParsha}
-              onChange={(e) => setFilterParsha(e.target.value)}
+              value={filterGilyon}
+              onChange={(e) => setFilterGilyon(e.target.value)}
             >
-              <option value="">כל הפרשות</option>
-              {parshaOptions.map((p) => (
-                <option key={p} value={p}>
-                  פרשת {p}
+              <option value="">כל הגליונות</option>
+              {groups.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
                 </option>
               ))}
             </select>
           )}
           <button
             className="btn-primary whitespace-nowrap"
+            disabled={gilyonot.length === 0}
             onClick={() => {
               setEditing(null);
               setOpen(true);
@@ -118,14 +129,14 @@ export default function SpecialDonationsPage() {
       {loading ? (
         <div className="card p-8 text-center text-gray-400">טוען…</div>
       ) : groups.length === 0 ? (
-        <EmptyState message="אין עדיין תרומות מיוחדות. הוסף רשומה ראשונה לשבוע זה." />
+        <EmptyState message="אין עדיין תרומות מיוחדות. הוסף רשומה ראשונה." />
       ) : (
         <div className="space-y-4">
           {shown.map((g) => (
-            <div key={g.key} className="card overflow-hidden">
+            <div key={g.id} className="card overflow-hidden">
               <div className="flex items-center justify-between bg-gray-50 px-4 py-3">
                 <span className="font-bold text-gray-800">
-                  פרשת {g.parsha}
+                  {g.name}
                   <span className="mr-2 text-xs font-normal text-gray-400">({g.rows.length})</span>
                 </span>
                 <span className="text-sm text-gray-500">
@@ -184,13 +195,11 @@ export default function SpecialDonationsPage() {
         </div>
       )}
 
-      <Modal
-        open={open}
-        onClose={() => setOpen(false)}
-        title={editing ? "עריכת תרומה" : `תרומה חדשה — פרשת ${current}`}
-      >
+      <Modal open={open} onClose={() => setOpen(false)} title={editing ? "עריכת תרומה" : "תרומה חדשה"}>
         <DonationForm
           contacts={contacts}
+          gilyonot={gilyonot}
+          defaultGilyonId={latestGilyonId}
           record={editing}
           onSaved={() => {
             setOpen(false);
@@ -205,17 +214,22 @@ export default function SpecialDonationsPage() {
 
 function DonationForm({
   contacts,
+  gilyonot,
+  defaultGilyonId,
   record,
   onSaved,
   onCancel,
 }: {
   contacts: ContactLite[];
+  gilyonot: Gilyon[];
+  defaultGilyonId: number | null;
   record: Row | null;
   onSaved: () => void;
   onCancel: () => void;
 }) {
   const [form, setForm] = useState({
     contactId: record?.contactId ?? ("" as number | ""),
+    categoryId: record?.categoryId ?? defaultGilyonId ?? ("" as number | ""),
     occasion: record?.occasion ?? "",
     amount: record?.amount ?? 0,
     donationType: record?.donationType ?? "",
@@ -229,13 +243,11 @@ function DonationForm({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!form.contactId) {
-      setError("יש לבחור איש קשר");
-      return;
-    }
+    if (!form.contactId) return setError("יש לבחור איש קשר");
+    if (!form.categoryId) return setError("יש לבחור גליון");
     setSaving(true);
     try {
-      const body = { ...form, contactId: Number(form.contactId) };
+      const body = { ...form, contactId: Number(form.contactId), categoryId: Number(form.categoryId) };
       if (record) await api(`/api/special-donations/${record.id}`, { method: "PATCH", body });
       else await api("/api/special-donations", { method: "POST", body });
       onSaved();
@@ -248,23 +260,39 @@ function DonationForm({
 
   return (
     <form onSubmit={submit} className="space-y-4">
-      <div>
-        <label className="label">איש קשר *</label>
-        <select
-          className="input"
-          value={form.contactId}
-          onChange={(e) => set("contactId", e.target.value ? Number(e.target.value) : "")}
-          required
-        >
-          <option value="">— בחר איש קשר —</option>
-          {contacts.map((c) => (
-            <option key={c.id} value={c.id}>
-              {fullName(c)}
-            </option>
-          ))}
-        </select>
-      </div>
       <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="label">גליון *</label>
+          <select
+            className="input"
+            value={form.categoryId}
+            onChange={(e) => set("categoryId", e.target.value ? Number(e.target.value) : "")}
+            required
+          >
+            <option value="">— בחר גליון —</option>
+            {gilyonot.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.category}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="label">איש קשר *</label>
+          <select
+            className="input"
+            value={form.contactId}
+            onChange={(e) => set("contactId", e.target.value ? Number(e.target.value) : "")}
+            required
+          >
+            <option value="">— בחר איש קשר —</option>
+            {contacts.map((c) => (
+              <option key={c.id} value={c.id}>
+                {fullName(c)}
+              </option>
+            ))}
+          </select>
+        </div>
         <div>
           <label className="label">לרגל</label>
           <select className="input" value={form.occasion} onChange={(e) => set("occasion", e.target.value)}>

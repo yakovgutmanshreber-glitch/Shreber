@@ -84,14 +84,14 @@ model Contact {
   updatedAt       DateTime @updatedAt
 }
 
-// תרומות מיוחדות — special donations, organized by the weekly Torah portion
-// (parsha). Each record links to a Contact and is tagged to a parsha week.
+// תרומות מיוחדות — special donations, organized by גליון (a Category whose
+// mainCategory is "גליון"). Each record links to a Contact and to a גליון.
 model SpecialDonation {
   id           Int      @id @default(autoincrement())
   contactId    Int
   contact      Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  parsha       String // Hebrew parsha name, e.g. "ואתחנן"
-  parshaDate   DateTime // the week's Shabbat date — for ordering + year disambiguation
+  categoryId   Int // the גליון (Category with mainCategory = "גליון")
+  category     Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   occasion     String? // לרגל (dropdown value)
   amount       Decimal  @default(0) // סכום
   donationType String? // סוג (dropdown value)
@@ -101,7 +101,7 @@ model SpecialDonation {
   updatedAt    DateTime @updatedAt
 
   @@index([contactId])
-  @@index([parshaDate])
+  @@index([categoryId])
 }
 
 // Saved payment methods — TOKENIZED. We intentionally store ONLY a Kesher token
@@ -134,6 +134,7 @@ model Category {
   category     String   @unique // unique per row, e.g. "תפוח"
   defaultPrice Decimal  @default(0)
   obligations  Obligation[]
+  specialDonations SpecialDonation[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
