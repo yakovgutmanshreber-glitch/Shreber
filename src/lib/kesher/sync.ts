@@ -448,3 +448,210 @@ export async function adoptKesherObligation(opts: {
     cardSaved,
   };
 }
+
+// ---------------------------------------------------------------------------
+// BULK adopt: given rows of {phone, reference} (from a Kesher Excel), match each
+// phone to an existing Contact and import that reference's obligation + all its
+// transactions. Fetches the whole company's transactions ONCE (year-by-year,
+// parallel) and processes every reference against that dataset.
+// ---------------------------------------------------------------------------
+
+/** Normalize a phone to its national digits (drop +972 / leading 0 / punctuation). */
+function normPhone(v: unknown): string {
+  const d = String(v ?? "").replace(/\D/g, "");
+  return d.replace(/^972/, "").replace(/^0/, "");
+}
+
+export interface BulkAdoptResult {
+  ok: boolean;
+  message?: string;
+  totalRows: number;
+  matched: number; // rows where a contact was found AND the ref had data
+  obligationsAdopted: number;
+  transactionsImported: number;
+  noContact: number; // phone didn't match any contact
+  noData: number; // reference had no transactions in Kesher
+  details: { phone: string; reference: string; contact?: string; status: string }[];
+}
+
+export async function bulkAdoptByPhone(
+  input: { phone: string; reference: string }[],
+): Promise<BulkAdoptResult> {
+  const empty: BulkAdoptResult = {
+    ok: false,
+    totalRows: input.length,
+    matched: 0,
+    obligationsAdopted: 0,
+    transactionsImported: 0,
+    noContact: 0,
+    noData: 0,
+    details: [],
+  };
+
+  // 1) Fetch ALL transactions once (year by year, in parallel).
+  const now = new Date();
+  const years: { from: string; to: string }[] = [];
+  for (let year = now.getFullYear(); year >= now.getFullYear() - 6; year--) {
+    years.push({
+      from: `${year}-01-01T00:00:00`,
+      to: year === now.getFullYear() ? now.toISOString().slice(0, 19) : `${year}-12-31T23:59:59`,
+    });
+  }
+  const reps = await Promise.all(
+    years.map((y) =>
+      kesher.getAllTransForCompany(y.from, y.to).catch(() => ({ ok: false as const, data: undefined })),
+    ),
+  );
+  const allRows: Record<string, unknown>[] = [];
+  const seen = new Set<string>();
+  let anyOk = false;
+  for (const rep of reps) {
+    if (!rep.ok) continue;
+    anyOk = true;
+    const chunk =
+      ((rep.data as { TransactionResponseData?: Record<string, unknown>[] })
+        ?.TransactionResponseData) ?? [];
+    for (const r of chunk) {
+      const key = String(r.NumTransaction ?? r.Id ?? "");
+      if (key && seen.has(key)) continue;
+      if (key) seen.add(key);
+      allRows.push(r);
+    }
+  }
+  if (!anyOk) return { ...empty, message: "שליפת העסקאות מקשר נכשלה" };
+
+  // 2) Group transactions by ObligationReference.
+  const byRef = new Map<string, Record<string, unknown>[]>();
+  for (const r of allRows) {
+    const ref = s(r.ObligationReference);
+    if (ref && ref !== "0") {
+      if (!byRef.has(ref)) byRef.set(ref, []);
+      byRef.get(ref)!.push(r);
+    }
+  }
+
+  // 3) Build a phone -> contactId lookup from existing contacts.
+  const contacts = await prisma.contact.findMany({ select: { id: true, phone: true, phone2: true } });
+  const phoneMap = new Map<string, number>();
+  for (const c of contacts) {
+    for (const p of [c.phone, c.phone2]) {
+      const n = normPhone(p);
+      if (n && !phoneMap.has(n)) phoneMap.set(n, c.id);
+    }
+  }
+
+  const result: BulkAdoptResult = { ...empty, ok: true };
+
+  for (const row of input) {
+    const ref = String(row.reference ?? "").trim();
+    const phone = String(row.phone ?? "").trim();
+    if (!ref || !phone) continue;
+
+    const contactId = phoneMap.get(normPhone(phone));
+    if (!contactId) {
+      result.noContact++;
+      result.details.push({ phone, reference: ref, status: "לא נמצא איש קשר לפי טלפון" });
+      continue;
+    }
+    const matched = (byRef.get(ref) ?? []).slice();
+    if (matched.length === 0) {
+      result.noData++;
+      result.details.push({ phone, reference: ref, status: "אין עסקאות בקשר לאסמכתא זו" });
+      continue;
+    }
+
+    matched.sort((a, b) => String(b.TranDate ?? "").localeCompare(String(a.TranDate ?? "")));
+    const latest = matched[0];
+
+    // Find or create the obligation for this reference, linked to the contact.
+    let obligation = await prisma.obligation.findUnique({
+      where: { kesherObligationReference: ref },
+    });
+    if (!obligation) {
+      obligation = await prisma.obligation.create({
+        data: {
+          kind: "income",
+          contactId,
+          kesherObligationReference: ref,
+          chargeType: "recurring",
+          recurringAmount: Number(latest.Total ?? 0) / 100, // report Total = agorot
+          numPayments: 9999,
+          chargeDay: new Date(String(latest.TranDate)).getDate() || 1,
+          startDate: new Date(String(matched[matched.length - 1].TranDate ?? now.toISOString())),
+          status: "active",
+          paymentMethod: chargeOptionToEnum(latest.ChargeOptionType),
+          comment: `יובא מקשר (אסמכתא ${ref})`,
+        },
+      });
+      result.obligationsAdopted++;
+    } else if (!obligation.contactId) {
+      obligation = await prisma.obligation.update({
+        where: { id: obligation.id },
+        data: { contactId },
+      });
+    }
+
+    // Adopt the card token (from the latest charge) for credit hoks.
+    const token = s(latest.Token);
+    if (token && /^\d{12,}$/.test(token) && chargeOptionToEnum(latest.ChargeOptionType) === "credit") {
+      const existingCard = await prisma.creditCard.findFirst({ where: { contactId, token } });
+      if (!existingCard) {
+        const count = await prisma.creditCard.count({ where: { contactId } });
+        const card = await prisma.creditCard.create({
+          data: {
+            contactId,
+            token,
+            last4: last4(latest.NumCard),
+            expiry: s(latest.ExpireDate),
+            brand: s(latest.CreditCardCompany) ?? s(latest.Brand),
+            holderName: s(latest.CardName) ?? s(latest.Name),
+            isDefault: count === 0,
+          },
+        });
+        if (obligation.creditCardId !== card.id) {
+          await prisma.obligation.update({ where: { id: obligation.id }, data: { creditCardId: card.id } });
+        }
+      }
+    }
+
+    // Import every transaction of this obligation (idempotent by NumTransaction).
+    for (const r of matched) {
+      const numTransaction = s(r.NumTransaction) ?? s(r.Id);
+      if (!numTransaction) continue;
+      const doc = firstDoc(r.DocumentsDetails);
+      const data = {
+        obligationId: obligation.id,
+        contactId,
+        source: "api" as const,
+        kesherNumTransaction: numTransaction,
+        uniqNum: s(r.Uniq),
+        amount: Number(r.Total ?? 0) / 100,
+        currency: currencyToCode(r.Currency),
+        transactionDate: r.TranDate ? new Date(String(r.TranDate)) : new Date(),
+        transactionType: transactionTypeToEnum(r.TransactionType),
+        chargeOptionType: chargeOptionToEnum(r.ChargeOptionType),
+        statusCode: r.StatusCode !== undefined && r.StatusCode !== null ? Number(r.StatusCode) : null,
+        statusText: s(r.Status),
+        cardLast4: last4(r.NumCard),
+        cardExpiry: s(r.ExpireDate),
+        authNum: s(r.OKNum),
+        receiptDocNumber: doc.docNum ?? s(r.DocNumber),
+        receiptLink: doc.pdf,
+        kind: "income" as const,
+      };
+      const existing = await prisma.transaction.findUnique({
+        where: { kesherNumTransaction: numTransaction },
+      });
+      if (existing) await prisma.transaction.update({ where: { id: existing.id }, data });
+      else {
+        await prisma.transaction.create({ data });
+        result.transactionsImported++;
+      }
+    }
+
+    result.matched++;
+    result.details.push({ phone, reference: ref, status: `יובאו ${matched.length} עסקאות` });
+  }
+
+  return result;
+}
