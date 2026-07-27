@@ -9,6 +9,9 @@ export const contactSchema = z.object({
   phone2: optionalString,
   email: z.string().trim().email("אימייל לא תקין").optional().nullable().or(z.literal("")).transform((v) => v || null),
   tz: optionalString,
+  country: optionalString, // מדינה
+  fatherName: optionalString, // אביו
+  fatherInLawName: optionalString, // חותנו
   address: optionalString,
   city: optionalString,
   numHouse: optionalString,
@@ -149,7 +152,7 @@ export const specialDonationSchema = z.object({
 
 // Editable dropdown list option (לרגל / סוג).
 export const listOptionSchema = z.object({
-  listKey: z.enum(["leregel", "donationType"]),
+  listKey: z.enum(["leregel", "donationType", "city", "country"]),
   value: z.string().trim().min(1, "ערך חובה"),
 });
 

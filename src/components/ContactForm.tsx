@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "@/lib/client";
 
 export interface ContactData {
@@ -11,6 +11,9 @@ export interface ContactData {
   phone2?: string | null;
   email?: string | null;
   tz?: string | null;
+  country?: string | null;
+  fatherName?: string | null;
+  fatherInLawName?: string | null;
   address?: string | null;
   city?: string | null;
   numHouse?: string | null;
@@ -20,14 +23,18 @@ export interface ContactData {
   kesherClientRef?: string | null;
 }
 
-const FIELDS: { name: keyof ContactData; label: string; type?: string }[] = [
+// `list` = an editable dropdown backed by ListOption (pick or type a new value).
+const FIELDS: { name: keyof ContactData; label: string; type?: string; list?: "city" | "country" }[] = [
   { name: "firstName", label: "שם פרטי *" },
   { name: "lastName", label: "שם משפחה" },
   { name: "phone", label: "טלפון" },
   { name: "phone2", label: "טלפון נוסף" },
   { name: "email", label: "אימייל", type: "email" },
   { name: "tz", label: "תעודת זהות" },
-  { name: "city", label: "עיר" },
+  { name: "country", label: "מדינה", list: "country" },
+  { name: "fatherName", label: "אביו" },
+  { name: "fatherInLawName", label: "חותנו" },
+  { name: "city", label: "עיר", list: "city" },
   { name: "address", label: "רחוב" },
   { name: "numHouse", label: "מס׳ בית" },
   { name: "entrance", label: "כניסה" },
@@ -35,6 +42,11 @@ const FIELDS: { name: keyof ContactData; label: string; type?: string }[] = [
   { name: "apartmentNumber", label: "דירה" },
   { name: "kesherClientRef", label: "מזהה לקוח בקשר (ClientRef)" },
 ];
+
+interface ListOption {
+  listKey: string;
+  value: string;
+}
 
 export function ContactForm({
   contact,
@@ -48,6 +60,18 @@ export function ContactForm({
   const [form, setForm] = useState<ContactData>(contact ?? { firstName: "" });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [opts, setOpts] = useState<{ city: string[]; country: string[] }>({ city: [], country: [] });
+
+  useEffect(() => {
+    api<ListOption[]>("/api/list-options")
+      .then((rows) =>
+        setOpts({
+          city: rows.filter((o) => o.listKey === "city").map((o) => o.value),
+          country: rows.filter((o) => o.listKey === "country").map((o) => o.value),
+        }),
+      )
+      .catch(() => {});
+  }, []);
 
   function update(name: keyof ContactData, value: string) {
     setForm((f) => ({ ...f, [name]: value }));
@@ -80,10 +104,18 @@ export function ContactForm({
             <input
               className="input"
               type={f.type ?? "text"}
+              list={f.list ? `dl-${f.list}` : undefined}
               value={(form[f.name] as string) ?? ""}
               onChange={(e) => update(f.name, e.target.value)}
               required={f.name === "firstName"}
             />
+            {f.list && (
+              <datalist id={`dl-${f.list}`}>
+                {opts[f.list].map((o) => (
+                  <option key={o} value={o} />
+                ))}
+              </datalist>
+            )}
           </div>
         ))}
       </div>

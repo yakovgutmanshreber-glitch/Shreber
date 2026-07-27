@@ -1,6 +1,7 @@
 import * as XLSX from "xlsx";
 import { prisma } from "@/lib/prisma";
 import { handler, serialize, ApiError } from "@/lib/api";
+import { rememberOption } from "@/lib/list-options";
 
 const normPhone = (v: unknown) =>
   String(v ?? "").replace(/\D/g, "").replace(/^972/, "").replace(/^0/, "");
@@ -33,6 +34,9 @@ export const POST = handler(async (req) => {
   const tzKey = k("ת.ז", "תעודת", "זהות", "tz");
   const addressKey = k("כתובת", "רחוב", "address");
   const cityKey = k("עיר", "ישוב", "יישוב", "city");
+  const countryKey = k("מדינה", "ארץ", "country");
+  const fatherKey = k("אביו", "שם האב", "father");
+  const fatherInLawKey = k("חותנו", "חותן", "father in law");
   const str = (r: Record<string, unknown>, key?: string) =>
     key ? String(r[key] ?? "").trim() || undefined : undefined;
 
@@ -64,6 +68,8 @@ export const POST = handler(async (req) => {
       dupSkipped++;
       continue;
     }
+    const city = str(r, cityKey);
+    const country = str(r, countryKey);
     await prisma.contact.create({
       data: {
         firstName,
@@ -72,9 +78,15 @@ export const POST = handler(async (req) => {
         email: str(r, emailKey),
         tz: str(r, tzKey),
         address: str(r, addressKey),
-        city: str(r, cityKey),
+        city,
+        country,
+        fatherName: str(r, fatherKey),
+        fatherInLawName: str(r, fatherInLawKey),
       },
     });
+    // Remember new city/country values so they appear in the dropdowns.
+    await rememberOption("city", city);
+    await rememberOption("country", country);
     if (np) seen.add(np);
     created++;
   }

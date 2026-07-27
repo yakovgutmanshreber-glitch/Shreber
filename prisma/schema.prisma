@@ -69,8 +69,11 @@ model Contact {
   phone2          String?
   email           String?
   tz              String? // Israeli ID — optional, for identity verification on some Kesher charges
+  country         String? // מדינה (dropdown, editable list)
+  fatherName      String? // אביו
+  fatherInLawName String? // חותנו
   address         String?
-  city            String?
+  city            String? // עיר (dropdown, editable list)
   numHouse        String?
   entrance        String?
   floor           String?

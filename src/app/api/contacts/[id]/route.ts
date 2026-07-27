@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { handler, serialize, ApiError } from "@/lib/api";
 import { contactSchema } from "@/lib/schemas";
+import { rememberOption } from "@/lib/list-options";
 
 async function getId(ctx: { params: Promise<Record<string, string>> }) {
   const { id } = await ctx.params;
@@ -31,6 +32,8 @@ export const PATCH = handler(async (req, ctx) => {
   const body = await req.json();
   const data = contactSchema.partial().parse(body);
   const contact = await prisma.contact.update({ where: { id }, data });
+  await rememberOption("city", data.city);
+  await rememberOption("country", data.country);
   return serialize(contact);
 });
 

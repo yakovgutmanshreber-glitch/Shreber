@@ -194,6 +194,9 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
           <Detail label="טלפון נוסף" value={contact.phone2} />
           <Detail label="אימייל" value={contact.email} />
           <Detail label="ת.ז." value={contact.tz} />
+          <Detail label="מדינה" value={contact.country} />
+          <Detail label="אביו" value={contact.fatherName} />
+          <Detail label="חותנו" value={contact.fatherInLawName} />
           <Detail label="עיר" value={contact.city} />
           <Detail label="כתובת" value={contact.address} />
           <Detail label="מזהה בקשר" value={contact.kesherClientRef} />
