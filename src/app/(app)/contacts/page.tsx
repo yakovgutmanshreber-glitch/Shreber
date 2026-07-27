@@ -22,6 +22,7 @@ export default function ContactsPage() {
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkContactsOpen, setBulkContactsOpen] = useState(false);
 
   const load = useCallback(async (query = "") => {
     setLoading(true);
@@ -46,6 +47,9 @@ export default function ContactsPage() {
         subtitle="ניהול לקוחות ותורמים"
         action={
           <div className="flex gap-2">
+            <button className="btn-secondary" onClick={() => setBulkContactsOpen(true)}>
+              👥 ייבוא אנשי קשר (Excel)
+            </button>
             <button className="btn-secondary" onClick={() => setBulkOpen(true)}>
               🔗 ייבוא מרוכז מקשר (Excel)
             </button>
@@ -115,6 +119,80 @@ export default function ContactsPage() {
       <Modal open={bulkOpen} onClose={() => setBulkOpen(false)} title="ייבוא מרוכז מקשר (Excel)" wide>
         <BulkImport onDone={() => load(q)} />
       </Modal>
+
+      <Modal open={bulkContactsOpen} onClose={() => setBulkContactsOpen(false)} title="ייבוא אנשי קשר (Excel)" wide>
+        <ContactBulkImport onDone={() => load(q)} />
+      </Modal>
+    </div>
+  );
+}
+
+function ContactBulkImport({ onDone }: { onDone: () => void }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<{
+    total: number;
+    created: number;
+    dupSkipped: number;
+    noNameSkipped: number;
+  } | null>(null);
+
+  async function run() {
+    if (!file) return;
+    setError(null);
+    setBusy(true);
+    try {
+      const fileBase64 = await new Promise<string>((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(String(fr.result));
+        fr.onerror = () => reject(new Error("קריאת הקובץ נכשלה"));
+        fr.readAsDataURL(file);
+      });
+      const res = await api<{ total: number; created: number; dupSkipped: number; noNameSkipped: number }>(
+        "/api/contacts/bulk-import",
+        { method: "POST", body: { fileBase64 } },
+      );
+      setResult(res);
+      onDone();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "שגיאה");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (result) {
+    return (
+      <div className="rounded-lg bg-green-50 px-4 py-3 text-sm text-green-800">
+        <div className="font-semibold">הייבוא הושלם ✓</div>
+        <ul className="mt-1 space-y-0.5">
+          <li>שורות בקובץ: {result.total}</li>
+          <li>אנשי קשר חדשים נוצרו: {result.created}</li>
+          <li>דילוג (טלפון קיים): {result.dupSkipped} · דילוג (ללא שם): {result.noNameSkipped}</li>
+        </ul>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-gray-500">
+        העלה קובץ אקסל עם אנשי קשר. המערכת מזהה אוטומטית עמודות <b>שם</b>, <b>טלפון</b>, אימייל,
+        ת.ז., כתובת ועיר. שורות ללא שם ידולגו, וטלפון שכבר קיים לא ייווצר פעמיים.
+      </p>
+      <input
+        type="file"
+        accept=".xlsx,.xls,.csv"
+        className="input"
+        onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+      />
+      {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+      <div className="flex justify-end">
+        <button className="btn-primary" onClick={run} disabled={!file || busy}>
+          {busy ? "מייבא…" : "ייבא"}
+        </button>
+      </div>
     </div>
   );
 }
