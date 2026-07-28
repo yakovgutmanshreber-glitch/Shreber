@@ -90,6 +90,11 @@ export function ObligationForm({
 
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // Non-credit obligations: optionally record the received payment (transaction)
+  // on the same form. (Credit goes through Kesher, which reports transactions.)
+  const [recordTx, setRecordTx] = useState(true);
+  const [txAmount, setTxAmount] = useState("");
+  const [txDate, setTxDate] = useState(new Date().toISOString().slice(0, 10));
 
   useEffect(() => {
     api<Category[]>("/api/categories").then(setCategories).catch(() => {});
@@ -170,8 +175,31 @@ export function ObligationForm({
           },
         });
       } else {
-        // Non-credit: just create the obligation; transactions entered manually.
-        await api("/api/obligations", { method: "POST", body: base });
+        // Non-credit: create the obligation, and optionally record the received
+        // payment as a transaction on the same form.
+        const created = await api<{ id: number }>("/api/obligations", { method: "POST", body: base });
+        if (recordTx) {
+          await api("/api/transactions", {
+            method: "POST",
+            body: {
+              obligationId: created.id,
+              contactId: base.contactId,
+              source: "manual",
+              amount: Number(txAmount) || Number(form.recurringAmount) || 0,
+              currency: 1,
+              transactionDate: txDate || form.startDate,
+              transactionType: "debit",
+              chargeOptionType: form.paymentMethod,
+              statusCode: 4, // עבר בהצלחה (received)
+              statusText: "התקבל",
+              bank: form.bank ?? null,
+              branch: form.branch ?? null,
+              account: form.account ?? null,
+              comment: form.checkNumber ? `צ׳ק ${form.checkNumber}` : form.comment ?? null,
+              kind: base.kind,
+            },
+          });
+        }
       }
       onSaved();
     } catch (err) {
@@ -539,6 +567,43 @@ export function ObligationForm({
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Non-credit new obligation: record the received payment inline. */}
+      {!isCredit && !isEdit && (
+        <div className="rounded-xl border border-brand-100 bg-brand-50/40 p-4">
+          <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+            <input type="checkbox" checked={recordTx} onChange={(e) => setRecordTx(e.target.checked)} />
+            רשום תשלום שהתקבל (עסקה)
+          </label>
+          {recordTx && (
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <div>
+                <label className="label">סכום העסקה (₪)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  className="input"
+                  placeholder={String(form.recurringAmount ?? 0)}
+                  value={txAmount}
+                  onChange={(e) => setTxAmount(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="label">תאריך העסקה</label>
+                <input
+                  type="date"
+                  className="input"
+                  value={txDate}
+                  onChange={(e) => setTxDate(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+          <p className="mt-2 text-xs text-gray-400">
+            אם ריק — יירשם סכום ההתחייבות. באשראי אין צורך: קשר שולח את העסקאות אוטומטית.
+          </p>
         </div>
       )}
 
