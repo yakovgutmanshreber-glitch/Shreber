@@ -108,6 +108,7 @@ export function ObligationDetailModal({
             transaction={txEditing === "new" ? undefined : txEditing}
             fixedContactId={contactId ?? undefined}
             fixedObligationId={obligation.id}
+            contactCards={contactCards}
             fixedKind={(obligation.kind as "income" | "expense") ?? undefined}
             onSaved={() => {
               setTxEditing(null);

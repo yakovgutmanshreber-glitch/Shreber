@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { api } from "@/lib/client";
 import { PAYMENT_METHOD, TRANSACTION_TYPE, CURRENCY, OBLIGATION_KIND } from "@/lib/constants";
+import type { SavedCard } from "@/components/ObligationForm";
 
 interface ObligationOption {
   id: number;
@@ -34,6 +35,7 @@ export function TransactionForm({
   fixedKind,
   fixedObligationId,
   obligations = [],
+  contactCards = [],
   onSaved,
   onCancel,
 }: {
@@ -42,10 +44,18 @@ export function TransactionForm({
   fixedKind?: "income" | "expense";
   fixedObligationId?: number | null;
   obligations?: ObligationOption[];
+  contactCards?: SavedCard[];
   onSaved: () => void;
   onCancel: () => void;
 }) {
   const isEdit = Boolean(transaction?.id);
+  const [cardMode, setCardMode] = useState<"existing" | "new">(
+    contactCards.length > 0 ? "existing" : "new",
+  );
+  const [selectedCardId, setSelectedCardId] = useState<number | "">(
+    contactCards.find((c) => c.isDefault)?.id ?? contactCards[0]?.id ?? "",
+  );
+  const [card, setCard] = useState({ cardNumber: "", cardExpiry: "", cvv: "", cardHolder: "", cardBrand: "", saveCard: true });
   const [form, setForm] = useState({
     kind: transaction?.kind ?? fixedKind ?? "income",
     obligationId:
@@ -90,6 +100,25 @@ export function TransactionForm({
       };
       if (isEdit) {
         await api(`/api/transactions/${transaction!.id}`, { method: "PATCH", body });
+      } else if (chargesViaKesher) {
+        // Credit card on an obligation → charge via Kesher, then record the tx.
+        if (cardMode === "existing" && !selectedCardId) throw new Error("יש לבחור כרטיס");
+        await api(`/api/obligations/${fixedObligationId}/charge-balance`, {
+          method: "POST",
+          body: {
+            amount: form.amount,
+            ...(cardMode === "existing"
+              ? { cardId: selectedCardId }
+              : {
+                  cardNumber: card.cardNumber,
+                  cardExpiry: card.cardExpiry,
+                  cvv: card.cvv,
+                  cardHolder: card.cardHolder,
+                  cardBrand: card.cardBrand,
+                  saveCard: card.saveCard,
+                }),
+          },
+        });
       } else {
         // Manual entry — skips the Kesher API entirely (spec §5).
         await api("/api/transactions", { method: "POST", body: { ...body, source: "manual" } });
@@ -103,15 +132,24 @@ export function TransactionForm({
   }
 
   const isBank = form.chargeOptionType === "bank";
+  const isCredit = form.chargeOptionType === "credit";
+  // Credit on an obligation → charge via Kesher (needs an obligation to attach to).
+  const chargesViaKesher = !isEdit && isCredit && fixedObligationId != null;
+  const setC = (k: keyof typeof card, v: unknown) => setCard((c) => ({ ...c, [k]: v }));
   const showObligationSelect = fixedObligationId == null && obligations.length > 0;
 
   return (
     <form onSubmit={submit} className="space-y-4">
-      {!isEdit && (
-        <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
-          עסקה ידנית נרשמת ישירות במערכת ואינה נשלחת לקשר.
-        </p>
-      )}
+      {!isEdit &&
+        (chargesViaKesher ? (
+          <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
+            💳 חיוב בפועל בקשר על הכרטיס שנבחר, בסכום שהוזן. העסקה תירשם אוטומטית.
+          </p>
+        ) : (
+          <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+            עסקה ידנית נרשמת ישירות במערכת ואינה נשלחת לקשר.
+          </p>
+        ))}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {!fixedKind && (
           <div>
@@ -228,6 +266,63 @@ export function TransactionForm({
             <label className="label">חשבון</label>
             <input className="input" value={form.account ?? ""} onChange={(e) => set("account", e.target.value)} />
           </div>
+        </div>
+      )}
+
+      {chargesViaKesher && (
+        <div className="rounded-xl border border-brand-100 bg-brand-50/40 p-4">
+          <div className="mb-2 text-sm font-semibold text-gray-700">כרטיס לחיוב</div>
+          {contactCards.length > 0 && (
+            <div className="mb-3 flex gap-2">
+              <button
+                type="button"
+                className={cardMode === "existing" ? "btn-primary flex-1 !py-1.5 text-xs" : "btn-secondary flex-1 !py-1.5 text-xs"}
+                onClick={() => setCardMode("existing")}
+              >
+                כרטיס שמור
+              </button>
+              <button
+                type="button"
+                className={cardMode === "new" ? "btn-primary flex-1 !py-1.5 text-xs" : "btn-secondary flex-1 !py-1.5 text-xs"}
+                onClick={() => setCardMode("new")}
+              >
+                כרטיס חדש
+              </button>
+            </div>
+          )}
+          {cardMode === "existing" && contactCards.length > 0 ? (
+            <select
+              className="input"
+              value={selectedCardId}
+              onChange={(e) => setSelectedCardId(e.target.value ? Number(e.target.value) : "")}
+            >
+              {contactCards.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.brand ?? "כרטיס"} •••• {c.last4 ?? "????"}
+                  {c.isDefault ? " (ברירת מחדל)" : ""}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <label className="label">מספר כרטיס</label>
+                <input className="input" inputMode="numeric" value={card.cardNumber} onChange={(e) => setC("cardNumber", e.target.value)} required />
+              </div>
+              <div>
+                <label className="label">תוקף (MMYY)</label>
+                <input className="input" placeholder="1228" maxLength={4} value={card.cardExpiry} onChange={(e) => setC("cardExpiry", e.target.value.replace(/\D/g, "").slice(0, 4))} required />
+              </div>
+              <div>
+                <label className="label">CVV</label>
+                <input className="input" inputMode="numeric" maxLength={4} value={card.cvv} onChange={(e) => setC("cvv", e.target.value.replace(/\D/g, "").slice(0, 4))} />
+              </div>
+              <div className="col-span-2">
+                <label className="label">שם בעל הכרטיס</label>
+                <input className="input" value={card.cardHolder} onChange={(e) => setC("cardHolder", e.target.value)} />
+              </div>
+            </div>
+          )}
         </div>
       )}
 
