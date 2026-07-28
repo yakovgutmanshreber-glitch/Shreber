@@ -27,6 +27,13 @@ export function ObligationDetailModal({
   const [tab, setTab] = useState<"details" | "transactions" | "communications">("details");
   // Which transaction is being added/edited inside the transactions tab.
   const [txEditing, setTxEditing] = useState<"new" | TransactionData | null>(null);
+  // Charge-balance panel state.
+  const [chargeOpen, setChargeOpen] = useState(false);
+  const [chargeCardId, setChargeCardId] = useState<number | "">(
+    contactCards.find((c) => c.isDefault)?.id ?? contactCards[0]?.id ?? "",
+  );
+  const [chargeBusy, setChargeBusy] = useState(false);
+  const [chargeError, setChargeError] = useState<string | null>(null);
 
   async function deleteTransaction(id: number) {
     await api(`/api/transactions/${id}`, { method: "DELETE" });
@@ -34,6 +41,35 @@ export function ObligationDetailModal({
   }
 
   const total = transactions.reduce((s, t) => s + Number(t.amount ?? 0), 0);
+  const TX_SUCCESS = new Set([0, 4, 11, 22]);
+  const paid = transactions
+    .filter((t) => {
+      const sc = (t as { statusCode?: number | null }).statusCode;
+      return sc != null && TX_SUCCESS.has(sc);
+    })
+    .reduce((s, t) => s + Number(t.amount ?? 0), 0);
+  const balance = Number((obligation as { recurringAmount?: number }).recurringAmount ?? 0) - paid;
+
+  async function chargeBalance() {
+    if (!chargeCardId) {
+      setChargeError("יש לבחור כרטיס");
+      return;
+    }
+    setChargeError(null);
+    setChargeBusy(true);
+    try {
+      await api(`/api/obligations/${obligation.id}/charge-balance`, {
+        method: "POST",
+        body: { cardId: chargeCardId },
+      });
+      setChargeOpen(false);
+      onChanged();
+    } catch (e) {
+      setChargeError(e instanceof Error ? e.message : "שגיאה");
+    } finally {
+      setChargeBusy(false);
+    }
+  }
 
   return (
     <div>
@@ -84,12 +120,54 @@ export function ObligationDetailModal({
         <div>
           <div className="mb-3 flex items-center justify-between">
             <span className="text-sm text-gray-500">
-              סה״כ עסקאות: <b className="text-gray-800">{formatCurrency(total)}</b>
+              נגבה: <b className="text-green-700">{formatCurrency(paid)}</b>
+              {balance > 0 && (
+                <>
+                  {" · "}יתרה: <b className="text-amber-600">{formatCurrency(balance)}</b>
+                </>
+              )}
             </span>
-            <button className="btn-secondary !py-1.5 text-xs" onClick={() => setTxEditing("new")}>
-              + עסקה
-            </button>
+            <div className="flex gap-2">
+              {balance > 0 && contactCards.length > 0 && (
+                <button
+                  className="btn-secondary !py-1.5 text-xs"
+                  onClick={() => setChargeOpen((v) => !v)}
+                >
+                  💳 חייב יתרה בכרטיס
+                </button>
+              )}
+              <button className="btn-secondary !py-1.5 text-xs" onClick={() => setTxEditing("new")}>
+                + עסקה
+              </button>
+            </div>
           </div>
+
+          {chargeOpen && balance > 0 && (
+            <div className="mb-3 rounded-xl border border-brand-100 bg-brand-50/40 p-3">
+              <div className="mb-2 text-sm text-gray-600">
+                חיוב יתרה של <b>{formatCurrency(balance)}</b> בכרטיס:
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  className="input max-w-[16rem]"
+                  value={chargeCardId}
+                  onChange={(e) => setChargeCardId(e.target.value ? Number(e.target.value) : "")}
+                >
+                  {contactCards.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.brand ?? "כרטיס"} •••• {c.last4 ?? "????"}
+                      {c.isDefault ? " (ברירת מחדל)" : ""}
+                    </option>
+                  ))}
+                </select>
+                <button className="btn-danger !py-1.5 text-xs" onClick={chargeBalance} disabled={chargeBusy}>
+                  {chargeBusy ? "מחייב…" : `חייב ${formatCurrency(balance)}`}
+                </button>
+              </div>
+              {chargeError && <p className="mt-2 text-xs text-red-600">{chargeError}</p>}
+              <p className="mt-1 text-xs text-gray-400">חיוב בפועל בקשר; העסקה תירשם אוטומטית.</p>
+            </div>
+          )}
           {transactions.length === 0 ? (
             <p className="py-6 text-center text-sm text-gray-400">אין עסקאות להתחייבות זו</p>
           ) : (
