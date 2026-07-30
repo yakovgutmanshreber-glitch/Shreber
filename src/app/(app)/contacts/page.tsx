@@ -5,6 +5,7 @@ import Link from "next/link";
 import { api } from "@/lib/client";
 import { Modal, PageHeader, EmptyState } from "@/components/ui";
 import { ContactForm } from "@/components/ContactForm";
+import { ListManager, type ListOption } from "@/components/ListManager";
 
 interface ContactRow {
   id: number;
@@ -23,6 +24,15 @@ export default function ContactsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkContactsOpen, setBulkContactsOpen] = useState(false);
+  const [listsOpen, setListsOpen] = useState(false);
+  const [options, setOptions] = useState<ListOption[]>([]);
+
+  const loadOptions = useCallback(async () => {
+    setOptions(await api<ListOption[]>("/api/list-options"));
+  }, []);
+  useEffect(() => {
+    loadOptions();
+  }, [loadOptions]);
 
   const load = useCallback(async (query = "") => {
     setLoading(true);
@@ -47,6 +57,9 @@ export default function ContactsPage() {
         subtitle="ניהול לקוחות ותורמים"
         action={
           <div className="flex gap-2">
+            <button className="btn-secondary" onClick={() => setListsOpen(true)}>
+              ⚙ ניהול רשימות
+            </button>
             <button className="btn-secondary" onClick={() => setBulkContactsOpen(true)}>
               👥 ייבוא אנשי קשר (Excel)
             </button>
@@ -122,6 +135,23 @@ export default function ContactsPage() {
 
       <Modal open={bulkContactsOpen} onClose={() => setBulkContactsOpen(false)} title="ייבוא אנשי קשר (Excel)" wide>
         <ContactBulkImport onDone={() => load(q)} />
+      </Modal>
+
+      <Modal open={listsOpen} onClose={() => setListsOpen(false)} title="ניהול רשימות" wide>
+        <div className="grid gap-6 sm:grid-cols-2">
+          <ListManager
+            title="עיר"
+            listKey="city"
+            items={options.filter((o) => o.listKey === "city")}
+            onChanged={loadOptions}
+          />
+          <ListManager
+            title="מדינה"
+            listKey="country"
+            items={options.filter((o) => o.listKey === "country")}
+            onChanged={loadOptions}
+          />
+        </div>
       </Modal>
     </div>
   );
