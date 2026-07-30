@@ -45,9 +45,22 @@ export const POST = handler(async (req) => {
   const seen = new Set<string>();
   for (const c of existing) for (const p of [c.phone, c.phone2]) if (normPhone(p)) seen.add(normPhone(p));
 
-  let created = 0;
   let dupSkipped = 0;
   let noNameSkipped = 0;
+  const toCreate: {
+    firstName: string;
+    lastName?: string;
+    phone?: string;
+    email?: string;
+    tz?: string;
+    address?: string;
+    city?: string;
+    country?: string;
+    fatherName?: string;
+    fatherInLawName?: string;
+  }[] = [];
+  const cities = new Set<string>();
+  const countries = new Set<string>();
 
   for (const r of json) {
     let firstName = str(r, firstKey);
@@ -70,26 +83,28 @@ export const POST = handler(async (req) => {
     }
     const city = str(r, cityKey);
     const country = str(r, countryKey);
-    await prisma.contact.create({
-      data: {
-        firstName,
-        lastName,
-        phone,
-        email: str(r, emailKey),
-        tz: str(r, tzKey),
-        address: str(r, addressKey),
-        city,
-        country,
-        fatherName: str(r, fatherKey),
-        fatherInLawName: str(r, fatherInLawKey),
-      },
+    toCreate.push({
+      firstName,
+      lastName,
+      phone,
+      email: str(r, emailKey),
+      tz: str(r, tzKey),
+      address: str(r, addressKey),
+      city,
+      country,
+      fatherName: str(r, fatherKey),
+      fatherInLawName: str(r, fatherInLawKey),
     });
-    // Remember new city/country values so they appear in the dropdowns.
-    await rememberOption("city", city);
-    await rememberOption("country", country);
+    if (city) cities.add(city);
+    if (country) countries.add(country);
     if (np) seen.add(np);
-    created++;
   }
+
+  // One bulk insert (fast) + a handful of list upserts (distinct values only).
+  if (toCreate.length) await prisma.contact.createMany({ data: toCreate });
+  for (const v of cities) await rememberOption("city", v);
+  for (const v of countries) await rememberOption("country", v);
+  const created = toCreate.length;
 
   return serialize({
     ok: true,
@@ -100,3 +115,5 @@ export const POST = handler(async (req) => {
     columns: { name: nameKey, lastName: lastKey, phone: phoneKey },
   });
 });
+
+export const maxDuration = 60;
