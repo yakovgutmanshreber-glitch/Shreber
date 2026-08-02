@@ -15,6 +15,7 @@ export interface ContactData {
   fatherName?: string | null;
   fatherInLawName?: string | null;
   address?: string | null;
+  addressZip?: string | null;
   city?: string | null;
   numHouse?: string | null;
   entrance?: string | null;
@@ -24,7 +25,13 @@ export interface ContactData {
 }
 
 // `list` = an editable dropdown backed by ListOption (pick or type a new value).
-const FIELDS: { name: keyof ContactData; label: string; type?: string; list?: "city" | "country" }[] = [
+const FIELDS: {
+  name: keyof ContactData;
+  label: string;
+  type?: string;
+  list?: "city" | "country";
+  showIf?: (form: ContactData) => boolean;
+}[] = [
   { name: "firstName", label: "שם פרטי *" },
   { name: "lastName", label: "שם משפחה" },
   { name: "phone", label: "טלפון" },
@@ -35,6 +42,11 @@ const FIELDS: { name: keyof ContactData; label: string; type?: string; list?: "c
   { name: "fatherName", label: "אביו" },
   { name: "fatherInLawName", label: "חותנו" },
   { name: "city", label: "עיר", list: "city" },
+  {
+    name: "addressZip",
+    label: "כתובת ומיקוד",
+    showIf: (f) => !!f.country && f.country !== "ישראל",
+  },
   { name: "address", label: "רחוב" },
   { name: "numHouse", label: "מס׳ בית" },
   { name: "entrance", label: "כניסה" },
@@ -98,7 +110,7 @@ export function ContactForm({
   return (
     <form onSubmit={submit} className="space-y-4">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {FIELDS.map((f) => (
+        {FIELDS.filter((f) => !f.showIf || f.showIf(form)).map((f) => (
           <div key={f.name}>
             <label className="label">{f.label}</label>
             <input

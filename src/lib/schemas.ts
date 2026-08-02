@@ -13,6 +13,7 @@ export const contactSchema = z.object({
   fatherName: optionalString, // אביו
   fatherInLawName: optionalString, // חותנו
   address: optionalString,
+  addressZip: optionalString, // כתובת ומיקוד (non-Israel)
   city: optionalString,
   numHouse: optionalString,
   entrance: optionalString,

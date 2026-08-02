@@ -73,6 +73,7 @@ model Contact {
   fatherName      String? // אביו
   fatherInLawName String? // חותנו
   address         String?
+  addressZip      String? // כתובת ומיקוד — shown only when country != ישראל
   city            String? // עיר (dropdown, editable list)
   numHouse        String?
   entrance        String?
