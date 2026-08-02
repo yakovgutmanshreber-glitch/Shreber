@@ -14,6 +14,7 @@ interface ContactRow {
   phone: string | null;
   email: string | null;
   city: string | null;
+  country: string | null;
   _count: { obligations: number; transactions: number };
 }
 
@@ -26,6 +27,8 @@ export default function ContactsPage() {
   const [bulkContactsOpen, setBulkContactsOpen] = useState(false);
   const [listsOpen, setListsOpen] = useState(false);
   const [options, setOptions] = useState<ListOption[]>([]);
+  const [cityFilter, setCityFilter] = useState("");
+  const [countryFilter, setCountryFilter] = useState("");
 
   const loadOptions = useCallback(async () => {
     setOptions(await api<ListOption[]>("/api/list-options"));
@@ -73,20 +76,54 @@ export default function ContactsPage() {
         }
       />
 
-      <div className="mb-4">
+      <div className="mb-4 flex flex-wrap gap-2">
         <input
           className="input max-w-sm"
           placeholder="חיפוש לפי שם, טלפון, אימייל…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
+        <select
+          className="input max-w-[12rem]"
+          value={cityFilter}
+          onChange={(e) => setCityFilter(e.target.value)}
+        >
+          <option value="">כל הערים</option>
+          {options
+            .filter((o) => o.listKey === "city")
+            .map((o) => (
+              <option key={o.id} value={o.value}>
+                {o.value}
+              </option>
+            ))}
+        </select>
+        <select
+          className="input max-w-[12rem]"
+          value={countryFilter}
+          onChange={(e) => setCountryFilter(e.target.value)}
+        >
+          <option value="">כל המדינות</option>
+          {options
+            .filter((o) => o.listKey === "country")
+            .map((o) => (
+              <option key={o.id} value={o.value}>
+                {o.value}
+              </option>
+            ))}
+        </select>
       </div>
 
-      {loading ? (
-        <div className="card p-8 text-center text-gray-400">טוען…</div>
-      ) : contacts.length === 0 ? (
-        <EmptyState message="לא נמצאו אנשי קשר" />
-      ) : (
+      {(() => {
+        const shown = contacts.filter(
+          (c) =>
+            (!cityFilter || c.city === cityFilter) &&
+            (!countryFilter || c.country === countryFilter),
+        );
+        return loading ? (
+          <div className="card p-8 text-center text-gray-400">טוען…</div>
+        ) : shown.length === 0 ? (
+          <EmptyState message="לא נמצאו אנשי קשר" />
+        ) : (
         <div className="card overflow-x-auto">
           <table className="w-full">
             <thead className="border-b border-gray-200 bg-gray-50">
@@ -100,7 +137,7 @@ export default function ContactsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {contacts.map((c) => (
+              {shown.map((c) => (
                 <tr key={c.id} className="hover:bg-gray-50">
                   <td className="td font-medium">
                     <Link href={`/contacts/${c.id}`} className="text-brand-700 hover:underline">
@@ -117,7 +154,8 @@ export default function ContactsPage() {
             </tbody>
           </table>
         </div>
-      )}
+        );
+      })()}
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="איש קשר חדש" wide>
         <ContactForm
