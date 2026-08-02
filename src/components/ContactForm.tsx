@@ -45,7 +45,7 @@ const FIELDS: {
   {
     name: "addressZip",
     label: "כתובת ומיקוד",
-    showIf: (f) => !!f.country && f.country !== "ישראל",
+    showIf: (f) => (!!f.country && f.country !== "ישראל") || !!f.addressZip,
   },
   { name: "address", label: "רחוב" },
   { name: "numHouse", label: "מס׳ בית" },

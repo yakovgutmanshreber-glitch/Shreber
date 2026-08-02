@@ -32,7 +32,8 @@ export const POST = handler(async (req) => {
   const phoneKey = k("טלפון", "נייד", "פלאפון", "phone", "tel", "mobile");
   const emailKey = k("אימייל", "מייל", "email", "דוא");
   const tzKey = k("ת.ז", "תעודת", "זהות", "tz");
-  const addressKey = k("כתובת", "רחוב", "address");
+  const addressKey = k("רחוב", "כתובת בית");
+  const addressZipKey = k("כתובת ומיקוד", "מיקוד", "zip", "postal", "כתובת ומקוד");
   const cityKey = k("עיר", "ישוב", "יישוב", "city");
   const countryKey = k("מדינה", "ארץ", "country");
   const fatherKey = k("אביו", "שם האב", "father");
@@ -40,25 +41,19 @@ export const POST = handler(async (req) => {
   const str = (r: Record<string, unknown>, key?: string) =>
     key ? String(r[key] ?? "").trim() || undefined : undefined;
 
-  // Existing phones — to skip duplicates.
-  const existing = await prisma.contact.findMany({ select: { phone: true, phone2: true } });
-  const seen = new Set<string>();
-  for (const c of existing) for (const p of [c.phone, c.phone2]) if (normPhone(p)) seen.add(normPhone(p));
+  // Existing contacts by normalized phone — new phones are created, matched ones
+  // get enriched (fill empty fields + set addressZip/country from the file).
+  const existing = await prisma.contact.findMany({
+    select: { id: true, phone: true, phone2: true, addressZip: true, country: true, city: true, email: true, tz: true, address: true, fatherName: true, fatherInLawName: true },
+  });
+  const byPhone = new Map<string, (typeof existing)[number]>();
+  for (const c of existing) for (const p of [c.phone, c.phone2]) if (normPhone(p) && !byPhone.has(normPhone(p))) byPhone.set(normPhone(p), c);
+  const seen = new Set(byPhone.keys());
 
-  let dupSkipped = 0;
+  let updated = 0;
   let noNameSkipped = 0;
-  const toCreate: {
-    firstName: string;
-    lastName?: string;
-    phone?: string;
-    email?: string;
-    tz?: string;
-    address?: string;
-    city?: string;
-    country?: string;
-    fatherName?: string;
-    fatherInLawName?: string;
-  }[] = [];
+  const toCreate: Record<string, string | undefined>[] = [];
+  const toUpdate: { id: number; data: Record<string, string> }[] = [];
   const cities = new Set<string>();
   const countries = new Set<string>();
 
@@ -77,12 +72,29 @@ export const POST = handler(async (req) => {
     }
     const phone = str(r, phoneKey);
     const np = normPhone(phone);
-    if (np && seen.has(np)) {
-      dupSkipped++;
-      continue;
-    }
     const city = str(r, cityKey);
     const country = str(r, countryKey);
+    const addressZip = str(r, addressZipKey);
+    if (city) cities.add(city);
+    if (country) countries.add(country);
+
+    const match = np ? byPhone.get(np) : undefined;
+    if (match) {
+      // Enrich: fill empty fields; addressZip/country from the file win.
+      const data: Record<string, string> = {};
+      if (addressZip) data.addressZip = addressZip;
+      if (country) data.country = country;
+      if (city && !match.city) data.city = city;
+      if (str(r, emailKey) && !match.email) data.email = str(r, emailKey)!;
+      if (str(r, tzKey) && !match.tz) data.tz = str(r, tzKey)!;
+      if (str(r, addressKey) && !match.address) data.address = str(r, addressKey)!;
+      if (str(r, fatherKey) && !match.fatherName) data.fatherName = str(r, fatherKey)!;
+      if (str(r, fatherInLawKey) && !match.fatherInLawName) data.fatherInLawName = str(r, fatherInLawKey)!;
+      if (Object.keys(data).length) toUpdate.push({ id: match.id, data });
+      continue;
+    }
+    if (np && seen.has(np)) continue; // same new phone twice in the file
+
     toCreate.push({
       firstName,
       lastName,
@@ -90,29 +102,32 @@ export const POST = handler(async (req) => {
       email: str(r, emailKey),
       tz: str(r, tzKey),
       address: str(r, addressKey),
+      addressZip,
       city,
       country,
       fatherName: str(r, fatherKey),
       fatherInLawName: str(r, fatherInLawKey),
     });
-    if (city) cities.add(city);
-    if (country) countries.add(country);
     if (np) seen.add(np);
   }
 
-  // One bulk insert (fast) + a handful of list upserts (distinct values only).
-  if (toCreate.length) await prisma.contact.createMany({ data: toCreate });
+  // Bulk insert new; update matched ones; remember distinct city/country values.
+  if (toCreate.length) await prisma.contact.createMany({ data: toCreate as never });
+  for (const u of toUpdate) await prisma.contact.update({ where: { id: u.id }, data: u.data });
   for (const v of cities) await rememberOption("city", v);
   for (const v of countries) await rememberOption("country", v);
   const created = toCreate.length;
+  updated = toUpdate.length;
+  const dupSkipped = 0;
 
   return serialize({
     ok: true,
     total: json.length,
     created,
+    updated,
     dupSkipped,
     noNameSkipped,
-    columns: { name: nameKey, lastName: lastKey, phone: phoneKey },
+    columns: { name: nameKey, lastName: lastKey, phone: phoneKey, addressZip: addressZipKey },
   });
 });
 

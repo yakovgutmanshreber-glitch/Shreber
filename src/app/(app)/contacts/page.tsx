@@ -202,6 +202,7 @@ function ContactBulkImport({ onDone }: { onDone: () => void }) {
   const [result, setResult] = useState<{
     total: number;
     created: number;
+    updated: number;
     dupSkipped: number;
     noNameSkipped: number;
   } | null>(null);
@@ -217,7 +218,7 @@ function ContactBulkImport({ onDone }: { onDone: () => void }) {
         fr.onerror = () => reject(new Error("קריאת הקובץ נכשלה"));
         fr.readAsDataURL(file);
       });
-      const res = await api<{ total: number; created: number; dupSkipped: number; noNameSkipped: number }>(
+      const res = await api<{ total: number; created: number; updated: number; dupSkipped: number; noNameSkipped: number }>(
         "/api/contacts/bulk-import",
         { method: "POST", body: { fileBase64 } },
       );
@@ -236,8 +237,8 @@ function ContactBulkImport({ onDone }: { onDone: () => void }) {
         <div className="font-semibold">הייבוא הושלם ✓</div>
         <ul className="mt-1 space-y-0.5">
           <li>שורות בקובץ: {result.total}</li>
-          <li>אנשי קשר חדשים נוצרו: {result.created}</li>
-          <li>דילוג (טלפון קיים): {result.dupSkipped} · דילוג (ללא שם): {result.noNameSkipped}</li>
+          <li>אנשי קשר חדשים נוצרו: {result.created} · אנשי קשר עודכנו: {result.updated}</li>
+          <li>דילוג (ללא שם): {result.noNameSkipped}</li>
         </ul>
       </div>
     );
