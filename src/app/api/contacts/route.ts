@@ -19,7 +19,7 @@ export const GET = handler(async (req) => {
     : {};
   const contacts = await prisma.contact.findMany({
     where,
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     include: { _count: { select: { obligations: true, transactions: true } } },
   });
   return serialize(contacts);
