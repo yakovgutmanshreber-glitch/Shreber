@@ -165,3 +165,16 @@ export const communicationSchema = z.object({
   date: z.coerce.date().optional(),
   note: z.string().trim().min(1, "יש להזין תוכן"),
 });
+
+// User management (admin).
+export const userCreateSchema = z.object({
+  email: z.string().trim().email("אימייל לא תקין"),
+  displayName: optionalString,
+  role: z.enum(["admin", "user"]).default("user"),
+  password: z.string().min(4, "סיסמה קצרה מדי (לפחות 4 תווים)").optional(),
+});
+export const userUpdateSchema = z.object({
+  displayName: optionalString,
+  role: z.enum(["admin", "user"]).optional(),
+  password: z.string().min(4, "סיסמה קצרה מדי").optional().or(z.literal("")).transform((v) => v || undefined),
+});

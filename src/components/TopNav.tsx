@@ -16,7 +16,10 @@ const NAV = [
 export function TopNav({ userName, role }: { userName: string; role: "admin" | "user" }) {
   const pathname = usePathname();
   const items = [...NAV];
-  if (role === "admin") items.push({ href: "/settings", label: "הגדרות" });
+  if (role === "admin") {
+    items.push({ href: "/users", label: "משתמשים" });
+    items.push({ href: "/settings", label: "הגדרות" });
+  }
 
   return (
     <header className="sticky top-0 z-30 border-b border-gray-200 bg-white/90 backdrop-blur">
