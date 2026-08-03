@@ -253,6 +253,18 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
             <p className="text-sm text-gray-400">לחיצה על התחייבות פותחת עריכה וניהול העסקאות שלה</p>
           </div>
           <div className="flex gap-2">
+            {oblGroups.length > 0 && (
+              <button
+                className="btn-secondary"
+                onClick={() =>
+                  setCollapsedCats((prev) =>
+                    prev.size > 0 ? new Set() : new Set(oblGroups.map((g) => g.category)),
+                  )
+                }
+              >
+                {collapsedCats.size > 0 ? "פרוס הכל" : "כווץ הכל"}
+              </button>
+            )}
             <button className="btn-secondary" onClick={() => setAdoptOpen(true)}>
               🔗 ייבוא מקשר
             </button>
