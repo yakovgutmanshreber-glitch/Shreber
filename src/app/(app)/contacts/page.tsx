@@ -53,6 +53,11 @@ export default function ContactsPage() {
     return () => clearTimeout(t);
   }, [q, load]);
 
+  const shown = contacts.filter(
+    (c) =>
+      (!cityFilter || c.city === cityFilter) && (!countryFilter || c.country === countryFilter),
+  );
+
   return (
     <div>
       <PageHeader
@@ -76,13 +81,14 @@ export default function ContactsPage() {
         }
       />
 
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="mb-4 flex flex-wrap items-center gap-2">
         <input
           className="input max-w-sm"
           placeholder="חיפוש לפי שם, טלפון, אימייל…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
+        <span className="text-xs text-gray-400">{shown.length} תוצאות</span>
         <select
           className="input max-w-[12rem]"
           value={cityFilter}
@@ -113,17 +119,11 @@ export default function ContactsPage() {
         </select>
       </div>
 
-      {(() => {
-        const shown = contacts.filter(
-          (c) =>
-            (!cityFilter || c.city === cityFilter) &&
-            (!countryFilter || c.country === countryFilter),
-        );
-        return loading ? (
-          <div className="card p-8 text-center text-gray-400">טוען…</div>
-        ) : shown.length === 0 ? (
-          <EmptyState message="לא נמצאו אנשי קשר" />
-        ) : (
+      {loading ? (
+        <div className="card p-8 text-center text-gray-400">טוען…</div>
+      ) : shown.length === 0 ? (
+        <EmptyState message="לא נמצאו אנשי קשר" />
+      ) : (
         <div className="card overflow-x-auto">
           <table className="w-full">
             <thead className="border-b border-gray-200 bg-gray-50">
@@ -154,8 +154,7 @@ export default function ContactsPage() {
             </tbody>
           </table>
         </div>
-        );
-      })()}
+      )}
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="איש קשר חדש" wide>
         <ContactForm
