@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { getKesherConfigStatus } from "@/lib/kesher/client";
 import { SettingsForm } from "./SettingsForm";
 import { KesherSyncPanel } from "./KesherSyncPanel";
+import { CurrencyRatesPanel } from "./CurrencyRatesPanel";
 
 export default async function SettingsPage() {
   const session = await auth();
@@ -55,6 +56,12 @@ export default async function SettingsPage() {
       <div className="card p-6">
         <h2 className="mb-4 text-lg font-bold">משיכת עסקאות מקשר</h2>
         <KesherSyncPanel />
+      </div>
+
+      {/* Currency exchange rates */}
+      <div className="card p-6">
+        <h2 className="mb-4 text-lg font-bold">שערי מטבע</h2>
+        <CurrencyRatesPanel />
       </div>
 
       {/* Webhook URL */}

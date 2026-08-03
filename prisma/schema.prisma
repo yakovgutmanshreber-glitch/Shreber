@@ -179,6 +179,9 @@ model Obligation {
   contact                   Contact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
   kesherObligationReference String?  @unique // Kesher ObligationReference
   recurringAmount           Decimal      @default(0) // Kesher "Sum"
+  currency                  Int          @default(1) // 1=ILS 2=USD 826=GBP 978=EUR 124=CAD
+  exchangeRate              Decimal? // FX rate to ILS at creation (1 for ILS)
+  amountIls                 Decimal? // recurringAmount converted to ILS
   numPayments               Int          @default(9999) // 9999 = unlimited/ongoing
   // How the amount + numPayments are interpreted & charged:
   //  'recurring'    = הוראת קבע — recurringAmount charged each period (9999 = ongoing)
@@ -216,7 +219,9 @@ model Transaction {
   kesherNumTransaction String?    @unique // Kesher NumTransaction
   uniqNum             String? // our unique id sent to Kesher, max 19 chars
   amount              Decimal
-  currency            Int         @default(1) // 1=ILS 2=USD 826=GBP 978=EUR
+  currency            Int         @default(1) // 1=ILS 2=USD 826=GBP 978=EUR 124=CAD
+  exchangeRate        Decimal? // FX rate to ILS at the transaction time (1 for ILS)
+  amountIls           Decimal? // amount converted to ILS
   transactionDate     DateTime
   transactionType     String // 'debit' | 'credit'
   chargeOptionType    String // 'credit'|'bank'|'cash'|'check'|'bit'
@@ -238,6 +243,14 @@ model Transaction {
 
   @@index([obligationId])
   @@index([contactId])
+}
+
+// Daily currency exchange rates (foreign -> ILS), auto-updated each morning.
+model CurrencyRate {
+  code      String   @id // 'USD' | 'EUR' | 'GBP' | 'CAD'
+  rateToIls Decimal // how many ILS per 1 unit of this currency
+  date      DateTime // the rate's date (from the source)
+  updatedAt DateTime @updatedAt
 }
 
 // Static reference table for Kesher internal status codes.

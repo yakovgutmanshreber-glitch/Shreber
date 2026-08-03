@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/client";
 import { formatCurrency } from "@/lib/format";
-import { OBLIGATION_STATUS, PAYMENT_METHOD, OBLIGATION_KIND } from "@/lib/constants";
+import { OBLIGATION_STATUS, PAYMENT_METHOD, OBLIGATION_KIND, CURRENCY } from "@/lib/constants";
 
 interface Category {
   id: number;
@@ -27,6 +27,7 @@ export interface ObligationData {
   creditCardId?: number | null;
   chargeType?: "recurring" | "installments" | "onetime";
   recurringAmount?: number;
+  currency?: number;
   numPayments?: number;
   chargeDay?: number | null;
   startDate?: string;
@@ -65,6 +66,7 @@ export function ObligationForm({
       contactId: fixedContactId ?? null,
       chargeType: "recurring",
       recurringAmount: 0,
+      currency: 1,
       numPayments: 9999,
       startDate: new Date().toISOString().slice(0, 10),
       status: "active",
@@ -315,6 +317,20 @@ export function ObligationForm({
             value={form.recurringAmount ?? 0}
             onChange={(e) => set("recurringAmount", Number(e.target.value))}
           />
+        </div>
+        <div>
+          <label className="label">מטבע</label>
+          <select
+            className="input"
+            value={form.currency ?? 1}
+            onChange={(e) => set("currency", Number(e.target.value))}
+          >
+            {Object.entries(CURRENCY).map(([v, l]) => (
+              <option key={v} value={v}>
+                {l}
+              </option>
+            ))}
+          </select>
         </div>
         {!isOnetime && (
           <div>

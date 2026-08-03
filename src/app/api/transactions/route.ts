@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { handler, serialize } from "@/lib/api";
 import { transactionSchema } from "@/lib/schemas";
+import { convertToIls } from "@/lib/currency";
 
 export const GET = handler(async (req) => {
   const { searchParams } = new URL(req.url);
@@ -35,8 +36,9 @@ export const POST = handler(async (req) => {
     if (obl) data.kind = obl.kind as "income" | "expense";
   }
 
+  const { exchangeRate, amountIls } = await convertToIls(Number(data.amount), data.currency);
   const transaction = await prisma.transaction.create({
-    data,
+    data: { ...data, exchangeRate, amountIls },
     include: { obligation: true, contact: true },
   });
   return serialize(transaction);

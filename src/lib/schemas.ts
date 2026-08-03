@@ -35,6 +35,7 @@ export const obligationSchema = z.object({
   creditCardId: z.coerce.number().int().positive().optional().nullable(),
   chargeType: z.enum(["recurring", "installments", "onetime"]).default("recurring"),
   recurringAmount: z.coerce.number().min(0).default(0),
+  currency: z.coerce.number().int().default(1),
   numPayments: z.coerce.number().int().min(1).default(9999),
   chargeDay: z.coerce.number().int().min(1).max(31).optional().nullable(),
   startDate: z.coerce.date(),

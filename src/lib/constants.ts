@@ -79,7 +79,17 @@ export const CURRENCY = {
   2: "$ דולר",
   826: "£ לירה שטרלינג",
   978: "€ אירו",
+  124: "$ דולר קנדי",
 } as const;
+
+// ISO numeric currency code -> 3-letter code (for FX rates).
+export const CURRENCY_CODE: Record<number, string> = {
+  1: "ILS",
+  2: "USD",
+  826: "GBP",
+  978: "EUR",
+  124: "CAD",
+};
 
 // Kesher internal status codes (also seeded into the KesherStatus table).
 export const KESHER_STATUS: Record<number, string> = {
