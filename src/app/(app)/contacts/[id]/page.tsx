@@ -146,9 +146,6 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
   const income = contact.transactions
     .filter((t) => t.kind === "income")
     .reduce((s, t) => s + Number(t.amount), 0);
-  const expenses = contact.transactions
-    .filter((t) => t.kind === "expense")
-    .reduce((s, t) => s + Number(t.amount), 0);
   const activeObl = contact.obligations.filter((o) => o.status === "active").length;
 
   return (
@@ -180,9 +177,8 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <SummaryCard label="סך הכנסות" value={formatCurrency(income)} tone="green" />
-        <SummaryCard label="סך הוצאות" value={formatCurrency(expenses)} tone="red" />
         <SummaryCard label="התחייבויות פעילות" value={String(activeObl)} tone="blue" />
       </div>
 
