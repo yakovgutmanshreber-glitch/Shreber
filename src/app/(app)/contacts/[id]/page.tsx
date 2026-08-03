@@ -146,10 +146,48 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
     });
   })();
 
-  const income = contact.transactions
-    .filter((t) => t.kind === "income")
-    .reduce((s, t) => s + Number(t.amount), 0);
-  const activeObl = contact.obligations.filter((o) => o.status === "active").length;
+  // Financial summary across the person's (non-cancelled) obligations. Amounts
+  // use the ₪ value (amountIls) when the record is in a foreign currency.
+  const money = (() => {
+    const now = new Date();
+    let committed = 0;
+    let remaining = 0;
+    let debt = 0;
+    for (const o of contact.obligations) {
+      if (o.status === "cancelled") continue;
+      const amt = Number(o.amountIls ?? o.recurringAmount);
+      const n = o.numPayments;
+      const ongoing = o.chargeType === "recurring" && n === 9999;
+      const numPay = o.chargeType === "onetime" ? 1 : n;
+      const perPayment = o.chargeType === "installments" ? (n > 0 ? amt / n : amt) : amt;
+      const total = ongoing ? null : o.chargeType === "installments" ? amt : perPayment * numPay;
+      const txs = contact.transactions.filter((t) => t.obligationId === o.id);
+      const paid = txs.filter(txPassed).reduce((s, t) => s + Number(t.amountIls ?? t.amount), 0);
+      // How many payment periods should have occurred by now (monthly).
+      const start = new Date(o.startDate);
+      let periods = 0;
+      if (start <= now) {
+        periods =
+          o.chargeType === "onetime"
+            ? 1
+            : (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth()) + 1;
+      }
+      const cappedPeriods = ongoing ? periods : Math.min(periods, numPay);
+      const expectedByNow = perPayment * cappedPeriods;
+      if (total != null) {
+        committed += total;
+        remaining += Math.max(0, total - paid);
+      }
+      debt += Math.max(0, expectedByNow - paid);
+    }
+    const collected = contact.transactions
+      .filter(txPassed)
+      .reduce((s, t) => s + Number(t.amountIls ?? t.amount), 0);
+    const failed = contact.transactions
+      .filter(txFailed)
+      .reduce((s, t) => s + Number(t.amountIls ?? t.amount), 0);
+    return { committed, collected, failed, remaining, debt };
+  })();
 
   return (
     <div className="space-y-6">
@@ -180,9 +218,12 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <SummaryCard label="סך הכנסות" value={formatCurrency(income)} tone="green" />
-        <SummaryCard label="התחייבויות פעילות" value={String(activeObl)} tone="blue" />
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
+        <SummaryCard label="סך הכנסות (התחייבות מלאה)" value={formatCurrency(money.committed)} tone="blue" />
+        <SummaryCard label="נגבה בפועל" value={formatCurrency(money.collected)} tone="green" />
+        <SummaryCard label="לא עבר" value={formatCurrency(money.failed)} tone="red" />
+        <SummaryCard label="יתרה לתשלום" value={formatCurrency(money.remaining)} tone="blue" />
+        <SummaryCard label="חוב (בפיגור)" value={formatCurrency(money.debt)} tone="red" />
       </div>
 
       {/* Details */}
