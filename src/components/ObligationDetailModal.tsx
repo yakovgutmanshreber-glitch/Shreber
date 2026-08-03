@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/client";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency, formatMoney, formatDate } from "@/lib/format";
 import { ObligationForm, type ObligationData, type SavedCard } from "@/components/ObligationForm";
 import { TransactionForm, type TransactionData } from "@/components/TransactionForm";
 import { TxStatusBadge, ConfirmButton } from "@/components/ui";
@@ -188,7 +188,7 @@ export function ObligationDetailModal({
                   {transactions.map((t) => (
                     <tr key={t.id} className="hover:bg-gray-50">
                       <td className="td">{formatDate(t.transactionDate)}</td>
-                      <td className="td font-medium">{formatCurrency(t.amount, t.currency)}</td>
+                      <td className="td font-medium">{formatMoney(t.amount, t.currency, t.amountIls)}</td>
                       <td className="td">{t.source === "api" ? "קשר" : "ידני"}</td>
                       <td className="td">
                         <TxStatusBadge

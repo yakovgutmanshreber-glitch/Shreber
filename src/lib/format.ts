@@ -39,3 +39,16 @@ export function formatDateTime(value: Date | string | null | undefined): string 
   const d = typeof value === "string" ? new Date(value) : value;
   return new Intl.DateTimeFormat("he-IL", { dateStyle: "medium", timeStyle: "short" }).format(d);
 }
+
+// Foreign amounts show their ₪ value in parentheses, e.g. "$100.00 (₪305.11)".
+export function formatMoney(
+  amount: number | string | null | undefined,
+  currency = 1,
+  amountIls?: number | string | null,
+): string {
+  const base = formatCurrency(amount, currency);
+  if (currency !== 1 && amountIls != null && amountIls !== "") {
+    return `${base} (${formatCurrency(amountIls, 1)})`;
+  }
+  return base;
+}

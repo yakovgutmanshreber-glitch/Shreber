@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { api } from "@/lib/client";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency, formatMoney, formatDate } from "@/lib/format";
 import { PAYMENT_METHOD, statusLabel } from "@/lib/constants";
 import {
   Modal,
@@ -17,6 +17,8 @@ import { TransactionForm } from "@/components/TransactionForm";
 interface Obligation {
   id: number;
   recurringAmount: number;
+  currency: number;
+  amountIls: number | null;
   numPayments: number;
   status: string;
   paymentMethod: string;
@@ -28,6 +30,7 @@ interface Transaction {
   id: number;
   amount: number;
   currency: number;
+  amountIls: number | null;
   transactionDate: string;
   statusCode: number | null;
   statusText: string | null;
@@ -125,7 +128,7 @@ export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
                 {obligations.map((o) => (
                   <tr key={o.id} className="hover:bg-gray-50">
                     <td className="td font-medium">{o.category?.category ?? "—"}</td>
-                    <td className="td">{formatCurrency(o.recurringAmount)}</td>
+                    <td className="td">{formatMoney(o.recurringAmount, o.currency, o.amountIls)}</td>
                     <td className="td">{o.numPayments === 9999 ? "∞" : o.numPayments}</td>
                     <td className="td">{statusLabel(PAYMENT_METHOD, o.paymentMethod)}</td>
                     <td className="td">{formatDate(o.startDate)}</td>
@@ -159,7 +162,7 @@ export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
                 <tr key={t.id} className="hover:bg-gray-50">
                   <td className="td">{formatDate(t.transactionDate)}</td>
                   <td className="td">{t.obligation?.category?.category ?? "—"}</td>
-                  <td className="td font-medium">{formatCurrency(t.amount, t.currency)}</td>
+                  <td className="td font-medium">{formatMoney(t.amount, t.currency, t.amountIls)}</td>
                   <td className="td">{t.source === "api" ? "קשר" : "ידני"}</td>
                   <td className="td">
                     <TxStatusBadge code={t.statusCode} text={t.statusText} />

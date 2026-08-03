@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/client";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency, formatMoney, formatDate } from "@/lib/format";
 import { PAYMENT_METHOD, statusLabel, KESHER_SUCCESS_CODES } from "@/lib/constants";
 import {
   Modal,
@@ -25,6 +25,8 @@ interface Obligation {
   categoryId: number | null;
   chargeType?: "recurring" | "installments" | "onetime";
   recurringAmount: number;
+  currency: number;
+  amountIls: number | null;
   numPayments: number;
   chargeDay: number | null;
   status: string;
@@ -40,6 +42,7 @@ interface Transaction {
   obligationId: number | null;
   amount: number;
   currency: number;
+  amountIls: number | null;
   transactionDate: string;
   transactionType: string;
   chargeOptionType: string;
@@ -281,7 +284,7 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
                                 onClick={() => setOpenOblId(o.id)}
                               >
                                 <td className="td">{o.kind === "income" ? "הכנסה" : "הוצאה"}</td>
-                                <td className="td">{formatCurrency(o.recurringAmount)}</td>
+                                <td className="td">{formatMoney(o.recurringAmount, o.currency, o.amountIls)}</td>
                                 <td className="td">{o.numPayments === 9999 ? "∞" : o.numPayments}</td>
                                 <td className="td">{statusLabel(PAYMENT_METHOD, o.paymentMethod)}</td>
                                 <td className="td">
@@ -342,7 +345,7 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
                       <tr key={t.id}>
                         <td className="td">{formatDate(t.transactionDate)}</td>
                         <td className="td">{t.kind === "income" ? "הכנסה" : "הוצאה"}</td>
-                        <td className="td">{formatCurrency(t.amount, t.currency)}</td>
+                        <td className="td">{formatMoney(t.amount, t.currency, t.amountIls)}</td>
                         <td className="td">{t.source === "api" ? "קשר" : "ידני"}</td>
                         <td className="td">
                           <TxStatusBadge code={t.statusCode} text={t.statusText} />

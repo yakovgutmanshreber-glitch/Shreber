@@ -18,6 +18,7 @@ export interface TransactionData {
   obligationId?: number | null;
   amount?: number;
   currency?: number;
+  amountIls?: number | null;
   transactionDate?: string;
   transactionType?: string;
   chargeOptionType?: string;
