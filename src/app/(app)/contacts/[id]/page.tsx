@@ -223,7 +223,7 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
         <SummaryCard label="נגבה בפועל" value={formatCurrency(money.collected)} tone="green" />
         <SummaryCard label="לא עבר" value={formatCurrency(money.failed)} tone="red" />
         <SummaryCard label="יתרה לתשלום" value={formatCurrency(money.remaining)} tone="blue" />
-        <SummaryCard label="חוב (בפיגור)" value={formatCurrency(money.debt)} tone="red" />
+        <SummaryCard label="חוב" value={formatCurrency(money.debt)} tone="red" />
       </div>
 
       {/* Details */}
