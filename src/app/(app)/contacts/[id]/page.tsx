@@ -150,8 +150,10 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
   // use the ₪ value (amountIls) when the record is in a foreign currency.
   //   חוב = full plan total − amount actually paid (all still-owed, due or not).
   const money = (() => {
+    const now = new Date();
     let committed = 0;
-    let debt = 0; // committed - paid, per fixed-term obligation
+    let debt = 0; // committed - paid, per fixed-term obligation (all still owed)
+    let future = 0; // amount of payments not yet due
     for (const o of contact.obligations) {
       if (o.status === "cancelled") continue;
       const amt = Number(o.amountIls ?? o.recurringAmount);
@@ -166,6 +168,16 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
         .reduce((s, t) => s + Number(t.amountIls ?? t.amount), 0);
       committed += total;
       debt += Math.max(0, total - paid);
+      // payments not yet due (by month) = future payments still to come
+      const start = new Date(o.startDate);
+      let periods = 0;
+      if (start <= now) {
+        periods =
+          o.chargeType === "onetime"
+            ? 1
+            : (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth()) + 1;
+      }
+      future += Math.max(0, numPay - Math.min(periods, numPay)) * perPayment;
     }
     const collected = contact.transactions
       .filter(txPassed)
@@ -173,7 +185,7 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
     const failed = contact.transactions
       .filter(txFailed)
       .reduce((s, t) => s + Number(t.amountIls ?? t.amount), 0);
-    return { committed, collected, failed, debt };
+    return { committed, collected, failed, debt, future };
   })();
 
   return (
@@ -205,11 +217,12 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
         <SummaryCard label="סך הכנסות (התחייבות מלאה)" value={formatCurrency(money.committed)} tone="blue" />
         <SummaryCard label="נגבה בפועל" value={formatCurrency(money.collected)} tone="green" />
         <SummaryCard label="לא עבר" value={formatCurrency(money.failed)} tone="red" />
         <SummaryCard label="חוב (יתרה לתשלום)" value={formatCurrency(money.debt)} tone="red" />
+        <SummaryCard label="תשלומים עתידיים" value={formatCurrency(money.future)} tone="blue" />
       </div>
 
       {/* Details */}
