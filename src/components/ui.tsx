@@ -31,11 +31,11 @@ export function Modal({
   if (!open) return null;
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 pt-16"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-2 pt-4 sm:p-4 sm:pt-16"
       onClick={onClose}
     >
       <div
-        className={`card w-full ${wide ? "max-w-2xl" : "max-w-lg"} p-6`}
+        className={`card w-full ${wide ? "max-w-2xl" : "max-w-lg"} p-4 sm:p-6`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
@@ -60,12 +60,12 @@ export function PageHeader({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="mb-6 flex items-center justify-between">
+    <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
+        <h1 className="text-xl font-bold text-gray-900 sm:text-2xl">{title}</h1>
         {subtitle && <p className="mt-1 text-sm text-gray-500">{subtitle}</p>}
       </div>
-      {action}
+      {action && <div className="flex flex-wrap gap-2">{action}</div>}
     </div>
   );
 }
