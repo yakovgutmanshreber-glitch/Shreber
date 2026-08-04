@@ -129,7 +129,7 @@ export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
                   <tr key={o.id} className="hover:bg-gray-50">
                     <td className="td font-medium">{o.category?.category ?? "—"}</td>
                     <td className="td">{formatMoney(o.recurringAmount, o.currency, o.amountIls)}</td>
-                    <td className="td">{o.numPayments === 9999 ? "∞" : o.numPayments}</td>
+                    <td className="td">{o.numPayments === 9999 ? "ללא הגבלה" : o.numPayments}</td>
                     <td className="td">{statusLabel(PAYMENT_METHOD, o.paymentMethod)}</td>
                     <td className="td">{formatDate(o.startDate)}</td>
                     <td className="td">{o._count.transactions}</td>
