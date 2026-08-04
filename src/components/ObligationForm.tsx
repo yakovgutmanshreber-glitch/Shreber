@@ -43,6 +43,15 @@ export interface ObligationData {
 
 const BRANDS = ["ויזה", "מאסטרקארד", "ישראכרט", "אמריקן אקספרס", "דיינרס"];
 
+// Emoji per payment method, for the selectable payment cards.
+const PAYMENT_ICON: Record<string, string> = {
+  credit: "💳",
+  cash: "💵",
+  bank: "🏦",
+  check: "🧾",
+  bit: "📱",
+};
+
 export function ObligationForm({
   obligation,
   fixedContactId,
@@ -404,7 +413,7 @@ export function ObligationForm({
             required
           />
         </div>
-        <div>
+        <div className="sm:col-span-2">
           <label className="label">אמצעי תשלום</label>
           {isKesherTracked ? (
             // Kesher owns the hok — the payment method is fixed at creation.
@@ -413,17 +422,26 @@ export function ObligationForm({
               <span className="text-xs text-gray-400">נקבע בקשר — לא ניתן לשינוי</span>
             </div>
           ) : (
-            <select
-              className="input"
-              value={form.paymentMethod}
-              onChange={(e) => set("paymentMethod", e.target.value)}
-            >
-              {Object.entries(PAYMENT_METHOD).map(([v, l]) => (
-                <option key={v} value={v}>
-                  {l}
-                </option>
-              ))}
-            </select>
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+              {Object.entries(PAYMENT_METHOD).map(([v, l]) => {
+                const active = form.paymentMethod === v;
+                return (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => set("paymentMethod", v)}
+                    className={`flex flex-col items-center gap-1.5 rounded-2xl border-2 px-2 py-3 text-xs font-semibold transition-all ${
+                      active
+                        ? "border-brand-600 bg-brand-600 text-white shadow-md"
+                        : "border-gray-200 bg-white text-gray-600 hover:border-brand-300 hover:bg-brand-50/50"
+                    }`}
+                  >
+                    <span className="text-2xl leading-none">{PAYMENT_ICON[v] ?? "💳"}</span>
+                    {l}
+                  </button>
+                );
+              })}
+            </div>
           )}
         </div>
 
