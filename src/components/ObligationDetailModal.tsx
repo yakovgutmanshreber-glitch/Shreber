@@ -92,6 +92,7 @@ export function ObligationDetailModal({
         <ObligationForm
           obligation={obligation}
           fixedContactId={contactId ?? undefined}
+          fixedKind={(obligation.kind as "income" | "expense") ?? "income"}
           contactCards={contactCards}
           onSaved={onChanged}
           onCancel={onClose}

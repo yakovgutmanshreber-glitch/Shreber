@@ -416,8 +416,9 @@ export function ObligationForm({
         <div>
           <label className="label">מטבע</label>
           <select
-            className="input"
+            className="input disabled:bg-gray-50 disabled:text-gray-500"
             value={form.currency ?? 1}
+            disabled={isKesherTracked}
             onChange={(e) => set("currency", Number(e.target.value))}
           >
             {Object.entries(CURRENCY).map(([v, l]) => (
@@ -426,6 +427,9 @@ export function ObligationForm({
               </option>
             ))}
           </select>
+          {isKesherTracked && (
+            <p className="mt-1 text-xs text-gray-400">לא ניתן לשנות מטבע לאחר שההוראה נשלחה לקשר</p>
+          )}
           {currencyNum !== 1 && (
             <p className="mt-1 text-xs text-gray-500">
               {rate ? (
