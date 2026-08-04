@@ -22,6 +22,8 @@ export function currencyIso(currency: number): string {
       return "GBP";
     case 978:
       return "EUR";
+    case 124:
+      return "CAD";
     case 1:
     default:
       return "ILS";

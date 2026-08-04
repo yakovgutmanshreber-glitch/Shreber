@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/client";
-import { formatCurrency, formatMoney, formatDate } from "@/lib/format";
+import { formatCurrency, formatMoney, formatDate, currencyIso } from "@/lib/format";
 import { PAYMENT_METHOD, statusLabel, KESHER_SUCCESS_CODES } from "@/lib/constants";
 import {
   Modal,
@@ -100,6 +100,10 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
       return next;
     });
 
+  // Currency exchange rates (ISO code -> ₪ per 1 unit), used to show the shekel
+  // value of foreign amounts that don't have a stored amountIls.
+  const [rates, setRates] = useState<Record<string, number>>({});
+
   const load = useCallback(async () => {
     setLoading(true);
     const data = await api<Contact>(`/api/contacts/${id}`);
@@ -110,6 +114,31 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    api<{ code: string; rateToIls: number }[]>("/api/currency-rates")
+      .then((rows) => {
+        const m: Record<string, number> = {};
+        for (const r of rows) m[r.code] = Number(r.rateToIls);
+        setRates(m);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Like formatMoney, but if a foreign amount has no stored ₪ value, convert it
+  // on the fly with the current exchange rate so the shekel value still shows.
+  const showMoney = (
+    amount: number | string | null | undefined,
+    currency = 1,
+    amountIls?: number | string | null,
+  ): string => {
+    let ils = amountIls;
+    if (currency !== 1 && (ils == null || ils === "")) {
+      const rate = rates[currencyIso(currency)];
+      if (rate) ils = Number(amount ?? 0) * rate;
+    }
+    return formatMoney(amount, currency, ils);
+  };
 
   async function deleteContact() {
     await api(`/api/contacts/${id}`, { method: "DELETE" });
@@ -341,7 +370,7 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
                                 className="cursor-pointer hover:bg-gray-50"
                                 onClick={() => setOpenOblId(o.id)}
                               >
-                                <td className="td">{formatMoney(o.recurringAmount, o.currency, o.amountIls)}</td>
+                                <td className="td">{showMoney(o.recurringAmount, o.currency, o.amountIls)}</td>
                                 <td className="td">{o.numPayments === 9999 ? "ללא הגבלה" : o.numPayments}</td>
                                 <td className="td">{statusLabel(PAYMENT_METHOD, o.paymentMethod)}</td>
                                 <td className="td">
@@ -395,7 +424,6 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
                 <thead className="border-b border-gray-200 bg-gray-50">
                   <tr>
                     <th className="th">תאריך</th>
-                    <th className="th">סוג</th>
                     <th className="th">סכום</th>
                     <th className="th">מקור</th>
                     <th className="th">סטטוס</th>
@@ -408,8 +436,7 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
                     .map((t) => (
                       <tr key={t.id}>
                         <td className="td">{formatDate(t.transactionDate)}</td>
-                        <td className="td">{t.kind === "income" ? "הכנסה" : "הוצאה"}</td>
-                        <td className="td">{formatMoney(t.amount, t.currency, t.amountIls)}</td>
+                        <td className="td">{showMoney(t.amount, t.currency, t.amountIls)}</td>
                         <td className="td">{t.source === "api" ? "קשר" : "ידני"}</td>
                         <td className="td">
                           <TxStatusBadge code={t.statusCode} text={t.statusText} />
