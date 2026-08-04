@@ -274,6 +274,78 @@ export function ObligationForm({
           </select>
         </div>
 
+        <div className="sm:col-span-2">
+          <label className="label">אמצעי תשלום</label>
+          {isKesherTracked ? (
+            // Kesher owns the hok — the payment method is fixed at creation.
+            <div className="input flex items-center justify-between bg-gray-50 text-gray-600">
+              <span>{PAYMENT_METHOD[form.paymentMethod as keyof typeof PAYMENT_METHOD] ?? form.paymentMethod}</span>
+              <span className="text-xs text-gray-400">נקבע בקשר — לא ניתן לשינוי</span>
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+              {Object.entries(PAYMENT_METHOD).map(([v, l]) => {
+                const active = form.paymentMethod === v;
+                return (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => set("paymentMethod", v)}
+                    className={`flex flex-col items-center gap-1.5 rounded-2xl border-2 px-2 py-3 text-xs font-semibold transition-all ${
+                      active
+                        ? "border-brand-600 bg-brand-600 text-white shadow-md"
+                        : "border-gray-200 bg-white text-gray-600 hover:border-brand-300 hover:bg-brand-50/50"
+                    }`}
+                  >
+                    <span className="text-2xl leading-none">{PAYMENT_ICON[v] ?? "💳"}</span>
+                    {l}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Check payment: check number + bank/branch/account. */}
+        {form.paymentMethod === "check" && (
+          <div className="sm:col-span-2 grid grid-cols-2 gap-3 rounded-xl border border-gray-200 bg-gray-50/50 p-3">
+            <div>
+              <label className="label">מספר צ׳ק</label>
+              <input className="input" value={form.checkNumber ?? ""} onChange={(e) => set("checkNumber", e.target.value)} />
+            </div>
+            <div>
+              <label className="label">בנק</label>
+              <input className="input" value={form.bank ?? ""} onChange={(e) => set("bank", e.target.value)} />
+            </div>
+            <div>
+              <label className="label">סניף</label>
+              <input className="input" value={form.branch ?? ""} onChange={(e) => set("branch", e.target.value)} />
+            </div>
+            <div>
+              <label className="label">מספר חשבון</label>
+              <input className="input" value={form.account ?? ""} onChange={(e) => set("account", e.target.value)} />
+            </div>
+          </div>
+        )}
+
+        {/* Bank transfer / הו״ק: bank/branch/account only. */}
+        {form.paymentMethod === "bank" && (
+          <div className="sm:col-span-2 grid grid-cols-3 gap-3 rounded-xl border border-gray-200 bg-gray-50/50 p-3">
+            <div>
+              <label className="label">בנק</label>
+              <input className="input" value={form.bank ?? ""} onChange={(e) => set("bank", e.target.value)} />
+            </div>
+            <div>
+              <label className="label">סניף</label>
+              <input className="input" value={form.branch ?? ""} onChange={(e) => set("branch", e.target.value)} />
+            </div>
+            <div>
+              <label className="label">מספר חשבון</label>
+              <input className="input" value={form.account ?? ""} onChange={(e) => set("account", e.target.value)} />
+            </div>
+          </div>
+        )}
+
         {/* Charge type toggle — credit only, and only when NOT a Kesher-owned hok
             (Kesher can't convert a הוראת קבע to תשלומים etc.). Non-credit = one-time. */}
         {isCredit && !isKesherTracked && (
@@ -413,78 +485,6 @@ export function ObligationForm({
             required
           />
         </div>
-        <div className="sm:col-span-2">
-          <label className="label">אמצעי תשלום</label>
-          {isKesherTracked ? (
-            // Kesher owns the hok — the payment method is fixed at creation.
-            <div className="input flex items-center justify-between bg-gray-50 text-gray-600">
-              <span>{PAYMENT_METHOD[form.paymentMethod as keyof typeof PAYMENT_METHOD] ?? form.paymentMethod}</span>
-              <span className="text-xs text-gray-400">נקבע בקשר — לא ניתן לשינוי</span>
-            </div>
-          ) : (
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-              {Object.entries(PAYMENT_METHOD).map(([v, l]) => {
-                const active = form.paymentMethod === v;
-                return (
-                  <button
-                    key={v}
-                    type="button"
-                    onClick={() => set("paymentMethod", v)}
-                    className={`flex flex-col items-center gap-1.5 rounded-2xl border-2 px-2 py-3 text-xs font-semibold transition-all ${
-                      active
-                        ? "border-brand-600 bg-brand-600 text-white shadow-md"
-                        : "border-gray-200 bg-white text-gray-600 hover:border-brand-300 hover:bg-brand-50/50"
-                    }`}
-                  >
-                    <span className="text-2xl leading-none">{PAYMENT_ICON[v] ?? "💳"}</span>
-                    {l}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Check payment: check number + bank/branch/account. */}
-        {form.paymentMethod === "check" && (
-          <div className="sm:col-span-2 grid grid-cols-2 gap-3 rounded-xl border border-gray-200 bg-gray-50/50 p-3">
-            <div>
-              <label className="label">מספר צ׳ק</label>
-              <input className="input" value={form.checkNumber ?? ""} onChange={(e) => set("checkNumber", e.target.value)} />
-            </div>
-            <div>
-              <label className="label">בנק</label>
-              <input className="input" value={form.bank ?? ""} onChange={(e) => set("bank", e.target.value)} />
-            </div>
-            <div>
-              <label className="label">סניף</label>
-              <input className="input" value={form.branch ?? ""} onChange={(e) => set("branch", e.target.value)} />
-            </div>
-            <div>
-              <label className="label">מספר חשבון</label>
-              <input className="input" value={form.account ?? ""} onChange={(e) => set("account", e.target.value)} />
-            </div>
-          </div>
-        )}
-
-        {/* Bank transfer / הו״ק: bank/branch/account only. */}
-        {form.paymentMethod === "bank" && (
-          <div className="sm:col-span-2 grid grid-cols-3 gap-3 rounded-xl border border-gray-200 bg-gray-50/50 p-3">
-            <div>
-              <label className="label">בנק</label>
-              <input className="input" value={form.bank ?? ""} onChange={(e) => set("bank", e.target.value)} />
-            </div>
-            <div>
-              <label className="label">סניף</label>
-              <input className="input" value={form.branch ?? ""} onChange={(e) => set("branch", e.target.value)} />
-            </div>
-            <div>
-              <label className="label">מספר חשבון</label>
-              <input className="input" value={form.account ?? ""} onChange={(e) => set("account", e.target.value)} />
-            </div>
-          </div>
-        )}
-
         {/* Change the card on a Kesher-owned hok → syncs via ChangeChargeOption. */}
         {isKesherTracked && isCredit && (
           <div className="sm:col-span-2">
@@ -636,6 +636,16 @@ export function ObligationForm({
         </div>
       )}
 
+      <div>
+        <label className="label">הערה</label>
+        <textarea
+          className="input"
+          rows={2}
+          value={form.comment ?? ""}
+          onChange={(e) => set("comment", e.target.value)}
+        />
+      </div>
+
       {/* Non-credit new obligation: record the received payment inline. */}
       {!isCredit && !isEdit && (
         <div className="rounded-xl border border-brand-100 bg-brand-50/40 p-4">
@@ -672,16 +682,6 @@ export function ObligationForm({
           </p>
         </div>
       )}
-
-      <div>
-        <label className="label">הערה</label>
-        <textarea
-          className="input"
-          rows={2}
-          value={form.comment ?? ""}
-          onChange={(e) => set("comment", e.target.value)}
-        />
-      </div>
 
       {chargesViaKesher && (
         <p className="text-xs text-amber-600">
