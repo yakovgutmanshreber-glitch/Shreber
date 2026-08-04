@@ -227,11 +227,16 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
 
       {/* Details */}
       <div className="card p-6">
-        <h2 className="mb-4 text-lg font-bold">פרטי קשר</h2>
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
-          <Detail label="טלפון" value={contact.phone} />
-          <Detail label="טלפון נוסף" value={contact.phone2} />
-          <Detail label="אימייל" value={contact.email} />
+        <div className="mb-5 flex items-center gap-2.5">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-50 text-base">
+            👤
+          </span>
+          <h2 className="text-lg font-bold text-gray-900">פרטי קשר</h2>
+        </div>
+        <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <Detail label="טלפון" value={contact.phone} href={contact.phone ? `tel:${contact.phone}` : undefined} />
+          <Detail label="טלפון נוסף" value={contact.phone2} href={contact.phone2 ? `tel:${contact.phone2}` : undefined} />
+          <Detail label="אימייל" value={contact.email} href={contact.email ? `mailto:${contact.email}` : undefined} />
           <Detail label="ת.ז." value={contact.tz} />
           <Detail label="מדינה" value={contact.country} />
           <Detail label="אביו" value={contact.fatherName} />
@@ -500,11 +505,30 @@ function SummaryCard({ label, value, tone }: { label: string; value: string; ton
   );
 }
 
-function Detail({ label, value }: { label: string; value: string | null | undefined }) {
+function Detail({
+  label,
+  value,
+  href,
+}: {
+  label: string;
+  value: string | null | undefined;
+  href?: string;
+}) {
+  const empty = !value;
   return (
-    <div>
-      <dt className="text-gray-400">{label}</dt>
-      <dd className="font-medium text-gray-800">{value || "—"}</dd>
+    <div className="rounded-xl border border-gray-100 bg-gray-50/60 px-4 py-2.5 transition-colors hover:border-gray-200 hover:bg-gray-50">
+      <dt className="text-xs font-medium tracking-wide text-gray-400">{label}</dt>
+      <dd className="mt-0.5 truncate text-sm font-semibold text-gray-800" title={value || undefined}>
+        {empty ? (
+          <span className="font-normal text-gray-300">—</span>
+        ) : href ? (
+          <a href={href} className="text-brand-600 hover:underline" dir="ltr">
+            {value}
+          </a>
+        ) : (
+          value
+        )}
+      </dd>
     </div>
   );
 }
