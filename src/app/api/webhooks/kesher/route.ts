@@ -394,11 +394,27 @@ const OBLIGATION_STATUS_BY_CODE: Record<number, string> = {
   8: "init_error",
 };
 
+// Kesher also sends the status as a Hebrew label (e.g. "הסתיים").
+const OBLIGATION_STATUS_HE: Record<string, string> = {
+  פעיל: "active",
+  פעילה: "active",
+  מושהה: "paused",
+  מבוטל: "cancelled",
+  מבוטלת: "cancelled",
+  בוטל: "cancelled",
+  הסתיים: "finished",
+  הסתיימה: "finished",
+  הושלם: "finished",
+  הושלמה: "finished",
+};
+
 function mapObligationStatus(v?: unknown): string {
-  if (typeof v === "number" || (typeof v === "string" && /^\d+$/.test(v))) {
+  if (typeof v === "number" || (typeof v === "string" && /^\d+$/.test(v.trim()))) {
     return OBLIGATION_STATUS_BY_CODE[Number(v)] ?? "active";
   }
-  const s = String(v ?? "").toLowerCase();
+  const t = String(v ?? "").trim();
+  if (OBLIGATION_STATUS_HE[t]) return OBLIGATION_STATUS_HE[t];
+  const s = t.toLowerCase();
   const known = Object.values(OBLIGATION_STATUS_BY_CODE);
   return known.includes(s) ? s : "active";
 }

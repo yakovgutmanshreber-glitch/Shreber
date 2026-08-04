@@ -40,6 +40,64 @@ function transactionTypeToEnum(v: unknown): "debit" | "credit" {
   return "debit";
 }
 
+// Transaction status codes that mean the charge went through successfully.
+const TX_SUCCESS = new Set([0, 4, 11, 22]);
+
+// Kesher obligation-status integer codes (best-effort; mirror the webhook map).
+const OBLIGATION_STATUS_BY_CODE: Record<number, string> = {
+  1: "active",
+  2: "paused",
+  3: "cancelled",
+  4: "pending_bank_auth",
+  5: "bank_auth_cancelled",
+  6: "payment_method_cancelled",
+  7: "finished",
+  8: "init_error",
+};
+
+// Kesher reports a hok's status as a Hebrew string or an integer code. Map it to
+// our enum, returning null when unrecognized (so callers can fall back).
+function mapKesherObligationStatus(v: unknown): string | null {
+  if (v === undefined || v === null || v === "") return null;
+  if (typeof v === "number" || /^\d+$/.test(String(v).trim())) {
+    return OBLIGATION_STATUS_BY_CODE[Number(v)] ?? null;
+  }
+  const t = String(v).trim();
+  const HE: Record<string, string> = {
+    פעיל: "active",
+    פעילה: "active",
+    מושהה: "paused",
+    מבוטל: "cancelled",
+    מבוטלת: "cancelled",
+    בוטל: "cancelled",
+    הסתיים: "finished",
+    הסתיימה: "finished",
+    הושלם: "finished",
+    הושלמה: "finished",
+  };
+  if (HE[t]) return HE[t];
+  const lower = t.toLowerCase();
+  return Object.values(OBLIGATION_STATUS_BY_CODE).includes(lower) ? lower : null;
+}
+
+// Determine an imported obligation's status: prefer Kesher's own status field,
+// otherwise treat a finite-payment hok whose payments are all done as finished.
+function deriveObligationStatus(opts: {
+  meta?: Record<string, unknown> | null;
+  numPayments: number;
+  paidCount: number;
+}): string {
+  const raw =
+    opts.meta &&
+    (opts.meta.Status ?? opts.meta.ObligationStatus ?? opts.meta.StatusName ?? opts.meta.HokStatus);
+  const mapped = mapKesherObligationStatus(raw);
+  if (mapped) return mapped;
+  if (opts.numPayments > 0 && opts.numPayments !== 9999 && opts.paidCount >= opts.numPayments) {
+    return "finished";
+  }
+  return "active";
+}
+
 /** Extract the last 4 digits from a masked card number like "458050******8661". */
 function last4(v: unknown): string | undefined {
   const digits = String(v ?? "").replace(/[^0-9]/g, "");
@@ -331,6 +389,10 @@ export async function adoptKesherObligation(opts: {
   const recurringAmount = Number(latest.Total ?? 0) / 100 || Number(meta?.Sum ?? 0); // report Total = agorot; meta Sum = shekels
   const numPayments = Number(meta?.NumPayments ?? 9999) || 9999;
   const chargeDay = meta?.Day ? Number(meta.Day) : new Date(String(latest.TranDate)).getDate();
+  const paidCount = matched.filter(
+    (r) => r.StatusCode != null && TX_SUCCESS.has(Number(r.StatusCode)),
+  ).length;
+  const obligationStatus = deriveObligationStatus({ meta, numPayments, paidCount });
   if (!obligation) {
     obligation = await prisma.obligation.create({
       data: {
@@ -345,12 +407,18 @@ export async function adoptKesherObligation(opts: {
         startDate: new Date(
           String(matched[matched.length - 1].TranDate ?? now.toISOString()),
         ),
-        status: "active",
+        status: obligationStatus,
         paymentMethod: chargeOptionToEnum(latest.ChargeOptionType),
         comment: `יובא מקשר (אסמכתא ${ref})`,
       },
     });
     obligationCreated = true;
+  } else if (obligation.status !== obligationStatus) {
+    // Re-importing: refresh the status from Kesher (source of truth).
+    obligation = await prisma.obligation.update({
+      where: { id: obligation.id },
+      data: { status: obligationStatus, ...(contactId && !obligation.contactId ? { contactId } : {}) },
+    });
   } else if (contactId && !obligation.contactId) {
     obligation = await prisma.obligation.update({
       where: { id: obligation.id },
