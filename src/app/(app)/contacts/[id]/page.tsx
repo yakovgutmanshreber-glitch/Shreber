@@ -314,12 +314,12 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
                       <table className="w-full">
                         <thead className="border-b border-gray-200">
                           <tr>
-                            <th className="th">סוג</th>
                             <th className="th">סכום</th>
                             <th className="th">תשלומים</th>
                             <th className="th">אמצעי</th>
                             <th className="th">עברו</th>
                             <th className="th">לא עבר</th>
+                            <th className="th">נשאר</th>
                             <th className="th">סטטוס</th>
                             <th className="th"></th>
                           </tr>
@@ -329,13 +329,18 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
                             const txs = contact.transactions.filter((t) => t.obligationId === o.id);
                             const passedTxs = txs.filter(txPassed);
                             const failedTxs = txs.filter(txFailed);
+                            // נשאר = full commitment (סכום × תשלומים) − מה שעבר.
+                            // ריק כשמספר התשלומים ללא הגבלה (אין סכום כולל).
+                            const remaining =
+                              o.numPayments === 9999
+                                ? null
+                                : Math.max(0, Number(o.recurringAmount) * o.numPayments - sum(passedTxs));
                             return (
                               <tr
                                 key={o.id}
                                 className="cursor-pointer hover:bg-gray-50"
                                 onClick={() => setOpenOblId(o.id)}
                               >
-                                <td className="td">{o.kind === "income" ? "הכנסה" : "הוצאה"}</td>
                                 <td className="td">{formatMoney(o.recurringAmount, o.currency, o.amountIls)}</td>
                                 <td className="td">{o.numPayments === 9999 ? "ללא הגבלה" : o.numPayments}</td>
                                 <td className="td">{statusLabel(PAYMENT_METHOD, o.paymentMethod)}</td>
@@ -355,6 +360,13 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
                                     </span>
                                   ) : (
                                     <span className="text-gray-300">—</span>
+                                  )}
+                                </td>
+                                <td className="td">
+                                  {remaining === null ? (
+                                    <span className="text-gray-300">—</span>
+                                  ) : (
+                                    <span className="text-amber-600">{formatCurrency(remaining)}</span>
                                   )}
                                 </td>
                                 <td className="td">
