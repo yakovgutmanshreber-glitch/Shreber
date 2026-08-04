@@ -39,12 +39,8 @@ export const PATCH = handler(async (req, ctx) => {
   });
   if (!existing) throw new ApiError("התחייבות לא נמצאה", 404);
 
-  // A hok Kesher already closed (finished/cancelled) can't be modified there, so
-  // edits to it are saved LOCALLY only — this lets the user correct the record
-  // (e.g. set status back to פעיל) without hitting a Kesher rejection.
-  const CLOSED_KESHER_STATUSES = ["finished", "cancelled", "bank_auth_cancelled", "payment_method_cancelled"];
   const ref = existing.kesherObligationReference;
-  if (ref && !CLOSED_KESHER_STATUSES.includes(existing.status)) {
+  if (ref) {
     // --- detect which Kesher-relevant fields changed ----------------------
     const targetStatus = data.status ?? existing.status;
     const statusChanged = data.status !== undefined && data.status !== existing.status;

@@ -243,8 +243,8 @@ export function ObligationForm({
       {isClosedInKesher && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
           ⚠️ הוראה זו סגורה בקשר ({OBLIGATION_STATUS[form.status as keyof typeof OBLIGATION_STATUS] ?? form.status}).
-          קשר כבר לא יחייב אותה, ולכן שינויים כאן (כולל החזרת הסטטוס ל״פעיל״) נשמרים <b>במערכת בלבד</b> ואינם נשלחים
-          לקשר. לחיוב אמיתי נוסף יש ליצור התחייבות חדשה.
+          קשר לא מאפשר לשנות סכום, תשלומים, תאריך או סטטוס בהוראה שהסתיימה/בוטלה, ולכן שינויים כאלה יידחו ולא יישמרו.
+          לחיוב נוסף יש ליצור התחייבות חדשה. (ניתן לערוך הערה בלבד.)
         </div>
       )}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
