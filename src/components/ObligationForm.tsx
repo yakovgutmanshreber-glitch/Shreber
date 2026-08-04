@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/client";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, currencyIso } from "@/lib/format";
 import { OBLIGATION_STATUS, PAYMENT_METHOD, OBLIGATION_KIND, CURRENCY } from "@/lib/constants";
 
 interface Category {
@@ -98,9 +98,23 @@ export function ObligationForm({
   const [txAmount, setTxAmount] = useState("");
   const [txDate, setTxDate] = useState(new Date().toISOString().slice(0, 10));
 
+  // Exchange rates (ISO code -> ₪ per 1 unit) for the live conversion preview.
+  const [rates, setRates] = useState<Record<string, number>>({});
+
   useEffect(() => {
     api<Category[]>("/api/categories").then(setCategories).catch(() => {});
+    api<{ code: string; rateToIls: number }[]>("/api/currency-rates")
+      .then((rows) => {
+        const m: Record<string, number> = {};
+        for (const r of rows) m[r.code] = Number(r.rateToIls);
+        setRates(m);
+      })
+      .catch(() => {});
   }, []);
+
+  // Live currency conversion for the selected foreign currency.
+  const currencyNum = Number(form.currency ?? 1);
+  const rate = currencyNum !== 1 ? rates[currencyIso(currencyNum)] : undefined;
 
   function set<K extends keyof ObligationData>(k: K, v: ObligationData[K]) {
     setForm((f) => ({ ...f, [k]: v }));
@@ -331,6 +345,24 @@ export function ObligationForm({
               </option>
             ))}
           </select>
+          {currencyNum !== 1 && (
+            <p className="mt-1 text-xs text-gray-500">
+              {rate ? (
+                <>
+                  שער: <b>{rate.toFixed(4)}</b> ₪
+                  {amount > 0 && (
+                    <>
+                      {" · "}
+                      {formatCurrency(amount, currencyNum)} ={" "}
+                      <b className="text-brand-600">{formatCurrency(amount * rate, 1)}</b>
+                    </>
+                  )}
+                </>
+              ) : (
+                <span className="text-amber-600">אין שער חליפין זמין למטבע זה</span>
+              )}
+            </p>
+          )}
         </div>
         {!isOnetime && (
           <div>
