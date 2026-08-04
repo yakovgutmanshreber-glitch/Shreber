@@ -233,7 +233,7 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
           </span>
           <h2 className="text-lg font-bold text-gray-900">פרטי קשר</h2>
         </div>
-        <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <dl className="grid grid-cols-1 gap-x-12 lg:grid-cols-2">
           <Detail label="טלפון" value={contact.phone} href={contact.phone ? `tel:${contact.phone}` : undefined} />
           <Detail label="טלפון נוסף" value={contact.phone2} href={contact.phone2 ? `tel:${contact.phone2}` : undefined} />
           <Detail label="אימייל" value={contact.email} href={contact.email ? `mailto:${contact.email}` : undefined} />
@@ -516,9 +516,9 @@ function Detail({
 }) {
   const empty = !value;
   return (
-    <div className="rounded-xl border border-gray-100 bg-gray-50/60 px-4 py-2.5 transition-colors hover:border-gray-200 hover:bg-gray-50">
-      <dt className="text-xs font-medium tracking-wide text-gray-400">{label}</dt>
-      <dd className="mt-0.5 truncate text-sm font-semibold text-gray-800" title={value || undefined}>
+    <div className="flex items-baseline justify-between gap-4 border-b border-gray-100 py-2.5">
+      <dt className="shrink-0 text-sm text-gray-400">{label}</dt>
+      <dd className="truncate text-left text-sm font-semibold text-gray-800" title={value || undefined}>
         {empty ? (
           <span className="font-normal text-gray-300">—</span>
         ) : href ? (
