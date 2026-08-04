@@ -464,6 +464,7 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
       <Modal open={oblOpen} onClose={() => setOblOpen(false)} title="התחייבות חדשה" wide>
         <ObligationForm
           fixedContactId={contact.id}
+          fixedKind="income"
           contactCards={contact.creditCards}
           onSaved={() => {
             setOblOpen(false);

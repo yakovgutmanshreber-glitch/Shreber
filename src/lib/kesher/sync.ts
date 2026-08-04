@@ -18,9 +18,12 @@ function s(v: unknown): string | undefined {
 
 function currencyToCode(v: unknown): number {
   const t = String(v ?? "").trim();
-  if (t === "2" || t.includes("דולר") || t.toLowerCase().includes("usd")) return 2;
-  if (t === "826" || t.includes("שטרלינג") || t.toLowerCase().includes("gbp")) return 826;
-  if (t === "978" || t.includes("אירו") || t.includes("יורו") || t.toLowerCase().includes("eur")) return 978;
+  const l = t.toLowerCase();
+  // Canadian dollar first (so "cad"/"c$" isn't caught by the USD "$"/"dollar" rule).
+  if (t === "124" || l.includes("cad") || l.includes("קנד") || l.includes("c$")) return 124;
+  if (t === "2" || t === "840" || t.includes("דולר") || l.includes("usd") || l.includes("dollar") || t.includes("$")) return 2;
+  if (t === "826" || t.includes("שטרלינג") || t.includes("ליש") || l.includes("gbp") || t.includes("£")) return 826;
+  if (t === "978" || t.includes("אירו") || t.includes("יורו") || l.includes("eur") || t.includes("€")) return 978;
   return 1; // שקל / default
 }
 
