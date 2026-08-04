@@ -139,6 +139,10 @@ export function ObligationForm({
   // can change only Sum / Day / StartDate / NumPayments / status — NOT the charge
   // type or payment method. So lock those two when editing such an obligation.
   const isKesherTracked = isEdit && Boolean(obligation?.kesherObligationReference);
+  // A hok Kesher considers closed can't be modified in Kesher at all — any change
+  // that syncs (amount/day/date/payments/status) will be rejected.
+  const CLOSED_STATUSES = ["finished", "cancelled", "bank_auth_cancelled", "payment_method_cancelled"];
+  const isClosedInKesher = isKesherTracked && CLOSED_STATUSES.includes(String(form.status));
   // Non-credit payments (מזומן/צ׳ק/העברה/ביט) are always one-time: no charge-type
   // toggle, no installments, no monthly charge day.
   const isOnetime = form.chargeType === "onetime" || !isCredit;
@@ -236,6 +240,13 @@ export function ObligationForm({
 
   return (
     <form onSubmit={submit} className="space-y-4">
+      {isClosedInKesher && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          ⚠️ הוראה זו סגורה בקשר ({OBLIGATION_STATUS[form.status as keyof typeof OBLIGATION_STATUS] ?? form.status}) —
+          קשר לא מאפשר לשנות סכום, תשלומים, תאריך או סטטוס בהוראה שהסתיימה/בוטלה. לחיוב נוסף יש ליצור התחייבות חדשה.
+          (ניתן עדיין לערוך הערה מקומית בלבד.)
+        </div>
+      )}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {!fixedKind && (
           <div>
