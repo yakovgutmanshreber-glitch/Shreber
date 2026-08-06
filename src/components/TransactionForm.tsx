@@ -241,7 +241,7 @@ export function TransactionForm({
             value={form.chargeOptionType}
             onChange={(e) => set("chargeOptionType", e.target.value)}
           >
-            {Object.entries(PAYMENT_METHOD).map(([v, l]) => (
+            {Object.entries(PAYMENT_METHOD).filter(([v]) => v !== "bit").map(([v, l]) => (
               <option key={v} value={v}>
                 {l}
               </option>
