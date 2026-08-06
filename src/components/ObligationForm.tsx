@@ -462,13 +462,25 @@ export function ObligationForm({
         </div>
         {!isOnetime && (
           <div>
-            <label className="label">מספר תשלומים (9999 = ללא הגבלה)</label>
-            <input
-              type="number"
+            <label className="label">מספר תשלומים</label>
+            <select
               className="input"
               value={form.numPayments ?? 9999}
               onChange={(e) => set("numPayments", Number(e.target.value))}
-            />
+            >
+              <option value={9999}>ללא הגבלה</option>
+              {Array.from({ length: 25 }, (_, i) => i + 1).map((num) => (
+                <option key={num} value={num}>
+                  {num}
+                </option>
+              ))}
+              {/* keep an out-of-range existing value selectable (e.g. imported hok) */}
+              {form.numPayments != null &&
+                form.numPayments !== 9999 &&
+                (form.numPayments < 1 || form.numPayments > 25) && (
+                  <option value={form.numPayments}>{form.numPayments}</option>
+                )}
+            </select>
           </div>
         )}
         {chargeHint && (
