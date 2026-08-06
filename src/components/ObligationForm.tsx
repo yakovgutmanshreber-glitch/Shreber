@@ -294,8 +294,8 @@ export function ObligationForm({
               <span className="text-xs text-gray-400">נקבע בקשר — לא ניתן לשינוי</span>
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-              {Object.entries(PAYMENT_METHOD).map(([v, l]) => {
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {Object.entries(PAYMENT_METHOD).filter(([v]) => v !== "bit").map(([v, l]) => {
                 const active = form.paymentMethod === v;
                 return (
                   <button
