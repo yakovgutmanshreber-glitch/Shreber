@@ -91,11 +91,15 @@ function deriveObligationStatus(opts: {
   numPayments: number;
   paidCount: number;
 }): string {
-  const raw =
-    opts.meta &&
-    (opts.meta.Status ?? opts.meta.ObligationStatus ?? opts.meta.StatusName ?? opts.meta.HokStatus);
-  const mapped = mapKesherObligationStatus(raw);
-  if (mapped) return mapped;
+  // Kesher's field name for the hok status isn't fixed, so scan any field that
+  // looks like a status and use the first value we recognize.
+  if (opts.meta) {
+    for (const [k, v] of Object.entries(opts.meta)) {
+      if (!/status|סטטוס|מצב/i.test(k)) continue;
+      const mapped = mapKesherObligationStatus(v);
+      if (mapped) return mapped;
+    }
+  }
   if (opts.numPayments > 0 && opts.numPayments !== 9999 && opts.paidCount >= opts.numPayments) {
     return "finished";
   }
@@ -811,12 +815,14 @@ export async function bulkAdoptByCategory(
 
   // --- Preload existing obligations + transactions in ONE query each --------
   const refs = [...new Set(rows.map((r) => r.reference))];
-  const oblByRef = new Map<string, { id: number; categoryId: number | null }>();
+  const oblByRef = new Map<string, { id: number; categoryId: number | null; status: string }>();
   for (const o of await prisma.obligation.findMany({
     where: { kesherObligationReference: { in: refs } },
-    select: { id: true, categoryId: true, kesherObligationReference: true },
+    select: { id: true, categoryId: true, status: true, kesherObligationReference: true },
   })) {
-    if (o.kesherObligationReference) oblByRef.set(o.kesherObligationReference, o);
+    if (o.kesherObligationReference) {
+      oblByRef.set(o.kesherObligationReference, { id: o.id, categoryId: o.categoryId, status: o.status });
+    }
   }
   const allNums: string[] = [];
   for (const ref of refs) {
@@ -834,6 +840,15 @@ export async function bulkAdoptByCategory(
       if (t.kesherNumTransaction) txSeen.add(t.kesherNumTransaction);
     }
   }
+
+  // Kesher's hok list gives each obligation's real status/amount/payments.
+  const meta = await fetchKesherObligationMeta();
+  const statusFor = (ref: string, paidCount: number, numPayments: number) =>
+    deriveObligationStatus({ meta: meta.get(ref) ?? null, numPayments, paidCount });
+  const numPaymentsFor = (ref: string) => {
+    const n = meta.get(ref)?.NumPayments;
+    return n != null && Number(n) > 0 ? Number(n) : 9999;
+  };
 
   // --- Process rows: create obligations as needed, collect NEW transactions -
   const newTx: Prisma.TransactionCreateManyInput[] = [];
@@ -855,6 +870,11 @@ export async function bulkAdoptByCategory(
     matched.sort((a, b) => String(b.TranDate ?? "").localeCompare(String(a.TranDate ?? "")));
     const latest = matched[0];
     const categoryId = catMap.get(category)!;
+    const paidCount = matched.filter(
+      (r) => r.StatusCode != null && TX_SUCCESS.has(Number(r.StatusCode)),
+    ).length;
+    const numPayments = numPaymentsFor(ref);
+    const status = statusFor(ref, paidCount, numPayments);
 
     let obl = oblByRef.get(ref);
     if (!obl) {
@@ -867,21 +887,28 @@ export async function bulkAdoptByCategory(
           chargeType: "recurring",
           recurringAmount: Number(latest.Total ?? 0) / 100,
           currency: currencyToCode(latest.Currency),
-          numPayments: 9999,
+          numPayments,
           chargeDay: new Date(String(latest.TranDate)).getDate() || 1,
           startDate: new Date(String(matched[matched.length - 1].TranDate ?? now.toISOString())),
-          status: "active",
+          status,
           paymentMethod: chargeOptionToEnum(latest.ChargeOptionType),
           comment: `יובא מקשר (אסמכתא ${ref})`,
         },
-        select: { id: true, categoryId: true },
+        select: { id: true, categoryId: true, status: true },
       });
       obl = created;
       oblByRef.set(ref, created);
       result.obligationsAdopted++;
-    } else if (!obl.categoryId) {
-      await prisma.obligation.update({ where: { id: obl.id }, data: { categoryId } });
-      obl.categoryId = categoryId;
+    } else {
+      // Re-import: refresh category + status from Kesher (source of truth).
+      const patch: { categoryId?: number; status?: string } = {};
+      if (!obl.categoryId) patch.categoryId = categoryId;
+      if (obl.status !== status) patch.status = status;
+      if (Object.keys(patch).length) {
+        await prisma.obligation.update({ where: { id: obl.id }, data: patch });
+        obl.categoryId = obl.categoryId ?? categoryId;
+        obl.status = status;
+      }
     }
 
     let imported = 0;
@@ -923,45 +950,47 @@ export async function bulkAdoptByCategory(
   }
 
   // --- References with no charges yet: import as empty obligations ----------
-  if (emptyRefs.length) {
-    const meta = await fetchKesherObligationMeta();
-    for (const { ref, category } of emptyRefs) {
-      if (oblByRef.has(ref)) {
-        result.matched++;
-        result.details.push({ reference: ref, category, status: "כבר קיימת במערכת" });
-        continue;
+  for (const { ref, category } of emptyRefs) {
+    const m = meta.get(ref);
+    const numPayments = numPaymentsFor(ref);
+    const status = statusFor(ref, 0, numPayments);
+    if (oblByRef.has(ref)) {
+      const existing = oblByRef.get(ref)!;
+      if (existing.status !== status) {
+        await prisma.obligation.update({ where: { id: existing.id }, data: { status } });
       }
-      const m = meta.get(ref);
-      const day = m?.Day != null ? Number(m.Day) : NaN;
-      const num = m?.NumPayments != null ? Number(m.NumPayments) : NaN;
-      const sd = m?.StartDate ? new Date(String(m.StartDate)) : null;
-      const created = await prisma.obligation.create({
-        data: {
-          kind: "income",
-          contactId: null,
-          categoryId: catMap.get(category)!,
-          kesherObligationReference: ref,
-          chargeType: "recurring",
-          recurringAmount: m ? Number(m.Sum ?? 0) : 0,
-          currency: 1,
-          numPayments: Number.isFinite(num) && num > 0 ? num : 9999,
-          chargeDay: Number.isFinite(day) && day >= 1 && day <= 31 ? day : null,
-          startDate: sd && !Number.isNaN(sd.getTime()) ? sd : now,
-          status: "active",
-          paymentMethod: "credit",
-          comment: `יובא מקשר (אסמכתא ${ref}) — ללא עסקאות עדיין`,
-        },
-        select: { id: true, categoryId: true },
-      });
-      oblByRef.set(ref, created);
-      result.obligationsAdopted++;
       result.matched++;
-      result.details.push({
-        reference: ref,
-        category,
-        status: m ? "יובאה ללא עסקאות (הוראה קיימת בקשר)" : "יובאה ללא עסקאות",
-      });
+      result.details.push({ reference: ref, category, status: "כבר קיימת במערכת" });
+      continue;
     }
+    const day = m?.Day != null ? Number(m.Day) : NaN;
+    const sd = m?.StartDate ? new Date(String(m.StartDate)) : null;
+    const created = await prisma.obligation.create({
+      data: {
+        kind: "income",
+        contactId: null,
+        categoryId: catMap.get(category)!,
+        kesherObligationReference: ref,
+        chargeType: "recurring",
+        recurringAmount: m ? Number(m.Sum ?? 0) : 0,
+        currency: 1,
+        numPayments,
+        chargeDay: Number.isFinite(day) && day >= 1 && day <= 31 ? day : null,
+        startDate: sd && !Number.isNaN(sd.getTime()) ? sd : now,
+        status,
+        paymentMethod: "credit",
+        comment: `יובא מקשר (אסמכתא ${ref}) — ללא עסקאות עדיין`,
+      },
+      select: { id: true, categoryId: true, status: true },
+    });
+    oblByRef.set(ref, created);
+    result.obligationsAdopted++;
+    result.matched++;
+    result.details.push({
+      reference: ref,
+      category,
+      status: m ? "יובאה ללא עסקאות (הוראה קיימת בקשר)" : "יובאה ללא עסקאות",
+    });
   }
 
   return result;
