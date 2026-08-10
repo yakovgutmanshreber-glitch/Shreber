@@ -13,6 +13,7 @@ import {
 } from "@/components/ui";
 import { ObligationForm } from "@/components/ObligationForm";
 import { TransactionForm } from "@/components/TransactionForm";
+import { BulkImport } from "@/components/BulkImport";
 
 interface Obligation {
   id: number;
@@ -47,6 +48,7 @@ export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
   const [loading, setLoading] = useState(true);
   const [oblOpen, setOblOpen] = useState(false);
   const [txOpen, setTxOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -75,6 +77,11 @@ export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
         subtitle={`רשומות עצמאיות (ללא איש קשר) מסוג ${kind === "income" ? "הכנסה" : "הוצאה"}`}
         action={
           <div className="flex gap-2">
+            {kind === "income" && (
+              <button className="btn-secondary" onClick={() => setBulkOpen(true)}>
+                🔗 ייבוא מרוכז מקשר (Excel)
+              </button>
+            )}
             <button className="btn-secondary" onClick={() => setOblOpen(true)}>
               + התחייבות
             </button>
@@ -175,6 +182,11 @@ export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
         </div>
       )}
 
+      {kind === "income" && (
+        <Modal open={bulkOpen} onClose={() => setBulkOpen(false)} title="ייבוא מרוכז מקשר (Excel)" wide>
+          <BulkImport onDone={load} />
+        </Modal>
+      )}
       <Modal open={oblOpen} onClose={() => setOblOpen(false)} title={`התחייבות ${title} חדשה`} wide>
         <ObligationForm
           fixedKind={kind}
