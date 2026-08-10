@@ -35,7 +35,11 @@ export const POST = handler(
     // Standalone mode (income tab): אסמכתא + קטגוריה columns, no phone/contact.
     if (standalone) {
       const refKey = findKey(keys, ["אסמכתא", "reference", "ref", "מספר הוראה", "הוראה"]) ?? keys[0];
-      const catKey = findKey(keys, ["קטגוריה", "קטגורי", "category", "cat"]) ?? keys[1];
+      // "קטגור" / "קטוגר" cover both the correct spelling and the common typo.
+      const catKey =
+        findKey(keys, ["קטגור", "קטוגר", "קטגוריה", "category", "cat"]) ??
+        keys.find((k) => k !== refKey) ??
+        keys[1];
       const rows = json
         .map((r) => ({
           reference: String(r[refKey] ?? "").trim(),

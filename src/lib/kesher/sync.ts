@@ -8,6 +8,7 @@
 // TransactionType and a numeric StatusCode — mapped here to our enums.
 // ---------------------------------------------------------------------------
 
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { kesher } from "./client";
 
@@ -767,28 +768,59 @@ export async function bulkAdoptByCategory(
   const { ok: anyOk, byRef } = await fetchKesherTxByReference();
   if (!anyOk) return { ...empty, message: "שליפת העסקאות מקשר נכשלה" };
 
-  // category name -> id (create missing categories on the fly).
-  const catCache = new Map<string, number>();
-  async function resolveCategory(name: string): Promise<number> {
-    const key = name.trim();
-    const cached = catCache.get(key);
-    if (cached) return cached;
-    let cat = await prisma.category.findFirst({ where: { category: key } });
-    if (!cat) {
-      cat = await prisma.category.create({
-        data: { mainCategory: key, category: key, defaultPrice: 0 },
-      });
-    }
-    catCache.set(key, cat.id);
-    return cat.id;
-  }
-
   const result: BulkCategoryResult = { ...empty, ok: true };
 
-  for (const row of input) {
-    const ref = String(row.reference ?? "").trim();
-    const category = String(row.category ?? "").trim();
-    if (!ref) continue;
+  // Normalize + dedup rows by reference (last category wins).
+  const rows = input
+    .map((r) => ({ reference: String(r.reference ?? "").trim(), category: String(r.category ?? "").trim() }))
+    .filter((r) => r.reference);
+
+  // --- Resolve every category in ONE batch (create the missing ones) --------
+  const catNames = [...new Set(rows.map((r) => r.category).filter(Boolean))];
+  const catMap = new Map<string, number>();
+  if (catNames.length) {
+    for (const c of await prisma.category.findMany({ where: { category: { in: catNames } } })) {
+      if (!catMap.has(c.category)) catMap.set(c.category, c.id);
+    }
+    for (const name of catNames) {
+      if (!catMap.has(name)) {
+        const c = await prisma.category.create({ data: { mainCategory: name, category: name, defaultPrice: 0 } });
+        catMap.set(name, c.id);
+      }
+    }
+  }
+
+  // --- Preload existing obligations + transactions in ONE query each --------
+  const refs = [...new Set(rows.map((r) => r.reference))];
+  const oblByRef = new Map<string, { id: number; categoryId: number | null }>();
+  for (const o of await prisma.obligation.findMany({
+    where: { kesherObligationReference: { in: refs } },
+    select: { id: true, categoryId: true, kesherObligationReference: true },
+  })) {
+    if (o.kesherObligationReference) oblByRef.set(o.kesherObligationReference, o);
+  }
+  const allNums: string[] = [];
+  for (const ref of refs) {
+    for (const t of byRef.get(ref) ?? []) {
+      const n = s(t.NumTransaction) ?? s(t.Id);
+      if (n) allNums.push(n);
+    }
+  }
+  const txSeen = new Set<string>();
+  if (allNums.length) {
+    for (const t of await prisma.transaction.findMany({
+      where: { kesherNumTransaction: { in: allNums } },
+      select: { kesherNumTransaction: true },
+    })) {
+      if (t.kesherNumTransaction) txSeen.add(t.kesherNumTransaction);
+    }
+  }
+
+  // --- Process rows: create obligations as needed, collect NEW transactions -
+  const newTx: Prisma.TransactionCreateManyInput[] = [];
+
+  for (const row of rows) {
+    const { reference: ref, category } = row;
     if (!category) {
       result.noCategory++;
       result.details.push({ reference: ref, category: "", status: "חסרה קטגוריה בשורה" });
@@ -800,16 +832,13 @@ export async function bulkAdoptByCategory(
       result.details.push({ reference: ref, category, status: "אין עסקאות בקשר לאסמכתא זו" });
       continue;
     }
-
     matched.sort((a, b) => String(b.TranDate ?? "").localeCompare(String(a.TranDate ?? "")));
     const latest = matched[0];
-    const categoryId = await resolveCategory(category);
+    const categoryId = catMap.get(category)!;
 
-    let obligation = await prisma.obligation.findUnique({
-      where: { kesherObligationReference: ref },
-    });
-    if (!obligation) {
-      obligation = await prisma.obligation.create({
+    let obl = oblByRef.get(ref);
+    if (!obl) {
+      const created = await prisma.obligation.create({
         data: {
           kind: "income",
           contactId: null,
@@ -825,24 +854,26 @@ export async function bulkAdoptByCategory(
           paymentMethod: chargeOptionToEnum(latest.ChargeOptionType),
           comment: `יובא מקשר (אסמכתא ${ref})`,
         },
+        select: { id: true, categoryId: true },
       });
+      obl = created;
+      oblByRef.set(ref, created);
       result.obligationsAdopted++;
-    } else if (!obligation.categoryId) {
-      obligation = await prisma.obligation.update({
-        where: { id: obligation.id },
-        data: { categoryId },
-      });
+    } else if (!obl.categoryId) {
+      await prisma.obligation.update({ where: { id: obl.id }, data: { categoryId } });
+      obl.categoryId = categoryId;
     }
 
-    // Import every transaction of this obligation (idempotent by NumTransaction).
+    let imported = 0;
     for (const r of matched) {
       const numTransaction = s(r.NumTransaction) ?? s(r.Id);
-      if (!numTransaction) continue;
+      if (!numTransaction || txSeen.has(numTransaction)) continue;
+      txSeen.add(numTransaction);
       const doc = firstDoc(r.DocumentsDetails);
-      const data = {
-        obligationId: obligation.id,
+      newTx.push({
+        obligationId: obl.id,
         contactId: null,
-        source: "api" as const,
+        source: "api",
         kesherNumTransaction: numTransaction,
         uniqNum: s(r.Uniq),
         amount: Number(r.Total ?? 0) / 100,
@@ -857,20 +888,18 @@ export async function bulkAdoptByCategory(
         authNum: s(r.OKNum),
         receiptDocNumber: doc.docNum ?? s(r.DocNumber),
         receiptLink: doc.pdf,
-        kind: "income" as const,
-      };
-      const existing = await prisma.transaction.findUnique({
-        where: { kesherNumTransaction: numTransaction },
+        kind: "income",
       });
-      if (existing) await prisma.transaction.update({ where: { id: existing.id }, data });
-      else {
-        await prisma.transaction.create({ data });
-        result.transactionsImported++;
-      }
+      imported++;
     }
-
+    result.transactionsImported += imported;
     result.matched++;
     result.details.push({ reference: ref, category, status: `יובאו ${matched.length} עסקאות` });
+  }
+
+  // --- Insert every new transaction in ONE batch ---------------------------
+  if (newTx.length) {
+    await prisma.transaction.createMany({ data: newTx, skipDuplicates: true });
   }
 
   return result;
