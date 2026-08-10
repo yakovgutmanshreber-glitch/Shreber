@@ -4,15 +4,10 @@ import { useEffect, useState, useCallback } from "react";
 import { api } from "@/lib/client";
 import { formatCurrency, formatMoney, formatDate } from "@/lib/format";
 import { PAYMENT_METHOD, statusLabel } from "@/lib/constants";
-import {
-  Modal,
-  PageHeader,
-  ObligationStatusBadge,
-  TxStatusBadge,
-  EmptyState,
-} from "@/components/ui";
-import { ObligationForm } from "@/components/ObligationForm";
-import { TransactionForm } from "@/components/TransactionForm";
+import { Modal, PageHeader, ObligationStatusBadge, EmptyState } from "@/components/ui";
+import { ObligationForm, type ObligationData } from "@/components/ObligationForm";
+import { TransactionForm, type TransactionData } from "@/components/TransactionForm";
+import { ObligationDetailModal } from "@/components/ObligationDetailModal";
 import { BulkImport } from "@/components/BulkImport";
 
 interface Obligation {
@@ -30,25 +25,23 @@ interface Obligation {
 interface Transaction {
   id: number;
   amount: number;
-  currency: number;
-  amountIls: number | null;
-  transactionDate: string;
-  statusCode: number | null;
-  statusText: string | null;
-  source: string;
-  comment: string | null;
-  obligation: { category: { category: string } | null } | null;
 }
+type ObligationDetail = ObligationData & {
+  id: number;
+  category?: { category: string } | null;
+  transactions: TransactionData[];
+};
 
 export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
   const title = kind === "income" ? "הכנסות" : "הוצאות";
-  const [tab, setTab] = useState<"obligations" | "transactions">("obligations");
   const [obligations, setObligations] = useState<Obligation[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [oblOpen, setOblOpen] = useState(false);
   const [txOpen, setTxOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
+  // The obligation whose transactions are being viewed (fetched on click).
+  const [detail, setDetail] = useState<ObligationDetail | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -64,6 +57,17 @@ export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  const openObligation = useCallback(async (id: number) => {
+    const data = await api<ObligationDetail>(`/api/obligations/${id}`);
+    setDetail({ ...data, transactions: data.transactions ?? [] });
+  }, []);
+
+  const reloadDetail = useCallback(async () => {
+    if (!detail) return;
+    const data = await api<ObligationDetail>(`/api/obligations/${detail.id}`);
+    setDetail({ ...data, transactions: data.transactions ?? [] });
+  }, [detail]);
 
   const totalObl = obligations
     .filter((o) => o.status === "active")
@@ -103,78 +107,44 @@ export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
         </div>
       </div>
 
-      <div className="mb-4 flex gap-1 border-b border-gray-200">
-        <TabButton active={tab === "obligations"} onClick={() => setTab("obligations")}>
-          התחייבויות ({obligations.length})
-        </TabButton>
-        <TabButton active={tab === "transactions"} onClick={() => setTab("transactions")}>
-          עסקאות ({transactions.length})
-        </TabButton>
-      </div>
+      <div className="mb-3 text-sm text-gray-400">לחיצה על התחייבות מציגה את כל העסקאות שלה</div>
 
       {loading ? (
         <div className="card p-8 text-center text-gray-400">טוען…</div>
-      ) : tab === "obligations" ? (
-        obligations.length === 0 ? (
-          <EmptyState message="אין התחייבויות" />
-        ) : (
-          <div className="card overflow-x-auto">
-            <table className="w-full">
-              <thead className="border-b border-gray-200 bg-gray-50">
-                <tr>
-                  <th className="th">קטגוריה</th>
-                  <th className="th">סכום</th>
-                  <th className="th">תשלומים</th>
-                  <th className="th">אמצעי</th>
-                  <th className="th">התחלה</th>
-                  <th className="th">עסקאות</th>
-                  <th className="th">סטטוס</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {obligations.map((o) => (
-                  <tr key={o.id} className="hover:bg-gray-50">
-                    <td className="td font-medium">{o.category?.category ?? "—"}</td>
-                    <td className="td">{formatMoney(o.recurringAmount, o.currency, o.amountIls)}</td>
-                    <td className="td">{o.numPayments === 9999 ? "ללא הגבלה" : o.numPayments}</td>
-                    <td className="td">{statusLabel(PAYMENT_METHOD, o.paymentMethod)}</td>
-                    <td className="td">{formatDate(o.startDate)}</td>
-                    <td className="td">{o._count.transactions}</td>
-                    <td className="td">
-                      <ObligationStatusBadge status={o.status} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )
-      ) : transactions.length === 0 ? (
-        <EmptyState message="אין עסקאות" />
+      ) : obligations.length === 0 ? (
+        <EmptyState message="אין התחייבויות" />
       ) : (
         <div className="card overflow-x-auto">
           <table className="w-full">
             <thead className="border-b border-gray-200 bg-gray-50">
               <tr>
-                <th className="th">תאריך</th>
                 <th className="th">קטגוריה</th>
                 <th className="th">סכום</th>
-                <th className="th">מקור</th>
+                <th className="th">תשלומים</th>
+                <th className="th">אמצעי</th>
+                <th className="th">התחלה</th>
+                <th className="th">עסקאות</th>
                 <th className="th">סטטוס</th>
-                <th className="th">הערה</th>
+                <th className="th"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {transactions.map((t) => (
-                <tr key={t.id} className="hover:bg-gray-50">
-                  <td className="td">{formatDate(t.transactionDate)}</td>
-                  <td className="td">{t.obligation?.category?.category ?? "—"}</td>
-                  <td className="td font-medium">{formatMoney(t.amount, t.currency, t.amountIls)}</td>
-                  <td className="td">{t.source === "api" ? "קשר" : "ידני"}</td>
+              {obligations.map((o) => (
+                <tr
+                  key={o.id}
+                  className="cursor-pointer hover:bg-gray-50"
+                  onClick={() => openObligation(o.id)}
+                >
+                  <td className="td font-medium">{o.category?.category ?? "—"}</td>
+                  <td className="td">{formatMoney(o.recurringAmount, o.currency, o.amountIls)}</td>
+                  <td className="td">{o.numPayments === 9999 ? "ללא הגבלה" : o.numPayments}</td>
+                  <td className="td">{statusLabel(PAYMENT_METHOD, o.paymentMethod)}</td>
+                  <td className="td">{formatDate(o.startDate)}</td>
+                  <td className="td">{o._count.transactions}</td>
                   <td className="td">
-                    <TxStatusBadge code={t.statusCode} text={t.statusText} />
+                    <ObligationStatusBadge status={o.status} />
                   </td>
-                  <td className="td text-gray-500">{t.comment ?? "—"}</td>
+                  <td className="td text-left text-brand-600">‹</td>
                 </tr>
               ))}
             </tbody>
@@ -210,29 +180,26 @@ export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
           onCancel={() => setTxOpen(false)}
         />
       </Modal>
-    </div>
-  );
-}
 
-function TabButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium ${
-        active
-          ? "border-brand-600 text-brand-700"
-          : "border-transparent text-gray-500 hover:text-gray-700"
-      }`}
-    >
-      {children}
-    </button>
+      <Modal
+        open={!!detail}
+        onClose={() => setDetail(null)}
+        title={`התחייבות · ${detail?.category?.category ?? title}`}
+        wide
+      >
+        {detail && (
+          <ObligationDetailModal
+            obligation={detail}
+            transactions={detail.transactions}
+            contactId={null}
+            onChanged={() => {
+              reloadDetail();
+              load();
+            }}
+            onClose={() => setDetail(null)}
+          />
+        )}
+      </Modal>
+    </div>
   );
 }
