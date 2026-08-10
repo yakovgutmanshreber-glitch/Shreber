@@ -588,6 +588,25 @@ async function fetchKesherTxByReference(): Promise<{
   return { ok: anyOk, byRef };
 }
 
+// Fetch the whole company's standing-order (hok) list once, keyed by Reference.
+// Used to fill in details for hoks that exist in Kesher but have no charges yet.
+async function fetchKesherObligationMeta(): Promise<Map<string, Record<string, unknown>>> {
+  const map = new Map<string, Record<string, unknown>>();
+  try {
+    const now = new Date();
+    const res = await kesher.getObligations("01.01.2015", `${now.getFullYear() + 1}.12.31`);
+    const raw = (res.data as Record<string, unknown>)?.Obligation;
+    const arr = Array.isArray(raw) ? raw : raw ? [raw] : [];
+    for (const o of arr) {
+      const ref = s((o as Record<string, unknown>).Reference);
+      if (ref && !map.has(ref)) map.set(ref, o as Record<string, unknown>);
+    }
+  } catch {
+    /* meta is best-effort */
+  }
+  return map;
+}
+
 export async function bulkAdoptByPhone(
   input: { phone: string; reference: string }[],
 ): Promise<BulkAdoptResult> {
@@ -818,6 +837,8 @@ export async function bulkAdoptByCategory(
 
   // --- Process rows: create obligations as needed, collect NEW transactions -
   const newTx: Prisma.TransactionCreateManyInput[] = [];
+  // References that have no transactions yet — imported as empty obligations.
+  const emptyRefs: { ref: string; category: string }[] = [];
 
   for (const row of rows) {
     const { reference: ref, category } = row;
@@ -828,8 +849,7 @@ export async function bulkAdoptByCategory(
     }
     const matched = (byRef.get(ref) ?? []).slice();
     if (matched.length === 0) {
-      result.noData++;
-      result.details.push({ reference: ref, category, status: "אין עסקאות בקשר לאסמכתא זו" });
+      emptyRefs.push({ ref, category });
       continue;
     }
     matched.sort((a, b) => String(b.TranDate ?? "").localeCompare(String(a.TranDate ?? "")));
@@ -900,6 +920,48 @@ export async function bulkAdoptByCategory(
   // --- Insert every new transaction in ONE batch ---------------------------
   if (newTx.length) {
     await prisma.transaction.createMany({ data: newTx, skipDuplicates: true });
+  }
+
+  // --- References with no charges yet: import as empty obligations ----------
+  if (emptyRefs.length) {
+    const meta = await fetchKesherObligationMeta();
+    for (const { ref, category } of emptyRefs) {
+      if (oblByRef.has(ref)) {
+        result.matched++;
+        result.details.push({ reference: ref, category, status: "כבר קיימת במערכת" });
+        continue;
+      }
+      const m = meta.get(ref);
+      const day = m?.Day != null ? Number(m.Day) : NaN;
+      const num = m?.NumPayments != null ? Number(m.NumPayments) : NaN;
+      const sd = m?.StartDate ? new Date(String(m.StartDate)) : null;
+      const created = await prisma.obligation.create({
+        data: {
+          kind: "income",
+          contactId: null,
+          categoryId: catMap.get(category)!,
+          kesherObligationReference: ref,
+          chargeType: "recurring",
+          recurringAmount: m ? Number(m.Sum ?? 0) : 0,
+          currency: 1,
+          numPayments: Number.isFinite(num) && num > 0 ? num : 9999,
+          chargeDay: Number.isFinite(day) && day >= 1 && day <= 31 ? day : null,
+          startDate: sd && !Number.isNaN(sd.getTime()) ? sd : now,
+          status: "active",
+          paymentMethod: "credit",
+          comment: `יובא מקשר (אסמכתא ${ref}) — ללא עסקאות עדיין`,
+        },
+        select: { id: true, categoryId: true },
+      });
+      oblByRef.set(ref, created);
+      result.obligationsAdopted++;
+      result.matched++;
+      result.details.push({
+        reference: ref,
+        category,
+        status: m ? "יובאה ללא עסקאות (הוראה קיימת בקשר)" : "יובאה ללא עסקאות",
+      });
+    }
   }
 
   return result;
