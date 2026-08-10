@@ -10,15 +10,24 @@ interface BulkResult {
   matched: number;
   obligationsAdopted: number;
   transactionsImported: number;
-  noContact: number;
+  noContact?: number;
+  noCategory?: number;
   noData: number;
-  details: { phone: string; reference: string; status: string }[];
-  columns?: { phone: string; reference: string };
+  details: { phone?: string; reference: string; category?: string; status: string }[];
 }
 
-// Bulk-adopt obligations from a Kesher Excel (phone + אסמכתא), matching each
-// phone to an existing contact. Shared by the contacts list and the income tab.
-export function BulkImport({ onDone }: { onDone: () => void }) {
+// Bulk-adopt obligations from a Kesher Excel.
+//  - mode "byPhone"    : match each row's phone to an existing contact (default).
+//  - mode "byCategory" : standalone income obligations (no contact), category
+//                        taken from a קטגוריה column in the file.
+export function BulkImport({
+  onDone,
+  mode = "byPhone",
+}: {
+  onDone: () => void;
+  mode?: "byPhone" | "byCategory";
+}) {
+  const byCategory = mode === "byCategory";
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +46,7 @@ export function BulkImport({ onDone }: { onDone: () => void }) {
       });
       const res = await api<BulkResult>("/api/obligations/bulk-adopt", {
         method: "POST",
-        body: { fileBase64 },
+        body: { fileBase64, standalone: byCategory },
       });
       setResult(res);
       onDone();
@@ -57,7 +66,12 @@ export function BulkImport({ onDone }: { onDone: () => void }) {
             <li>שורות בקובץ: {result.totalRows}</li>
             <li>קושרו והובאו: {result.matched}</li>
             <li>התחייבויות חדשות: {result.obligationsAdopted} · עסקאות שהובאו: {result.transactionsImported}</li>
-            <li>לא נמצא איש קשר (טלפון): {result.noContact} · ללא עסקאות בקשר: {result.noData}</li>
+            <li>
+              {byCategory
+                ? `חסרה קטגוריה: ${result.noCategory ?? 0}`
+                : `לא נמצא איש קשר (טלפון): ${result.noContact ?? 0}`}{" "}
+              · ללא עסקאות בקשר: {result.noData}
+            </li>
           </ul>
         </div>
         {result.details.length > 0 && (
@@ -65,7 +79,7 @@ export function BulkImport({ onDone }: { onDone: () => void }) {
             <table className="w-full">
               <thead className="border-b border-gray-200 bg-gray-50">
                 <tr>
-                  <th className="th">טלפון</th>
+                  <th className="th">{byCategory ? "קטגוריה" : "טלפון"}</th>
                   <th className="th">אסמכתא</th>
                   <th className="th">תוצאה</th>
                 </tr>
@@ -73,7 +87,7 @@ export function BulkImport({ onDone }: { onDone: () => void }) {
               <tbody className="divide-y divide-gray-100">
                 {result.details.map((d, i) => (
                   <tr key={i}>
-                    <td className="td">{d.phone}</td>
+                    <td className="td">{byCategory ? d.category : d.phone}</td>
                     <td className="td">{d.reference}</td>
                     <td className="td text-gray-600">{d.status}</td>
                   </tr>
@@ -89,8 +103,17 @@ export function BulkImport({ onDone }: { onDone: () => void }) {
   return (
     <div className="space-y-4">
       <p className="text-sm text-gray-500">
-        העלה קובץ אקסל מקשר עם עמודות <b>טלפון</b> ו-<b>אסמכתא</b>. המערכת תזהה כל טלפון מול איש
-        הקשר הקיים, ותייבא את ההתחייבות וכל העסקאות של אותה אסמכתא.
+        {byCategory ? (
+          <>
+            העלה קובץ אקסל מקשר עם עמודות <b>אסמכתא</b> ו-<b>קטגוריה</b>. כל אסמכתא תיובא כהתחייבות
+            הכנסה עצמאית (ללא איש קשר) תחת הקטגוריה שצוינה, יחד עם כל העסקאות שלה.
+          </>
+        ) : (
+          <>
+            העלה קובץ אקסל מקשר עם עמודות <b>טלפון</b> ו-<b>אסמכתא</b>. המערכת תזהה כל טלפון מול איש
+            הקשר הקיים, ותייבא את ההתחייבות וכל העסקאות של אותה אסמכתא.
+          </>
+        )}
       </p>
       <input
         type="file"

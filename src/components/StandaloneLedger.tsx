@@ -184,7 +184,7 @@ export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
 
       {kind === "income" && (
         <Modal open={bulkOpen} onClose={() => setBulkOpen(false)} title="ייבוא מרוכז מקשר (Excel)" wide>
-          <BulkImport onDone={load} />
+          <BulkImport mode="byCategory" onDone={load} />
         </Modal>
       )}
       <Modal open={oblOpen} onClose={() => setOblOpen(false)} title={`התחייבות ${title} חדשה`} wide>

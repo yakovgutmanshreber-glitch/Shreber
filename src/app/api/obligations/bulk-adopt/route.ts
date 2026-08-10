@@ -1,6 +1,6 @@
 import * as XLSX from "xlsx";
 import { handler, serialize, ApiError } from "@/lib/api";
-import { bulkAdoptByPhone } from "@/lib/kesher/sync";
+import { bulkAdoptByPhone, bulkAdoptByCategory } from "@/lib/kesher/sync";
 
 // Pick a column value by matching the header against keyword lists.
 function findKey(keys: string[], includes: string[]): string | undefined {
@@ -12,7 +12,10 @@ function findKey(keys: string[], includes: string[]): string | undefined {
 // and import that reference's obligation + all its transactions.
 export const POST = handler(
   async (req) => {
-    const { fileBase64 } = (await req.json()) as { fileBase64?: string };
+    const { fileBase64, standalone } = (await req.json()) as {
+      fileBase64?: string;
+      standalone?: boolean;
+    };
     if (!fileBase64) throw new ApiError("לא התקבל קובץ", 400);
 
     const b64 = fileBase64.includes(",") ? fileBase64.split(",").pop()! : fileBase64;
@@ -28,6 +31,24 @@ export const POST = handler(
     if (json.length === 0) throw new ApiError("הקובץ ריק", 400);
 
     const keys = Object.keys(json[0]);
+
+    // Standalone mode (income tab): אסמכתא + קטגוריה columns, no phone/contact.
+    if (standalone) {
+      const refKey = findKey(keys, ["אסמכתא", "reference", "ref", "מספר הוראה", "הוראה"]) ?? keys[0];
+      const catKey = findKey(keys, ["קטגוריה", "קטגורי", "category", "cat"]) ?? keys[1];
+      const rows = json
+        .map((r) => ({
+          reference: String(r[refKey] ?? "").trim(),
+          category: String(r[catKey] ?? "").trim(),
+        }))
+        .filter((r) => r.reference);
+      if (rows.length === 0) {
+        throw new ApiError(`לא זוהתה עמודת אסמכתא. עמודות שנמצאו: ${keys.join(", ")}`, 400);
+      }
+      const result = await bulkAdoptByCategory(rows);
+      return serialize({ ...result, columns: { reference: refKey, category: catKey } });
+    }
+
     const phoneKey =
       findKey(keys, ["טלפון", "פלאפון", "נייד", "phone", "tel", "mobile"]) ?? keys[0];
     const refKey =
