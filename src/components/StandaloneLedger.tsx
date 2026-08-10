@@ -40,6 +40,7 @@ export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
   const [oblOpen, setOblOpen] = useState(false);
   const [txOpen, setTxOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [catFilter, setCatFilter] = useState("");
   // The obligation whose transactions are being viewed (fetched on click).
   const [detail, setDetail] = useState<ObligationDetail | null>(null);
 
@@ -69,7 +70,12 @@ export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
     setDetail({ ...data, transactions: data.transactions ?? [] });
   }, [detail]);
 
-  const totalObl = obligations
+  const categories = [...new Set(obligations.map((o) => o.category?.category).filter(Boolean))].sort(
+    (a, b) => String(a).localeCompare(String(b), "he"),
+  ) as string[];
+  const shown = catFilter ? obligations.filter((o) => o.category?.category === catFilter) : obligations;
+
+  const totalObl = shown
     .filter((o) => o.status === "active")
     .reduce((s, o) => s + Number(o.recurringAmount), 0);
   const totalTx = transactions.reduce((s, t) => s + Number(t.amount), 0);
@@ -107,11 +113,28 @@ export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
         </div>
       </div>
 
-      <div className="mb-3 text-sm text-gray-400">לחיצה על התחייבות מציגה את כל העסקאות שלה</div>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <span className="text-sm text-gray-400">לחיצה על התחייבות מציגה את כל העסקאות שלה</span>
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-500">קטגוריה</label>
+          <select
+            className="input max-w-[16rem] !py-1.5 text-sm"
+            value={catFilter}
+            onChange={(e) => setCatFilter(e.target.value)}
+          >
+            <option value="">כל הקטגוריות ({obligations.length})</option>
+            {categories.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
 
       {loading ? (
         <div className="card p-8 text-center text-gray-400">טוען…</div>
-      ) : obligations.length === 0 ? (
+      ) : shown.length === 0 ? (
         <EmptyState message="אין התחייבויות" />
       ) : (
         <div className="card overflow-x-auto">
@@ -129,7 +152,7 @@ export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {obligations.map((o) => (
+              {shown.map((o) => (
                 <tr
                   key={o.id}
                   className="cursor-pointer hover:bg-gray-50"
