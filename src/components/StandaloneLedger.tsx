@@ -25,6 +25,7 @@ interface Obligation {
 interface Transaction {
   id: number;
   amount: number;
+  obligation: { category: { category: string } | null } | null;
 }
 type ObligationDetail = ObligationData & {
   id: number;
@@ -74,11 +75,14 @@ export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
     (a, b) => String(a).localeCompare(String(b), "he"),
   ) as string[];
   const shown = catFilter ? obligations.filter((o) => o.category?.category === catFilter) : obligations;
+  const shownTx = catFilter
+    ? transactions.filter((t) => t.obligation?.category?.category === catFilter)
+    : transactions;
 
   const totalObl = shown
     .filter((o) => o.status === "active")
     .reduce((s, o) => s + Number(o.recurringAmount), 0);
-  const totalTx = transactions.reduce((s, t) => s + Number(t.amount), 0);
+  const totalTx = shownTx.reduce((s, t) => s + Number(t.amount), 0);
 
   return (
     <div>
@@ -102,7 +106,13 @@ export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
         }
       />
 
-      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="card p-5">
+          <div className="text-sm text-gray-500">
+            מספר התחייבויות{catFilter ? ` · ${catFilter}` : ""}
+          </div>
+          <div className="mt-1 text-2xl font-bold text-gray-800">{shown.length}</div>
+        </div>
         <div className="card p-5">
           <div className="text-sm text-gray-500">סה״כ התחייבויות פעילות (חודשי)</div>
           <div className="mt-1 text-2xl font-bold text-brand-600">{formatCurrency(totalObl)}</div>
