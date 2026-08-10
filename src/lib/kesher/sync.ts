@@ -59,6 +59,13 @@ const OBLIGATION_STATUS_BY_CODE: Record<number, string> = {
   8: "init_error",
 };
 
+// Kesher's GetObligations StatusId (verified against live data).
+const KESHER_OBLIGATION_STATUS_ID: Record<string, string> = {
+  "1": "active", // פעיל
+  "2": "cancelled", // מבוטל
+  "3": "finished", // הסתיים
+};
+
 // Kesher reports a hok's status as a Hebrew string or an integer code. Map it to
 // our enum, returning null when unrecognized (so callers can fall back).
 function mapKesherObligationStatus(v: unknown): string | null {
@@ -91,14 +98,13 @@ function deriveObligationStatus(opts: {
   numPayments: number;
   paidCount: number;
 }): string {
-  // Kesher's field name for the hok status isn't fixed, so scan any field that
-  // looks like a status and use the first value we recognize.
+  // GetObligations returns StatusId (1=פעיל, 2=מבוטל, 3=הסתיים) and a Hebrew
+  // Status label. Prefer StatusId (authoritative), then the label.
   if (opts.meta) {
-    for (const [k, v] of Object.entries(opts.meta)) {
-      if (!/status|סטטוס|מצב/i.test(k)) continue;
-      const mapped = mapKesherObligationStatus(v);
-      if (mapped) return mapped;
-    }
+    const id = opts.meta.StatusId != null ? String(opts.meta.StatusId).trim() : "";
+    if (KESHER_OBLIGATION_STATUS_ID[id]) return KESHER_OBLIGATION_STATUS_ID[id];
+    const heb = mapKesherObligationStatus(opts.meta.Status ?? opts.meta.StatusName);
+    if (heb) return heb;
   }
   if (opts.numPayments > 0 && opts.numPayments !== 9999 && opts.paidCount >= opts.numPayments) {
     return "finished";
@@ -900,15 +906,13 @@ export async function bulkAdoptByCategory(
       oblByRef.set(ref, created);
       result.obligationsAdopted++;
     } else {
-      // Re-import: refresh category + status from Kesher (source of truth).
-      const patch: { categoryId?: number; status?: string } = {};
-      if (!obl.categoryId) patch.categoryId = categoryId;
-      if (obl.status !== status) patch.status = status;
-      if (Object.keys(patch).length) {
-        await prisma.obligation.update({ where: { id: obl.id }, data: patch });
-        obl.categoryId = obl.categoryId ?? categoryId;
-        obl.status = status;
-      }
+      // Re-import: refresh category + status + numPayments from Kesher (source of truth).
+      await prisma.obligation.update({
+        where: { id: obl.id },
+        data: { categoryId: obl.categoryId ?? categoryId, status, numPayments },
+      });
+      obl.categoryId = obl.categoryId ?? categoryId;
+      obl.status = status;
     }
 
     let imported = 0;
@@ -956,9 +960,10 @@ export async function bulkAdoptByCategory(
     const status = statusFor(ref, 0, numPayments);
     if (oblByRef.has(ref)) {
       const existing = oblByRef.get(ref)!;
-      if (existing.status !== status) {
-        await prisma.obligation.update({ where: { id: existing.id }, data: { status } });
-      }
+      await prisma.obligation.update({
+        where: { id: existing.id },
+        data: { status, numPayments },
+      });
       result.matched++;
       result.details.push({ reference: ref, category, status: "כבר קיימת במערכת" });
       continue;
