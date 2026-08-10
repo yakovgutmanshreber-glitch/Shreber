@@ -906,12 +906,12 @@ export async function bulkAdoptByCategory(
       oblByRef.set(ref, created);
       result.obligationsAdopted++;
     } else {
-      // Re-import: refresh category + status + numPayments from Kesher (source of truth).
+      // Re-import: re-sync category (from the file), status + numPayments (from Kesher).
       await prisma.obligation.update({
         where: { id: obl.id },
-        data: { categoryId: obl.categoryId ?? categoryId, status, numPayments },
+        data: { categoryId, status, numPayments },
       });
-      obl.categoryId = obl.categoryId ?? categoryId;
+      obl.categoryId = categoryId;
       obl.status = status;
     }
 
@@ -962,7 +962,7 @@ export async function bulkAdoptByCategory(
       const existing = oblByRef.get(ref)!;
       await prisma.obligation.update({
         where: { id: existing.id },
-        data: { status, numPayments },
+        data: { categoryId: catMap.get(category)!, status, numPayments },
       });
       result.matched++;
       result.details.push({ reference: ref, category, status: "כבר קיימת במערכת" });
