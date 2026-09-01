@@ -36,6 +36,14 @@ export const POST = handler(async (req) => {
     if (obl) data.kind = obl.kind as "income" | "expense";
   }
 
+  // A manually recorded transaction is money actually received/paid, so mark it
+  // settled (status 4) unless a status was given — otherwise it wouldn't count
+  // as "נגבה" and the debt balance wouldn't go down.
+  if (data.source !== "api" && (data.statusCode === undefined || data.statusCode === null)) {
+    data.statusCode = 4;
+    if (!data.statusText) data.statusText = "התקבל";
+  }
+
   const { exchangeRate, amountIls } = await convertToIls(Number(data.amount), data.currency);
   const transaction = await prisma.transaction.create({
     data: { ...data, exchangeRate, amountIls },
