@@ -21,6 +21,7 @@ export const GET = handler(async (req) => {
 
   const rows = [];
   for (const o of obligations) {
+    if (!o.contactId) continue; // only debts linked to a contact (not standalone הכנסות)
     if (o.status === "cancelled") continue;
     if (o.numPayments === 9999) continue; // ongoing → no fixed total
     const amt = Number(o.amountIls ?? o.recurringAmount);

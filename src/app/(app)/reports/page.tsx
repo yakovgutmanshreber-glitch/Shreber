@@ -6,8 +6,8 @@ import { api } from "@/lib/client";
 import { formatMoney, formatCurrency } from "@/lib/format";
 import { Modal, PageHeader, EmptyState, ConfirmButton } from "@/components/ui";
 import { ObligationDetailModal } from "@/components/ObligationDetailModal";
-import type { ObligationData } from "@/components/ObligationForm";
-import type { TransactionData } from "@/components/TransactionForm";
+import type { ObligationData, SavedCard } from "@/components/ObligationForm";
+import { TransactionForm, type TransactionData } from "@/components/TransactionForm";
 
 interface Row {
   id: number;
@@ -28,6 +28,7 @@ export default function ReportsPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [payRow, setPayRow] = useState<Row | null>(null);
+  const [payCards, setPayCards] = useState<SavedCard[]>([]);
   const [detail, setDetail] = useState<ObligationDetail | null>(null);
 
   const load = useCallback(async () => {
@@ -43,6 +44,20 @@ export default function ReportsPage() {
   const openEdit = useCallback(async (id: number) => {
     const data = await api<ObligationDetail>(`/api/obligations/${id}`);
     setDetail({ ...data, transactions: data.transactions ?? [] });
+  }, []);
+
+  const openPay = useCallback(async (row: Row) => {
+    let cards: SavedCard[] = [];
+    if (row.contactId) {
+      try {
+        const c = await api<{ creditCards?: SavedCard[] }>(`/api/contacts/${row.contactId}`);
+        cards = c.creditCards ?? [];
+      } catch {
+        /* no cards */
+      }
+    }
+    setPayCards(cards);
+    setPayRow(row);
   }, []);
 
   async function remove(id: number) {
@@ -106,7 +121,7 @@ export default function ReportsPage() {
                     <div className="flex justify-end gap-3">
                       <button
                         className="text-sm font-medium text-green-600 hover:underline"
-                        onClick={() => setPayRow(r)}
+                        onClick={() => openPay(r)}
                       >
                         💰 שלם
                       </button>
@@ -132,12 +147,16 @@ export default function ReportsPage() {
         </div>
       )}
 
-      {/* Quick pay */}
-      <Modal open={!!payRow} onClose={() => setPayRow(null)} title={`רישום תשלום · ${payRow?.name ?? ""}`}>
+      {/* Pay — full transaction form (credit card / cash / bank / check) */}
+      <Modal open={!!payRow} onClose={() => setPayRow(null)} title={`רישום תשלום · ${payRow?.name ?? ""}`} wide>
         {payRow && (
-          <PayForm
-            row={payRow}
-            onDone={() => {
+          <TransactionForm
+            transaction={{ amount: payRow.remaining, currency: payRow.currency }}
+            fixedObligationId={payRow.id}
+            fixedContactId={payRow.contactId}
+            fixedKind="income"
+            contactCards={payCards}
+            onSaved={() => {
               setPayRow(null);
               load();
             }}
@@ -170,71 +189,3 @@ export default function ReportsPage() {
   );
 }
 
-function PayForm({ row, onDone, onCancel }: { row: Row; onDone: () => void; onCancel: () => void }) {
-  const [amount, setAmount] = useState(String(row.remaining));
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function pay() {
-    setError(null);
-    setBusy(true);
-    try {
-      await api("/api/transactions", {
-        method: "POST",
-        body: {
-          obligationId: row.id,
-          contactId: row.contactId,
-          amount: Number(amount),
-          currency: row.currency,
-          transactionType: "debit",
-          chargeOptionType: "cash",
-          statusCode: 4,
-          statusText: "שולם",
-          transactionDate: date,
-          kind: "income",
-          source: "manual",
-        },
-      });
-      onDone();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "שגיאה");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="space-y-4">
-      <p className="text-sm text-gray-500">
-        נשאר לתשלום: <b className="text-amber-600">{formatCurrency(row.remaining, row.currency)}</b>
-      </p>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="label">סכום ששולם</label>
-          <input
-            type="number"
-            step="0.01"
-            className="input"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="label">תאריך</label>
-          <input type="date" className="input" value={date} onChange={(e) => setDate(e.target.value)} />
-        </div>
-      </div>
-      <p className="text-xs text-gray-400">התשלום נרשם כעסקת מזומן במערכת (לא נשלח לקשר).</p>
-      {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-      <div className="flex justify-end gap-2">
-        <button className="btn-secondary" onClick={onCancel}>
-          ביטול
-        </button>
-        <button className="btn-primary" onClick={pay} disabled={busy || !Number(amount)}>
-          {busy ? "רושם…" : "רשום תשלום"}
-        </button>
-      </div>
-    </div>
-  );
-}
