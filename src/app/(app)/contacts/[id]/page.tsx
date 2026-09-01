@@ -399,7 +399,11 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
                                   )}
                                 </td>
                                 <td className="td">
-                                  <ObligationStatusBadge status={o.status} />
+                                  {o.paymentMethod === "cash" && remaining !== null && remaining > 0 ? (
+                                    <span className="badge bg-red-100 text-red-700">חוב</span>
+                                  ) : (
+                                    <ObligationStatusBadge status={o.status} />
+                                  )}
                                 </td>
                                 <td className="td text-left text-brand-600">‹</td>
                               </tr>
