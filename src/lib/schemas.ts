@@ -58,6 +58,7 @@ export const obligationSchema = z.object({
   account: optionalString,
   checkNumber: optionalString,
   comment: optionalString,
+  handled: z.boolean().optional(), // מטופל
 });
 
 export const transactionSchema = z.object({

@@ -44,6 +44,7 @@ export const GET = handler(async (req) => {
       remaining,
       currency: o.currency,
       comment: o.comment,
+      handled: o.handled,
     });
   }
   rows.sort((a, b) => b.remaining - a.remaining);

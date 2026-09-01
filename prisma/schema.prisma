@@ -203,6 +203,7 @@ model Obligation {
   account                   String?
   checkNumber               String?
   comment                   String?
+  handled                   Boolean      @default(false) // מטופל — flagged as handled/taken care of
   transactions              Transaction[]
   communications            Communication[]
   createdAt                 DateTime     @default(now())

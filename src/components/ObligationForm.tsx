@@ -38,6 +38,7 @@ export interface ObligationData {
   account?: string | null;
   checkNumber?: string | null;
   comment?: string | null;
+  handled?: boolean;
   kesherObligationReference?: string | null;
 }
 

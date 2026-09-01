@@ -40,6 +40,18 @@ export function ObligationDetailModal({
     onChanged();
   }
 
+  const handled = Boolean((obligation as { handled?: boolean }).handled);
+  const [handledBusy, setHandledBusy] = useState(false);
+  async function toggleHandled() {
+    setHandledBusy(true);
+    try {
+      await api(`/api/obligations/${obligation.id}`, { method: "PATCH", body: { handled: !handled } });
+      onChanged();
+    } finally {
+      setHandledBusy(false);
+    }
+  }
+
   const total = transactions.reduce((s, t) => s + Number(t.amount ?? 0), 0);
   const TX_SUCCESS = new Set([0, 4, 11, 22]);
   const paid = transactions
@@ -73,6 +85,22 @@ export function ObligationDetailModal({
 
   return (
     <div>
+      {/* מטופל toggle */}
+      <div className="mb-3 flex justify-end">
+        <button
+          type="button"
+          onClick={toggleHandled}
+          disabled={handledBusy}
+          className={`rounded-full border px-4 py-1.5 text-sm font-medium transition-colors ${
+            handled
+              ? "border-green-600 bg-green-600 text-white hover:bg-green-700"
+              : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
+          }`}
+        >
+          {handled ? "✓ טופל" : "סמן כטופל"}
+        </button>
+      </div>
+
       {/* Tabs */}
       <div className="mb-4 flex gap-1 border-b border-gray-200">
         <TabBtn active={tab === "details"} onClick={() => setTab("details")}>

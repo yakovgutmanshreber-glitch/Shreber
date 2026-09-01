@@ -17,6 +17,7 @@ interface Row {
   remaining: number;
   currency: number;
   comment: string | null;
+  handled: boolean;
 }
 type ObligationDetail = ObligationData & {
   id: number;
@@ -102,13 +103,18 @@ export default function ReportsPage() {
               {rows.map((r) => (
                 <tr key={r.id} className="align-top hover:bg-gray-50">
                   <td className="td font-medium">
-                    {r.contactId ? (
-                      <Link href={`/contacts/${r.contactId}`} className="text-brand-600 hover:underline">
-                        {r.name}
-                      </Link>
-                    ) : (
-                      r.name
-                    )}
+                    <div className="flex items-center gap-2">
+                      {r.contactId ? (
+                        <Link href={`/contacts/${r.contactId}`} className="text-brand-600 hover:underline">
+                          {r.name}
+                        </Link>
+                      ) : (
+                        r.name
+                      )}
+                      {r.handled && (
+                        <span className="badge bg-green-100 text-green-700">✓ טופל</span>
+                      )}
+                    </div>
                   </td>
                   <td className="td text-gray-500">{r.category ?? "—"}</td>
                   <td className="td font-semibold text-amber-600">
