@@ -204,6 +204,7 @@ model Obligation {
   checkNumber               String?
   comment                   String?
   handled                   Boolean      @default(false) // מטופל — flagged as handled/taken care of
+  replacesObligationId      Int? // set on a card-change hok; the old hok is cancelled when this activates
   transactions              Transaction[]
   communications            Communication[]
   createdAt                 DateTime     @default(now())

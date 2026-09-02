@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { kesher } from "@/lib/kesher/client";
+import { KESHER_OBLIGATION_STATUS_CODE } from "@/lib/constants";
 
 // ---------------------------------------------------------------------------
 // Kesher webhook receiver — the PRIMARY sync mechanism (spec §2).
@@ -213,6 +215,23 @@ async function contactIdByPhone(...vals: unknown[]): Promise<number | null> {
   return null;
 }
 
+/** Card-change flow: when a replacement hok activates, cancel the old one in Kesher. */
+async function cancelReplacedHok(replacesObligationId: number | null | undefined): Promise<void> {
+  if (!replacesObligationId) return;
+  const old = await prisma.obligation.findUnique({ where: { id: replacesObligationId } });
+  if (!old?.kesherObligationReference) return;
+  if (["cancelled", "finished"].includes(old.status)) return;
+  try {
+    await kesher.updateObligation({
+      obligationReference: old.kesherObligationReference,
+      status: String(KESHER_OBLIGATION_STATUS_CODE.cancelled), // 3
+    });
+  } catch {
+    /* best-effort — still mark locally so the old card stops being shown as active */
+  }
+  await prisma.obligation.update({ where: { id: old.id }, data: { status: "cancelled" } });
+}
+
 async function upsertObligation(body: Record<string, unknown>): Promise<"processed" | "ignored"> {
   const ref = toStr(pick(body, "ObligationReference", "obligation_reference"));
   if (!ref) throw new Error("obligation payload missing ObligationReference");
@@ -229,6 +248,8 @@ async function upsertObligation(body: Record<string, unknown>): Promise<"process
         where: { id: pending.id },
         data: { kesherObligationReference: ref, status: "active" },
       });
+      // Card-change flow: this hok replaced an old one → cancel the old one.
+      await cancelReplacedHok(pending.replacesObligationId);
       return "processed";
     }
   }
@@ -305,6 +326,7 @@ async function upsertTransaction(body: Record<string, unknown>): Promise<"proces
           where: { id: pending.id },
           data: { kesherObligationReference: oblRef, status: "active" },
         });
+        await cancelReplacedHok(pending.replacesObligationId);
       }
     }
   }

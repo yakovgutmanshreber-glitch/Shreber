@@ -61,6 +61,26 @@ export function ObligationDetailModal({
   const [delBusy, setDelBusy] = useState(false);
   const [delError, setDelError] = useState<string | null>(null);
 
+  // Change-card via secure Kesher link (credit hoks tracked in Kesher).
+  const [cardLink, setCardLink] = useState<string | null>(null);
+  const [cardLinkBusy, setCardLinkBusy] = useState(false);
+  const [cardLinkError, setCardLinkError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  async function makeChangeCardLink() {
+    setCardLinkBusy(true);
+    setCardLinkError(null);
+    try {
+      const res = await api<{ url: string }>(`/api/obligations/${obligation.id}/change-card-link`, {
+        method: "POST",
+      });
+      setCardLink(res.url);
+    } catch (e) {
+      setCardLinkError(e instanceof Error ? e.message : "שגיאה");
+    } finally {
+      setCardLinkBusy(false);
+    }
+  }
+
   async function deleteObligation() {
     setDelBusy(true);
     setDelError(null);
@@ -111,15 +131,27 @@ export function ObligationDetailModal({
 
   return (
     <div>
-      {/* מטופל toggle + delete */}
+      {/* מטופל toggle + delete + change card */}
       <div className="mb-3 flex items-center justify-between gap-2">
-        <button
-          type="button"
-          onClick={() => setDelOpen((v) => !v)}
-          className="rounded-full border border-red-200 bg-white px-4 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50"
-        >
-          🗑 מחק התחייבות
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setDelOpen((v) => !v)}
+            className="rounded-full border border-red-200 bg-white px-4 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50"
+          >
+            🗑 מחק התחייבות
+          </button>
+          {isKesher && (
+            <button
+              type="button"
+              onClick={makeChangeCardLink}
+              disabled={cardLinkBusy}
+              className="rounded-full border border-brand-200 bg-white px-4 py-1.5 text-sm font-medium text-brand-600 hover:bg-brand-50 disabled:opacity-50"
+            >
+              💳 {cardLinkBusy ? "יוצר קישור…" : "החלף כרטיס"}
+            </button>
+          )}
+        </div>
         <button
           type="button"
           onClick={toggleHandled}
@@ -181,6 +213,34 @@ export function ObligationDetailModal({
             <button className="btn-danger !py-1.5 text-sm" onClick={deleteObligation} disabled={delBusy}>
               {delBusy ? "מוחק…" : "מחק"}
             </button>
+          </div>
+        </div>
+      )}
+
+      {cardLinkError && <p className="mb-3 text-sm text-red-600">{cardLinkError}</p>}
+      {cardLink && (
+        <div className="mb-4 rounded-xl border border-brand-100 bg-brand-50/40 p-4">
+          <div className="mb-2 text-sm font-semibold text-brand-700">💳 קישור מאובטח להחלפת כרטיס</div>
+          <p className="mb-2 text-xs text-gray-600">
+            שלח את הקישור ללקוח (או פתח אותו). הלקוח יזין את הכרטיס החדש בעמוד המאובטח של קשר — ללא
+            חיוב. עם הסיום, ההוראה הישנה תבוטל אוטומטית וההוראה החדשה עם הכרטיס החדש תופעל.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <input readOnly value={cardLink} dir="ltr" className="input flex-1 font-mono text-xs" onFocus={(e) => e.target.select()} />
+            <button
+              type="button"
+              className="btn-secondary !py-1.5 text-xs"
+              onClick={() => {
+                navigator.clipboard?.writeText(cardLink);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1500);
+              }}
+            >
+              {copied ? "הועתק ✓" : "העתק"}
+            </button>
+            <a href={cardLink} target="_blank" rel="noreferrer" className="btn-primary !py-1.5 text-xs">
+              פתח
+            </a>
           </div>
         </div>
       )}
