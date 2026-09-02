@@ -532,6 +532,115 @@ export async function adoptKesherObligation(opts: {
 }
 
 // ---------------------------------------------------------------------------
+// Import ONLY the credit-card token behind an אסמכתא / token — no obligation,
+// no transactions. Saves the card on the contact so it can fund future charges.
+// ---------------------------------------------------------------------------
+export interface CardImportResult {
+  ok: boolean;
+  message?: string;
+  cardSaved: boolean;
+  alreadyExists?: boolean;
+  last4?: string | null;
+  brand?: string | null;
+  reference?: string;
+}
+
+export async function importCardFromKesher(opts: {
+  refOrToken: string;
+  contactId: number;
+}): Promise<CardImportResult> {
+  const input = opts.refOrToken.trim().replace(/\s/g, "");
+  if (!input) return { ok: false, cardSaved: false, message: "יש להזין אסמכתא או טוקן" };
+  const contactId = opts.contactId;
+
+  const now = new Date();
+  const years: { from: string; to: string }[] = [];
+  for (let year = now.getFullYear(); year >= now.getFullYear() - 6; year--) {
+    years.push({
+      from: `${year}-01-01T00:00:00`,
+      to: year === now.getFullYear() ? now.toISOString().slice(0, 19) : `${year}-12-31T23:59:59`,
+    });
+  }
+  const reps = await Promise.all(
+    years.map((y) =>
+      kesher.getAllTransForCompany(y.from, y.to).catch(() => ({ ok: false as const, data: undefined })),
+    ),
+  );
+  const rows: Record<string, unknown>[] = [];
+  const seen = new Set<string>();
+  let anyOk = false;
+  for (const rep of reps) {
+    if (!rep.ok) continue;
+    anyOk = true;
+    const chunk =
+      ((rep.data as { TransactionResponseData?: Record<string, unknown>[] })
+        ?.TransactionResponseData) ?? [];
+    for (const r of chunk) {
+      const key = String(r.NumTransaction ?? r.Id ?? "");
+      if (key && seen.has(key)) continue;
+      if (key) seen.add(key);
+      rows.push(r);
+    }
+  }
+  if (!anyOk) return { ok: false, cardSaved: false, message: "שליפת העסקאות מקשר נכשלה" };
+
+  const isToken = input.length >= 12;
+  let ref: string | undefined = isToken ? undefined : input;
+  let matched = rows.filter((r) =>
+    isToken ? s(r.Token) === input : s(r.ObligationReference) === input,
+  );
+  if (isToken) ref = matched.map((r) => s(r.ObligationReference)).find((x) => x && x !== "0");
+  if (ref) matched = rows.filter((r) => s(r.ObligationReference) === ref);
+  if (matched.length === 0) {
+    return { ok: false, cardSaved: false, message: "לא נמצאו עסקאות בקשר עבור האסמכתא/הטוקן שהוזנו" };
+  }
+
+  matched.sort((a, b) => String(b.TranDate ?? "").localeCompare(String(a.TranDate ?? "")));
+  const validToken = (r: Record<string, unknown>) => {
+    const t = s(r.Token);
+    return t && /^\d{12,}$/.test(t) ? t : undefined;
+  };
+  const cardRow =
+    matched.find((r) => validToken(r) && chargeOptionToEnum(r.ChargeOptionType) === "credit") ??
+    matched.find((r) => validToken(r));
+  const token = cardRow ? validToken(cardRow) : undefined;
+  if (!token || !cardRow) {
+    return {
+      ok: false,
+      cardSaved: false,
+      reference: ref,
+      message: "לא נמצא טוקן כרטיס אשראי בעסקאות של אסמכתא זו (ייתכן שהחיוב אינו באשראי)",
+    };
+  }
+
+  const existing = await prisma.creditCard.findFirst({ where: { contactId, token } });
+  if (existing) {
+    return {
+      ok: true,
+      cardSaved: false,
+      alreadyExists: true,
+      reference: ref,
+      last4: existing.last4,
+      brand: existing.brand,
+      message: "הכרטיס כבר קיים אצל איש קשר זה",
+    };
+  }
+  const count = await prisma.creditCard.count({ where: { contactId } });
+  const card = await prisma.creditCard.create({
+    data: {
+      contactId,
+      token,
+      last4: last4(cardRow.NumCard),
+      expiry: s(cardRow.ExpireDate),
+      brand: s(cardRow.CreditCardCompany) ?? s(cardRow.Brand),
+      holderName: s(cardRow.CardName) ?? s(cardRow.Name),
+      isDefault: count === 0,
+    },
+  });
+  return { ok: true, cardSaved: true, reference: ref, last4: card.last4, brand: card.brand };
+}
+
+// ---------------------------------------------------------------------------
 // BULK adopt: given rows of {phone, reference} (from a Kesher Excel), match each
 // phone to an existing Contact and import that reference's obligation + all its
 // transactions. Fetches the whole company's transactions ONCE (year-by-year,
