@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { api } from "@/lib/client";
 import { Modal, PageHeader, EmptyState } from "@/components/ui";
@@ -13,6 +13,7 @@ interface ContactRow {
   firstName: string;
   lastName: string | null;
   phone: string | null;
+  phone2: string | null;
   email: string | null;
   city: string | null;
   country: string | null;
@@ -49,15 +50,24 @@ export default function ContactsPage() {
     load();
   }, [load]);
 
-  useEffect(() => {
-    const t = setTimeout(() => load(q), 300);
-    return () => clearTimeout(t);
-  }, [q, load]);
-
-  const shown = contacts.filter(
-    (c) =>
-      (!cityFilter || c.city === cityFilter) && (!countryFilter || c.country === countryFilter),
-  );
+  // Instant client-side search: first name, last name, or phone — no server
+  // round-trip per keystroke. Multi-word queries match name parts in any order.
+  const shown = useMemo(() => {
+    const query = q.trim().toLowerCase();
+    const tokens = query.split(/\s+/).filter(Boolean);
+    const digits = q.replace(/\D/g, "");
+    return contacts.filter((c) => {
+      if (cityFilter && c.city !== cityFilter) return false;
+      if (countryFilter && c.country !== countryFilter) return false;
+      if (!query) return true;
+      if (digits.length >= 3) {
+        const phone = `${c.phone ?? ""} ${c.phone2 ?? ""}`.replace(/\D/g, "");
+        if (phone.includes(digits)) return true;
+      }
+      const name = `${c.firstName ?? ""} ${c.lastName ?? ""}`.toLowerCase();
+      return tokens.every((t) => name.includes(t));
+    });
+  }, [contacts, q, cityFilter, countryFilter]);
 
   return (
     <div>
@@ -83,13 +93,22 @@ export default function ContactsPage() {
       />
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <input
-          className="input max-w-sm"
-          placeholder="חיפוש לפי שם, טלפון, אימייל…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
-        <span className="text-xs text-gray-400">{shown.length} תוצאות</span>
+        <div className="relative w-full max-w-sm">
+          <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+              <circle cx="11" cy="11" r="7" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+          </span>
+          <input
+            className="input pr-10"
+            placeholder="חיפוש: שם פרטי, שם משפחה או טלפון…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            autoFocus
+          />
+        </div>
+        <span className="num text-xs text-slate-400">{shown.length} תוצאות</span>
         <select
           className="input max-w-[12rem]"
           value={cityFilter}
@@ -161,18 +180,18 @@ export default function ContactsPage() {
         <ContactForm
           onSaved={() => {
             setModalOpen(false);
-            load(q);
+            load();
           }}
           onCancel={() => setModalOpen(false)}
         />
       </Modal>
 
       <Modal open={bulkOpen} onClose={() => setBulkOpen(false)} title="ייבוא מרוכז מקשר (Excel)" wide>
-        <BulkImport onDone={() => load(q)} />
+        <BulkImport onDone={() => load()} />
       </Modal>
 
       <Modal open={bulkContactsOpen} onClose={() => setBulkContactsOpen(false)} title="ייבוא אנשי קשר (Excel)" wide>
-        <ContactBulkImport onDone={() => load(q)} />
+        <ContactBulkImport onDone={() => load()} />
       </Modal>
 
       <Modal open={listsOpen} onClose={() => setListsOpen(false)} title="ניהול רשימות" wide>
