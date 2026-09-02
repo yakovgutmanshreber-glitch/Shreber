@@ -522,15 +522,18 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
 }
 
 function SummaryCard({ label, value, tone }: { label: string; value: string; tone: string }) {
-  const tones: Record<string, string> = {
-    green: "text-green-600",
-    red: "text-red-600",
-    blue: "text-brand-600",
+  const tones: Record<string, { bar: string; chip: string; text: string }> = {
+    green: { bar: "from-emerald-400 to-emerald-600", chip: "bg-emerald-50 text-emerald-600", text: "text-emerald-600" },
+    red: { bar: "from-rose-400 to-rose-600", chip: "bg-rose-50 text-rose-600", text: "text-rose-600" },
+    blue: { bar: "from-brand-400 to-brand-600", chip: "bg-brand-50 text-brand-600", text: "text-brand-600" },
+    amber: { bar: "from-amber-400 to-amber-600", chip: "bg-amber-50 text-amber-600", text: "text-amber-600" },
   };
+  const t = tones[tone] ?? tones.blue;
   return (
-    <div className="card p-5">
-      <div className="text-sm text-gray-500">{label}</div>
-      <div className={`mt-1 text-2xl font-bold ${tones[tone]}`}>{value}</div>
+    <div className="card relative overflow-hidden p-5">
+      <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-l ${t.bar}`} />
+      <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">{label}</div>
+      <div className={`num mt-2 text-2xl font-extrabold ${t.text}`}>{value}</div>
     </div>
   );
 }
