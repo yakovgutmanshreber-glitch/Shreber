@@ -310,7 +310,7 @@ function firstOfMonth() {
 function TransactionsReport() {
   const [from, setFrom] = useState(firstOfMonth());
   const [to, setTo] = useState(new Date().toISOString().slice(0, 10));
-  const [view, setView] = useState<"all" | "passed" | "failed">("all");
+  const [view, setView] = useState<"passed" | "other">("passed");
   const [rows, setRows] = useState<TxRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -331,7 +331,7 @@ function TransactionsReport() {
   const failed = rows.filter((r) => !r.passed);
   const sum = (list: TxRow[]) =>
     list.reduce((s, t) => s + Number(t.amountIls ?? t.amount), 0);
-  const shown = view === "passed" ? passed : view === "failed" ? failed : rows;
+  const shown = view === "passed" ? passed : failed;
 
   return (
     <div>
@@ -348,33 +348,44 @@ function TransactionsReport() {
       </div>
 
       {/* Summary */}
-      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <button
-          onClick={() => setView("all")}
-          className={`card relative overflow-hidden p-5 text-right ${view === "all" ? "ring-2 ring-brand-200" : ""}`}
-        >
+      <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="card relative overflow-hidden p-5">
           <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-l from-brand-400 to-brand-600" />
           <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">סה״כ עסקאות</div>
           <div className="num mt-2 text-2xl font-extrabold text-slate-800">{formatCurrency(sum(rows))}</div>
           <div className="num mt-0.5 text-xs text-slate-400">{rows.length} תנועות</div>
-        </button>
-        <button
-          onClick={() => setView("passed")}
-          className={`card relative overflow-hidden p-5 text-right ${view === "passed" ? "ring-2 ring-emerald-200" : ""}`}
-        >
+        </div>
+        <div className="card relative overflow-hidden p-5">
           <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-l from-emerald-400 to-emerald-600" />
           <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">עבר בהצלחה</div>
           <div className="num mt-2 text-2xl font-extrabold text-emerald-600">{formatCurrency(sum(passed))}</div>
           <div className="num mt-0.5 text-xs text-slate-400">{passed.length} תנועות</div>
-        </button>
-        <button
-          onClick={() => setView("failed")}
-          className={`card relative overflow-hidden p-5 text-right ${view === "failed" ? "ring-2 ring-rose-200" : ""}`}
-        >
+        </div>
+        <div className="card relative overflow-hidden p-5">
           <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-l from-rose-400 to-rose-600" />
-          <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">לא עבר</div>
+          <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">הכל אחר</div>
           <div className="num mt-2 text-2xl font-extrabold text-rose-600">{formatCurrency(sum(failed))}</div>
           <div className="num mt-0.5 text-xs text-slate-400">{failed.length} תנועות</div>
+        </div>
+      </div>
+
+      {/* Two tabs: passed vs everything else */}
+      <div className="mb-4 inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+        <button
+          onClick={() => setView("passed")}
+          className={`rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors ${
+            view === "passed" ? "bg-white text-emerald-600 shadow-soft" : "text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          עבר בהצלחה ({passed.length})
+        </button>
+        <button
+          onClick={() => setView("other")}
+          className={`rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors ${
+            view === "other" ? "bg-white text-rose-600 shadow-soft" : "text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          הכל אחר ({failed.length})
         </button>
       </div>
 
