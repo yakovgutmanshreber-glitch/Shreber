@@ -133,13 +133,13 @@ export async function POST(req: Request) {
     if (hasNested) {
       // Obligation status/amount/day sync (e.g. a cancel or edit made in Kesher).
       if (obl && pick(obl, "ObligationReference")) {
-        const flat: Record<string, unknown> = { ...body, ...obl };
+        const flat: Record<string, unknown> = { ...body, ...(cust ?? {}), ...obl };
         if (chargeOpt) flat.ChargeOption = chargeOpt; // keep for card sync later
         mark(await upsertObligation(flat));
       }
       // A real charge (Kesher's monthly hok debit, success or סירוב).
       if (txn && pick(txn, "NumTransaction")) {
-        const flat: Record<string, unknown> = { ...body, ...txn };
+        const flat: Record<string, unknown> = { ...body, ...(cust ?? {}), ...txn };
         if (obl && pick(obl, "ObligationReference")) flat.ObligationReference = obl.ObligationReference;
         mark(await upsertTransaction(flat));
       }
@@ -193,6 +193,26 @@ async function upsertCustomer(body: Record<string, unknown>): Promise<"processed
   return "processed";
 }
 
+/** National phone digits (drop +972 / leading 0 / punctuation). */
+function normPhone(v: unknown): string {
+  return String(v ?? "").replace(/\D/g, "").replace(/^972/, "").replace(/^0/, "");
+}
+
+/** Find a contact whose phone / phone2 matches one of these values (by last 7 digits). */
+async function contactIdByPhone(...vals: unknown[]): Promise<number | null> {
+  for (const v of vals) {
+    const nat = normPhone(v);
+    if (nat.length < 7) continue;
+    const last7 = nat.slice(-7);
+    const c = await prisma.contact.findFirst({
+      where: { OR: [{ phone: { contains: last7 } }, { phone2: { contains: last7 } }] },
+      select: { id: true },
+    });
+    if (c) return c.id;
+  }
+  return null;
+}
+
 async function upsertObligation(body: Record<string, unknown>): Promise<"processed" | "ignored"> {
   const ref = toStr(pick(body, "ObligationReference", "obligation_reference"));
   if (!ref) throw new Error("obligation payload missing ObligationReference");
@@ -213,12 +233,37 @@ async function upsertObligation(body: Record<string, unknown>): Promise<"process
     }
   }
 
-  // Update-only: we sync status/amount changes for obligations WE track, but
-  // don't auto-create obligations from account-wide webhook noise.
-  const existing = await prisma.obligation.findUnique({ where: { kesherObligationReference: ref } });
-  if (!existing) return "ignored";
-
   const statusRaw = pick(body, "ObligationStatus", "Status", "status");
+  const existing = await prisma.obligation.findUnique({ where: { kesherObligationReference: ref } });
+
+  // NEW obligation from Kesher: capture it. Auto-link to a contact when its
+  // phone matches; otherwise leave it unlinked for the review screen.
+  if (!existing) {
+    const contactId = await contactIdByPhone(
+      pick(body, "Phone", "phone"),
+      pick(body, "Phone2", "phone2"),
+    );
+    const numPayments = Number(pick(body, "NumPayments", "num_payments") ?? 9999) || 9999;
+    const day = pick(body, "ChargeDay", "charge_day");
+    await prisma.obligation.create({
+      data: {
+        kind: "income",
+        contactId,
+        kesherObligationReference: ref,
+        chargeType: "recurring",
+        recurringAmount: toAmount(pick(body, "Sum", "sum")) ?? 0,
+        currency: Number(pick(body, "Currency", "currency") ?? 1),
+        numPayments,
+        chargeDay: day ? Number(day) : null,
+        startDate: parseDate(pick(body, "StartDate", "start_date", "TransactionDate", "Date")),
+        status: mapObligationStatus(statusRaw),
+        paymentMethod: mapChargeOption(toStr(pick(body, "ChargeOptionType", "ChargeOption", "PaymentMethod"))),
+        comment: "התקבל מקשר (Webhook)",
+      },
+    });
+    return "processed";
+  }
+
   await prisma.obligation.update({
     where: { id: existing.id },
     data: {
@@ -228,6 +273,10 @@ async function upsertObligation(body: Record<string, unknown>): Promise<"process
         ? Number(pick(body, "ChargeDay", "charge_day"))
         : existing.chargeDay,
       status: mapObligationStatus(statusRaw),
+      // Back-fill the contact link if it was unlinked and a phone now matches.
+      ...(existing.contactId
+        ? {}
+        : { contactId: await contactIdByPhone(pick(body, "Phone", "phone"), pick(body, "Phone2", "phone2")) }),
     },
   });
   return "processed";
@@ -260,13 +309,16 @@ async function upsertTransaction(body: Record<string, unknown>): Promise<"proces
     }
   }
 
-  // STRICT FILTER: accept only transactions that belong to an obligation we
-  // track, or that we initiated ourselves (already recorded by NumTransaction /
-  // our UniqNum). Everything else in the account's daily activity is ignored.
   const ours = numTransaction
     ? await prisma.transaction.findUnique({ where: { kesherNumTransaction: numTransaction } })
     : await prisma.transaction.findFirst({ where: { uniqNum } });
-  if (!obligation && !ours) return "ignored";
+
+  // Contact: prefer the obligation's, else the existing record's, else match by
+  // phone. A transaction with no contact match is captured as "unlinked".
+  const contactId =
+    obligation?.contactId ??
+    ours?.contactId ??
+    (await contactIdByPhone(pick(body, "Phone", "phone"), pick(body, "Phone2", "phone2")));
 
   // KesherStatus is the internal status code (matches our KesherStatus table).
   const statusCode = pick(body, "KesherStatus", "StatusCode", "status_code");
@@ -274,7 +326,7 @@ async function upsertTransaction(body: Record<string, unknown>): Promise<"proces
   const docs = pick(body, "DocumentsDetails") as Record<string, unknown> | undefined;
   const data = {
     obligationId: obligation?.id ?? null,
-    contactId: obligation?.contactId ?? null,
+    contactId,
     source: "api" as const,
     kesherNumTransaction: numTransaction ?? null,
     uniqNum: uniqNum ?? null,

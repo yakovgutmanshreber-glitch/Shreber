@@ -199,7 +199,7 @@ function DebtsReport() {
 
 
 // --- Reports hub -----------------------------------------------------------
-type ReportKey = "debts" | "transactions";
+type ReportKey = "debts" | "transactions" | "unlinked";
 
 const REPORTS: {
   key: ReportKey;
@@ -233,6 +233,20 @@ const REPORTS: {
       </svg>
     ),
   },
+  {
+    key: "unlinked",
+    title: "רשומות ללא שיוך",
+    subtitle: "התחייבויות ועסקאות שהתקבלו מקשר ולא זוהה להן איש קשר לפי טלפון",
+    tint: "bg-amber-50 text-amber-600",
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M9 17H7a5 5 0 0 1 0-10h2" />
+        <path d="M15 7h2a5 5 0 0 1 4.5 7" />
+        <path d="M8 12h4" />
+        <path d="M18 22l4-4M22 22l-4-4" />
+      </svg>
+    ),
+  },
 ];
 
 export default function ReportsPage() {
@@ -252,7 +266,13 @@ export default function ReportsPage() {
           חזרה לדוחות
         </button>
         <PageHeader title={current.title} subtitle={current.subtitle} />
-        {active === "debts" ? <DebtsReport /> : <TransactionsReport />}
+        {active === "debts" ? (
+          <DebtsReport />
+        ) : active === "transactions" ? (
+          <TransactionsReport />
+        ) : (
+          <UnlinkedReport />
+        )}
       </div>
     );
   }
@@ -434,6 +454,201 @@ function TransactionsReport() {
             </tbody>
           </table>
         </div>
+      )}
+    </div>
+  );
+}
+
+// --- Unlinked records report ----------------------------------------------
+interface UnlinkedObl {
+  id: number;
+  reference: string | null;
+  category: string | null;
+  amount: number;
+  currency: number;
+  status: string;
+  transactions: number;
+  startDate: string;
+}
+interface UnlinkedTx {
+  id: number;
+  numTransaction: string | null;
+  amount: number;
+  currency: number;
+  date: string;
+  statusCode: number | null;
+  statusText: string | null;
+}
+interface ContactHit {
+  id: number;
+  firstName: string;
+  lastName: string | null;
+  phone: string | null;
+}
+
+function UnlinkedReport() {
+  const [data, setData] = useState<{ obligations: UnlinkedObl[]; transactions: UnlinkedTx[] } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [pick, setPick] = useState<{ obligationId?: number; transactionId?: number; label: string } | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setData(await api("/api/reports/unlinked"));
+    setLoading(false);
+  }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function assign(contactId: number) {
+    if (!pick) return;
+    await api("/api/reports/unlinked", {
+      method: "POST",
+      body: { obligationId: pick.obligationId, transactionId: pick.transactionId, contactId },
+    });
+    setPick(null);
+    load();
+  }
+
+  if (loading) return <div className="card p-8 text-center text-slate-400">טוען…</div>;
+  const obls = data?.obligations ?? [];
+  const txs = data?.transactions ?? [];
+  if (obls.length === 0 && txs.length === 0)
+    return <EmptyState message="הכול משויך — אין רשומות ללא איש קשר 🎉" />;
+
+  return (
+    <div className="space-y-6">
+      {obls.length > 0 && (
+        <div>
+          <h3 className="mb-2 text-sm font-semibold text-slate-500">התחייבויות ללא שיוך ({obls.length})</h3>
+          <div className="card overflow-x-auto">
+            <table className="w-full">
+              <thead className="border-b border-slate-200 bg-slate-50/60">
+                <tr>
+                  <th className="th">אסמכתא</th>
+                  <th className="th">קטגוריה</th>
+                  <th className="th">סכום</th>
+                  <th className="th">עסקאות</th>
+                  <th className="th"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {obls.map((o) => (
+                  <tr key={o.id} className="hover:bg-slate-50">
+                    <td className="td num font-medium">{o.reference}</td>
+                    <td className="td text-slate-500">{o.category ?? "—"}</td>
+                    <td className="td num">{formatMoney(o.amount, o.currency)}</td>
+                    <td className="td num">{o.transactions}</td>
+                    <td className="td text-left">
+                      <button
+                        className="btn-primary !py-1.5 text-xs"
+                        onClick={() => setPick({ obligationId: o.id, label: `אסמכתא ${o.reference}` })}
+                      >
+                        שייך לאיש קשר
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {txs.length > 0 && (
+        <div>
+          <h3 className="mb-2 text-sm font-semibold text-slate-500">עסקאות ללא שיוך ({txs.length})</h3>
+          <div className="card overflow-x-auto">
+            <table className="w-full">
+              <thead className="border-b border-slate-200 bg-slate-50/60">
+                <tr>
+                  <th className="th">תאריך</th>
+                  <th className="th">אסמכתא עסקה</th>
+                  <th className="th">סכום</th>
+                  <th className="th">סטטוס</th>
+                  <th className="th"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {txs.map((t) => (
+                  <tr key={t.id} className="hover:bg-slate-50">
+                    <td className="td num">{formatDate(t.date)}</td>
+                    <td className="td num text-slate-500">{t.numTransaction ?? "—"}</td>
+                    <td className="td num">{formatMoney(t.amount, t.currency)}</td>
+                    <td className="td text-slate-500">{t.statusText ?? "—"}</td>
+                    <td className="td text-left">
+                      <button
+                        className="btn-primary !py-1.5 text-xs"
+                        onClick={() => setPick({ transactionId: t.id, label: `עסקה ${t.numTransaction ?? t.id}` })}
+                      >
+                        שייך לאיש קשר
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      <Modal open={!!pick} onClose={() => setPick(null)} title={`שיוך ${pick?.label ?? ""} לאיש קשר`}>
+        <ContactPicker onPick={assign} />
+      </Modal>
+    </div>
+  );
+}
+
+function ContactPicker({ onPick }: { onPick: (contactId: number) => void }) {
+  const [q, setQ] = useState("");
+  const [hits, setHits] = useState<ContactHit[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      if (!q.trim()) {
+        setHits([]);
+        return;
+      }
+      setBusy(true);
+      try {
+        setHits(await api<ContactHit[]>(`/api/contacts?q=${encodeURIComponent(q.trim())}`));
+      } finally {
+        setBusy(false);
+      }
+    }, 250);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  return (
+    <div className="space-y-3">
+      <input
+        className="input"
+        placeholder="חיפוש איש קשר (שם או טלפון)…"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        autoFocus
+      />
+      {busy ? (
+        <p className="py-4 text-center text-sm text-slate-400">מחפש…</p>
+      ) : hits.length === 0 ? (
+        <p className="py-4 text-center text-sm text-slate-400">{q.trim() ? "לא נמצאו אנשי קשר" : "הקלד לחיפוש"}</p>
+      ) : (
+        <ul className="max-h-72 space-y-1 overflow-y-auto">
+          {hits.slice(0, 30).map((c) => (
+            <li key={c.id}>
+              <button
+                onClick={() => onPick(c.id)}
+                className="flex w-full items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-right text-sm hover:border-brand-200 hover:bg-brand-50/40"
+              >
+                <span className="font-medium text-slate-800">
+                  {c.firstName} {c.lastName ?? ""}
+                </span>
+                <span className="num text-xs text-slate-400" dir="ltr">{c.phone ?? ""}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );
