@@ -61,23 +61,23 @@ export function ObligationDetailModal({
   const [delBusy, setDelBusy] = useState(false);
   const [delError, setDelError] = useState<string | null>(null);
 
-  // Change-card via secure Kesher link (credit hoks tracked in Kesher).
-  const [cardLink, setCardLink] = useState<string | null>(null);
-  const [cardLinkBusy, setCardLinkBusy] = useState(false);
-  const [cardLinkError, setCardLinkError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-  async function makeChangeCardLink() {
-    setCardLinkBusy(true);
-    setCardLinkError(null);
+  // Change card in-system (type the new card → tokenize + swap the hok).
+  const [cardOpen, setCardOpen] = useState(false);
+  const [ccard, setCcard] = useState({ cardNumber: "", expiry: "", cvv: "", holderName: "" });
+  const [cardBusy, setCardBusy] = useState(false);
+  const [cardError, setCardError] = useState<string | null>(null);
+  async function submitChangeCard() {
+    setCardBusy(true);
+    setCardError(null);
     try {
-      const res = await api<{ url: string }>(`/api/obligations/${obligation.id}/change-card-link`, {
-        method: "POST",
-      });
-      setCardLink(res.url);
+      await api(`/api/obligations/${obligation.id}/change-card`, { method: "POST", body: ccard });
+      setCardOpen(false);
+      setCcard({ cardNumber: "", expiry: "", cvv: "", holderName: "" });
+      onChanged();
     } catch (e) {
-      setCardLinkError(e instanceof Error ? e.message : "שגיאה");
+      setCardError(e instanceof Error ? e.message : "שגיאה");
     } finally {
-      setCardLinkBusy(false);
+      setCardBusy(false);
     }
   }
 
@@ -144,11 +144,10 @@ export function ObligationDetailModal({
           {isKesher && (
             <button
               type="button"
-              onClick={makeChangeCardLink}
-              disabled={cardLinkBusy}
-              className="rounded-full border border-brand-200 bg-white px-4 py-1.5 text-sm font-medium text-brand-600 hover:bg-brand-50 disabled:opacity-50"
+              onClick={() => setCardOpen((v) => !v)}
+              className="rounded-full border border-brand-200 bg-white px-4 py-1.5 text-sm font-medium text-brand-600 hover:bg-brand-50"
             >
-              💳 {cardLinkBusy ? "יוצר קישור…" : "החלף כרטיס"}
+              💳 החלף כרטיס
             </button>
           )}
         </div>
@@ -217,30 +216,67 @@ export function ObligationDetailModal({
         </div>
       )}
 
-      {cardLinkError && <p className="mb-3 text-sm text-red-600">{cardLinkError}</p>}
-      {cardLink && (
+      {cardOpen && (
         <div className="mb-4 rounded-xl border border-brand-100 bg-brand-50/40 p-4">
-          <div className="mb-2 text-sm font-semibold text-brand-700">💳 קישור מאובטח להחלפת כרטיס</div>
-          <p className="mb-2 text-xs text-gray-600">
-            שלח את הקישור ללקוח (או פתח אותו). הלקוח יזין את הכרטיס החדש בעמוד המאובטח של קשר — ללא
-            חיוב. עם הסיום, ההוראה הישנה תבוטל אוטומטית וההוראה החדשה עם הכרטיס החדש תופעל.
+          <div className="mb-2 text-sm font-semibold text-brand-700">💳 החלפת כרטיס אשראי בהוראה</div>
+          <p className="mb-3 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-700">
+            הכרטיס נשלח לקשר לאימות ואסימון (טוקן). מספר הכרטיס וה-CVV אינם נשמרים במערכת. ההוראה
+            תעודכן לכרטיס החדש בקשר — ללא חיוב.
           </p>
-          <div className="flex flex-wrap items-center gap-2">
-            <input readOnly value={cardLink} dir="ltr" className="input flex-1 font-mono text-xs" onFocus={(e) => e.target.select()} />
-            <button
-              type="button"
-              className="btn-secondary !py-1.5 text-xs"
-              onClick={() => {
-                navigator.clipboard?.writeText(cardLink);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 1500);
-              }}
-            >
-              {copied ? "הועתק ✓" : "העתק"}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <label className="label">מספר כרטיס</label>
+              <input
+                className="input"
+                inputMode="numeric"
+                dir="ltr"
+                value={ccard.cardNumber}
+                onChange={(e) => setCcard((c) => ({ ...c, cardNumber: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="label">תוקף (MMYY)</label>
+              <input
+                className="input"
+                dir="ltr"
+                placeholder="1228"
+                maxLength={4}
+                value={ccard.expiry}
+                onChange={(e) => setCcard((c) => ({ ...c, expiry: e.target.value.replace(/\D/g, "").slice(0, 4) }))}
+              />
+            </div>
+            <div>
+              <label className="label">CVV</label>
+              <input
+                className="input"
+                dir="ltr"
+                inputMode="numeric"
+                maxLength={4}
+                value={ccard.cvv}
+                onChange={(e) => setCcard((c) => ({ ...c, cvv: e.target.value.replace(/\D/g, "").slice(0, 4) }))}
+              />
+            </div>
+            <div className="col-span-2">
+              <label className="label">שם בעל הכרטיס</label>
+              <input
+                className="input"
+                value={ccard.holderName}
+                onChange={(e) => setCcard((c) => ({ ...c, holderName: e.target.value }))}
+              />
+            </div>
+          </div>
+          {cardError && <p className="mt-2 text-xs text-red-600">{cardError}</p>}
+          <div className="mt-3 flex justify-end gap-2">
+            <button className="btn-secondary !py-1.5 text-sm" onClick={() => setCardOpen(false)}>
+              ביטול
             </button>
-            <a href={cardLink} target="_blank" rel="noreferrer" className="btn-primary !py-1.5 text-xs">
-              פתח
-            </a>
+            <button
+              className="btn-primary !py-1.5 text-sm"
+              onClick={submitChangeCard}
+              disabled={cardBusy || ccard.cardNumber.replace(/\D/g, "").length < 8 || ccard.expiry.length !== 4}
+            >
+              {cardBusy ? "מחליף…" : "החלף כרטיס"}
+            </button>
           </div>
         </div>
       )}

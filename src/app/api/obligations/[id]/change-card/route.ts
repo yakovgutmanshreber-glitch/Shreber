@@ -1,0 +1,71 @@
+import { prisma } from "@/lib/prisma";
+import { handler, serialize, ApiError } from "@/lib/api";
+import { kesher, KesherConfigError } from "@/lib/kesher/client";
+import { cardEntrySchema } from "@/lib/schemas";
+
+// POST /api/obligations/[id]/change-card
+// Change the card on a Kesher credit הוראת קבע ENTIRELY IN-SYSTEM: the operator
+// types the new card here → we tokenize it with Kesher, save it on the contact,
+// and swap the hok's card to the new token. No Kesher page, no charge.
+export const POST = handler(async (req, ctx) => {
+  const { id } = await ctx.params;
+  const oblId = Number(id);
+  const obl = await prisma.obligation.findUnique({ where: { id: oblId } });
+  if (!obl) throw new ApiError("התחייבות לא נמצאה", 404);
+  if (!obl.kesherObligationReference)
+    throw new ApiError("החלפת כרטיס זמינה רק להוראת קבע שמנוהלת בקשר", 400);
+
+  const card = cardEntrySchema.parse(await req.json());
+
+  // 1) Tokenize the new card (₪1 verification, no charge).
+  const tok = await kesher.tokenizeCard({
+    cardNumber: card.cardNumber,
+    cardExpiry: card.expiry,
+    cvv: card.cvv ?? undefined,
+    holderName: card.holderName ?? undefined,
+  });
+  if (!tok.ok || !tok.token) {
+    throw new ApiError(tok.message ?? "אימות/אסימון הכרטיס בקשר נכשל", 502);
+  }
+
+  // 2) Save the card (token only — never the PAN) on the contact.
+  const savedCard = obl.contactId
+    ? await prisma.creditCard.create({
+        data: {
+          contactId: obl.contactId,
+          token: tok.token,
+          last4: card.cardNumber.slice(-4),
+          expiry: card.expiry,
+          holderName: card.holderName ?? null,
+          isDefault: card.isDefault ?? false,
+        },
+      })
+    : null;
+
+  // 3) Swap the hok's card in Kesher (ChangeChargeOptionForObligation, Bearer).
+  try {
+    const res = await kesher.changeChargeOptionForObligation({
+      obligationReference: obl.kesherObligationReference,
+      paymentMethod: "credit",
+      token: tok.token,
+      cardExpiry: card.expiry,
+      name: card.holderName ?? undefined,
+    });
+    if (!res.ok) throw new ApiError(`החלפת הכרטיס בקשר נכשלה: ${res.message ?? "שגיאה"}`, 502);
+  } catch (e) {
+    if (e instanceof KesherConfigError) {
+      throw new ApiError(
+        "החלפת כרטיס בהוראת קבע דורשת טוקן API של קשר (KESHER_API_TOKEN) שעדיין לא הוגדר. יש להנפיק אותו בפאנל הניהול של קשר ולהגדירו.",
+        400,
+      );
+    }
+    throw e;
+  }
+
+  // 4) Link the new card to the obligation.
+  if (savedCard) {
+    await prisma.obligation.update({ where: { id: obl.id }, data: { creditCardId: savedCard.id } });
+  }
+
+  return serialize({ ok: true, last4: card.cardNumber.slice(-4) });
+});
