@@ -57,9 +57,15 @@ export const POST = handler(
       findKey(keys, ["טלפון", "פלאפון", "נייד", "phone", "tel", "mobile"]) ?? keys[0];
     const refKey =
       findKey(keys, ["אסמכתא", "reference", "ref", "מספר הוראה", "הוראה"]) ?? keys[1];
+    // Optional category column ("קטגור"/"קטוגר" cover the spelling + the typo).
+    const catKey = findKey(keys, ["קטגור", "קטוגר", "category", "cat"]);
 
     const rows = json
-      .map((r) => ({ phone: String(r[phoneKey] ?? "").trim(), reference: String(r[refKey] ?? "").trim() }))
+      .map((r) => ({
+        phone: String(r[phoneKey] ?? "").trim(),
+        reference: String(r[refKey] ?? "").trim(),
+        category: catKey ? String(r[catKey] ?? "").trim() : undefined,
+      }))
       .filter((r) => r.phone && r.reference);
 
     if (rows.length === 0) {
@@ -70,7 +76,7 @@ export const POST = handler(
     }
 
     const result = await bulkAdoptByPhone(rows);
-    return serialize({ ...result, columns: { phone: phoneKey, reference: refKey } });
+    return serialize({ ...result, columns: { phone: phoneKey, reference: refKey, category: catKey } });
   },
   { admin: false },
 );

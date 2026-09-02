@@ -727,7 +727,7 @@ async function fetchKesherObligationMeta(): Promise<Map<string, Record<string, u
 }
 
 export async function bulkAdoptByPhone(
-  input: { phone: string; reference: string }[],
+  input: { phone: string; reference: string; category?: string }[],
 ): Promise<BulkAdoptResult> {
   const empty: BulkAdoptResult = {
     ok: false,
@@ -754,12 +754,26 @@ export async function bulkAdoptByPhone(
     }
   }
 
+  // Optional per-row category (from a קטגוריה column) — resolved/created once.
+  const catCache = new Map<string, number>();
+  async function resolveCategory(name?: string): Promise<number | undefined> {
+    const key = (name ?? "").trim();
+    if (!key) return undefined;
+    const cached = catCache.get(key);
+    if (cached) return cached;
+    let cat = await prisma.category.findFirst({ where: { category: key } });
+    if (!cat) cat = await prisma.category.create({ data: { mainCategory: key, category: key, defaultPrice: 0 } });
+    catCache.set(key, cat.id);
+    return cat.id;
+  }
+
   const result: BulkAdoptResult = { ...empty, ok: true };
 
   for (const row of input) {
     const ref = String(row.reference ?? "").trim();
     const phone = String(row.phone ?? "").trim();
     if (!ref || !phone) continue;
+    const categoryId = await resolveCategory(row.category);
 
     const contactId = phoneMap.get(normPhone(phone));
     if (!contactId) {
@@ -786,6 +800,7 @@ export async function bulkAdoptByPhone(
         data: {
           kind: "income",
           contactId,
+          categoryId,
           kesherObligationReference: ref,
           chargeType: "recurring",
           recurringAmount: Number(latest.Total ?? 0) / 100, // report Total = agorot
@@ -798,11 +813,14 @@ export async function bulkAdoptByPhone(
         },
       });
       result.obligationsAdopted++;
-    } else if (!obligation.contactId) {
-      obligation = await prisma.obligation.update({
-        where: { id: obligation.id },
-        data: { contactId },
-      });
+    } else {
+      // Existing: attach the contact if missing, and set the category from the file.
+      const patch: { contactId?: number; categoryId?: number } = {};
+      if (!obligation.contactId) patch.contactId = contactId;
+      if (categoryId) patch.categoryId = categoryId;
+      if (Object.keys(patch).length) {
+        obligation = await prisma.obligation.update({ where: { id: obligation.id }, data: patch });
+      }
     }
 
     // Adopt the card token (from the latest charge) for credit hoks.
