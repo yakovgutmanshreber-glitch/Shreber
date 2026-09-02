@@ -153,6 +153,9 @@ export const DELETE = handler(async (req, ctx) => {
   }
 
   const cardId = existing.creditCardId;
+  // Remove the obligation's transactions along with it (they'd otherwise be
+  // orphaned by the SetNull relation). Communications cascade automatically.
+  await prisma.transaction.deleteMany({ where: { obligationId: id } });
   await prisma.obligation.delete({ where: { id } });
 
   // Optionally remove the linked card — only if no OTHER obligation still uses it.
