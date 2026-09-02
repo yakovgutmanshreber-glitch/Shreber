@@ -198,43 +198,91 @@ function DebtsReport() {
 }
 
 
-// --- Tabs shell ------------------------------------------------------------
+// --- Reports hub -----------------------------------------------------------
+type ReportKey = "debts" | "transactions";
+
+const REPORTS: {
+  key: ReportKey;
+  title: string;
+  subtitle: string;
+  tint: string;
+  icon: React.ReactNode;
+}[] = [
+  {
+    key: "debts",
+    title: "חובות פתוחים",
+    subtitle: "כל מה שנשאר לתשלום — עם אפשרות לרשום תשלום, לערוך או למחוק",
+    tint: "bg-rose-50 text-rose-600",
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="2" y="5" width="20" height="14" rx="2" />
+        <path d="M2 10h20" />
+        <path d="M6 15h4" />
+      </svg>
+    ),
+  },
+  {
+    key: "transactions",
+    title: "עסקאות",
+    subtitle: "כל התנועות לפי טווח תאריכים — מחולקות לעבר בהצלחה ולא עבר",
+    tint: "bg-brand-50 text-brand-600",
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 3v18h18" />
+        <path d="M7 14l3-3 3 3 5-6" />
+      </svg>
+    ),
+  },
+];
+
 export default function ReportsPage() {
-  const [tab, setTab] = useState<"debts" | "transactions">("debts");
+  const [active, setActive] = useState<ReportKey | null>(null);
+  const current = REPORTS.find((r) => r.key === active);
+
+  if (active && current) {
+    return (
+      <div>
+        <button
+          onClick={() => setActive(null)}
+          className="mb-3 inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:underline"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 6l6 6-6 6" />
+          </svg>
+          חזרה לדוחות
+        </button>
+        <PageHeader title={current.title} subtitle={current.subtitle} />
+        {active === "debts" ? <DebtsReport /> : <TransactionsReport />}
+      </div>
+    );
+  }
+
   return (
     <div>
-      <PageHeader title="דוחות" subtitle="חובות פתוחים ותנועות עסקאות" />
-      <div className="mb-6 flex gap-1 border-b border-slate-200">
-        <TabButton active={tab === "debts"} onClick={() => setTab("debts")}>
-          חובות פתוחים
-        </TabButton>
-        <TabButton active={tab === "transactions"} onClick={() => setTab("transactions")}>
-          עסקאות
-        </TabButton>
+      <PageHeader title="דוחות" subtitle="בחר דוח לצפייה" />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {REPORTS.map((r) => (
+          <button
+            key={r.key}
+            onClick={() => setActive(r.key)}
+            className="card group flex items-center gap-4 p-5 text-right transition-all hover:-translate-y-0.5 hover:shadow-lift"
+          >
+            <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${r.tint}`}>
+              {r.icon}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block font-extrabold tracking-tight text-slate-800">{r.title}</span>
+              <span className="mt-0.5 block text-sm text-slate-500">{r.subtitle}</span>
+            </span>
+            <span className="text-slate-300 transition-colors group-hover:text-brand-500">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15 6l-6 6 6 6" />
+              </svg>
+            </span>
+          </button>
+        ))}
       </div>
-      {tab === "debts" ? <DebtsReport /> : <TransactionsReport />}
     </div>
-  );
-}
-
-function TabButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`-mb-px border-b-2 px-4 py-2 text-sm font-semibold transition-colors ${
-        active ? "border-brand-600 text-brand-700" : "border-transparent text-slate-500 hover:text-slate-700"
-      }`}
-    >
-      {children}
-    </button>
   );
 }
 
