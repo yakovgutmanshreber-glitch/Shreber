@@ -825,12 +825,20 @@ export async function bulkAdoptByPhone(
     }
   }
 
-  const newTx: Prisma.TransactionCreateManyInput[] = [];
-
+  // --- Resolve each row; collect NEW obligations for one batch insert -------
+  type Work = {
+    ref: string;
+    phone: string;
+    contactId: number;
+    categoryId?: number;
+    latest: Record<string, unknown>;
+    matched: Record<string, unknown>[];
+  };
+  const work: Work[] = [];
+  const toCreate: Prisma.ObligationCreateManyInput[] = [];
   for (const row of rows) {
     const ref = row.reference;
     const phone = row.phone;
-    const categoryId = await resolveCategory(row.category);
     const contactId = phoneMap.get(normPhone(phone));
     if (!contactId) {
       result.noContact++;
@@ -845,77 +853,96 @@ export async function bulkAdoptByPhone(
     }
     matched.sort((a, b) => String(b.TranDate ?? "").localeCompare(String(a.TranDate ?? "")));
     const latest = matched[0];
-
-    let obl = oblByRef.get(ref);
-    if (!obl) {
-      const created = await prisma.obligation.create({
-        data: {
-          kind: "income",
-          contactId,
-          categoryId,
-          kesherObligationReference: ref,
-          chargeType: "recurring",
-          recurringAmount: Number(latest.Total ?? 0) / 100,
-          numPayments: 9999,
-          chargeDay: new Date(String(latest.TranDate)).getDate() || 1,
-          startDate: new Date(String(matched[matched.length - 1].TranDate ?? now.toISOString())),
-          status: "active",
-          paymentMethod: chargeOptionToEnum(latest.ChargeOptionType),
-          comment: `יובא מקשר (אסמכתא ${ref})`,
-        },
-        select: { id: true, contactId: true, categoryId: true, creditCardId: true },
+    const categoryId = await resolveCategory(row.category);
+    work.push({ ref, phone, contactId, categoryId, latest, matched });
+    if (!oblByRef.has(ref)) {
+      toCreate.push({
+        kind: "income",
+        contactId,
+        categoryId,
+        kesherObligationReference: ref,
+        chargeType: "recurring",
+        recurringAmount: Number(latest.Total ?? 0) / 100,
+        numPayments: 9999,
+        chargeDay: new Date(String(latest.TranDate)).getDate() || 1,
+        startDate: new Date(String(matched[matched.length - 1].TranDate ?? now.toISOString())),
+        status: "active",
+        paymentMethod: chargeOptionToEnum(latest.ChargeOptionType),
+        comment: `יובא מקשר (אסמכתא ${ref})`,
       });
-      obl = created;
-      oblByRef.set(ref, created);
+      // Placeholder so a repeated ref isn't queued twice.
+      oblByRef.set(ref, { id: 0, contactId, categoryId: categoryId ?? null, creditCardId: null });
       result.obligationsAdopted++;
-    } else {
-      const patch: { contactId?: number; categoryId?: number } = {};
-      if (!obl.contactId) patch.contactId = contactId;
-      if (categoryId) patch.categoryId = categoryId;
-      if (Object.keys(patch).length) {
-        await prisma.obligation.update({ where: { id: obl.id }, data: patch });
-        if (patch.contactId) obl.contactId = patch.contactId;
-        if (patch.categoryId) obl.categoryId = patch.categoryId;
-      }
     }
+  }
 
-    // Adopt the card token (once per contact+token) for credit hoks.
-    const token = s(latest.Token);
+  // --- Insert all NEW obligations in ONE batch, then re-read their ids -------
+  if (toCreate.length) {
+    await prisma.obligation.createMany({ data: toCreate, skipDuplicates: true });
+    oblByRef.clear();
+    for (const o of await prisma.obligation.findMany({
+      where: { kesherObligationReference: { in: refs } },
+      select: { id: true, contactId: true, categoryId: true, creditCardId: true, kesherObligationReference: true },
+    })) {
+      if (o.kesherObligationReference)
+        oblByRef.set(o.kesherObligationReference, {
+          id: o.id,
+          contactId: o.contactId,
+          categoryId: o.categoryId,
+          creditCardId: o.creditCardId,
+        });
+    }
+  }
+
+  // --- Patch existing obligations that need a contact / category (few) ------
+  for (const w of work) {
+    const obl = oblByRef.get(w.ref);
+    if (!obl || !obl.id) continue;
+    const patch: { contactId?: number; categoryId?: number } = {};
+    if (!obl.contactId) patch.contactId = w.contactId;
+    if (w.categoryId && obl.categoryId !== w.categoryId) patch.categoryId = w.categoryId;
+    if (Object.keys(patch).length) await prisma.obligation.update({ where: { id: obl.id }, data: patch });
+  }
+
+  // --- Batch-create new cards (saved to the contact) ------------------------
+  const newCards: Prisma.CreditCardCreateManyInput[] = [];
+  for (const w of work) {
+    const token = s(w.latest.Token);
     if (
       token &&
       /^\d{12,}$/.test(token) &&
-      chargeOptionToEnum(latest.ChargeOptionType) === "credit" &&
-      !cardSeen.has(cardKey(contactId, token))
+      chargeOptionToEnum(w.latest.ChargeOptionType) === "credit" &&
+      !cardSeen.has(cardKey(w.contactId, token))
     ) {
-      const count = cardCount.get(contactId) ?? 0;
-      const card = await prisma.creditCard.create({
-        data: {
-          contactId,
-          token,
-          last4: last4(latest.NumCard),
-          expiry: s(latest.ExpireDate),
-          brand: s(latest.CreditCardCompany) ?? s(latest.Brand),
-          holderName: s(latest.CardName) ?? s(latest.Name),
-          isDefault: count === 0,
-        },
-        select: { id: true },
+      cardSeen.add(cardKey(w.contactId, token));
+      const count = cardCount.get(w.contactId) ?? 0;
+      cardCount.set(w.contactId, count + 1);
+      newCards.push({
+        contactId: w.contactId,
+        token,
+        last4: last4(w.latest.NumCard),
+        expiry: s(w.latest.ExpireDate),
+        brand: s(w.latest.CreditCardCompany) ?? s(w.latest.Brand),
+        holderName: s(w.latest.CardName) ?? s(w.latest.Name),
+        isDefault: count === 0,
       });
-      cardSeen.add(cardKey(contactId, token));
-      cardCount.set(contactId, count + 1);
-      if (obl.creditCardId !== card.id) {
-        await prisma.obligation.update({ where: { id: obl.id }, data: { creditCardId: card.id } });
-        obl.creditCardId = card.id;
-      }
     }
+  }
+  if (newCards.length) await prisma.creditCard.createMany({ data: newCards });
 
-    for (const r of matched) {
+  // --- Batch-insert new transactions ----------------------------------------
+  const newTx: Prisma.TransactionCreateManyInput[] = [];
+  for (const w of work) {
+    const obl = oblByRef.get(w.ref);
+    if (!obl || !obl.id) continue;
+    for (const r of w.matched) {
       const numTransaction = s(r.NumTransaction) ?? s(r.Id);
       if (!numTransaction || txSeen.has(numTransaction)) continue;
       txSeen.add(numTransaction);
       const doc = firstDoc(r.DocumentsDetails);
       newTx.push({
         obligationId: obl.id,
-        contactId,
+        contactId: w.contactId,
         source: "api",
         kesherNumTransaction: numTransaction,
         uniqNum: s(r.Uniq),
@@ -935,11 +962,9 @@ export async function bulkAdoptByPhone(
       });
       result.transactionsImported++;
     }
-
     result.matched++;
-    result.details.push({ phone, reference: ref, status: `יובאו ${matched.length} עסקאות` });
+    result.details.push({ phone: w.phone, reference: w.ref, status: `יובאו ${w.matched.length} עסקאות` });
   }
-
   if (newTx.length) await prisma.transaction.createMany({ data: newTx, skipDuplicates: true });
 
   return result;
