@@ -494,7 +494,10 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
               contactId={contact.id}
               contactCards={contact.creditCards}
               onChanged={load}
-              onClose={() => setOpenOblId(null)}
+              onClose={() => {
+                setOpenOblId(null);
+                load();
+              }}
             />
           </Modal>
         );

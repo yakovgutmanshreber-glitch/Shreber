@@ -187,7 +187,10 @@ export default function ReportsPage() {
               openEdit(detail.id);
               load();
             }}
-            onClose={() => setDetail(null)}
+            onClose={() => {
+              setDetail(null);
+              load();
+            }}
           />
         )}
       </Modal>

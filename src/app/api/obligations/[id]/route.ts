@@ -126,13 +126,19 @@ export const PATCH = handler(async (req, ctx) => {
 
 // DELETE removes the local record. If Kesher owns the hok, cancel it there FIRST
 // (status 3) so it stops charging — never leave an orphaned live hok behind.
-export const DELETE = handler(async (_req, ctx) => {
+export const DELETE = handler(async (req, ctx) => {
   const id = await getId(ctx);
+  const { searchParams } = new URL(req.url);
+  // ?kesherCancel=false → remove from the system only, leave the hok live in Kesher.
+  const kesherCancel = searchParams.get("kesherCancel") !== "false";
+  // ?removeCard=true → also delete the linked card from the contact (if unused elsewhere).
+  const removeCard = searchParams.get("removeCard") === "true";
+
   const existing = await prisma.obligation.findUnique({ where: { id } });
   if (!existing) return { ok: true };
 
   const ref = existing.kesherObligationReference;
-  if (ref && !["cancelled", "finished"].includes(existing.status)) {
+  if (ref && kesherCancel && !["cancelled", "finished"].includes(existing.status)) {
     // Cancel = send only status 3; leave every other field null (unchanged).
     const res = await kesher.updateObligation({
       obligationReference: ref,
@@ -146,6 +152,16 @@ export const DELETE = handler(async (_req, ctx) => {
     }
   }
 
+  const cardId = existing.creditCardId;
   await prisma.obligation.delete({ where: { id } });
+
+  // Optionally remove the linked card — only if no OTHER obligation still uses it.
+  if (removeCard && cardId) {
+    const stillUsed = await prisma.obligation.count({ where: { creditCardId: cardId } });
+    if (stillUsed === 0) {
+      await prisma.creditCard.delete({ where: { id: cardId } }).catch(() => {});
+    }
+  }
+
   return { ok: true };
 });

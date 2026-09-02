@@ -229,7 +229,10 @@ export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
               reloadDetail();
               load();
             }}
-            onClose={() => setDetail(null)}
+            onClose={() => {
+              setDetail(null);
+              load();
+            }}
           />
         )}
       </Modal>

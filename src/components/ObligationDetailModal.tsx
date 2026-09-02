@@ -52,6 +52,32 @@ export function ObligationDetailModal({
     }
   }
 
+  // Delete panel state.
+  const isKesher = Boolean(obligation.kesherObligationReference);
+  const hasCard = Boolean((obligation as { creditCardId?: number | null }).creditCardId);
+  const [delOpen, setDelOpen] = useState(false);
+  const [cancelInKesher, setCancelInKesher] = useState(false); // default: system-only
+  const [removeCard, setRemoveCard] = useState(false); // default: keep card
+  const [delBusy, setDelBusy] = useState(false);
+  const [delError, setDelError] = useState<string | null>(null);
+
+  async function deleteObligation() {
+    setDelBusy(true);
+    setDelError(null);
+    try {
+      const params = new URLSearchParams({
+        kesherCancel: String(isKesher && cancelInKesher),
+        removeCard: String(removeCard),
+      });
+      await api(`/api/obligations/${obligation.id}?${params.toString()}`, { method: "DELETE" });
+      onClose();
+    } catch (e) {
+      setDelError(e instanceof Error ? e.message : "שגיאה");
+    } finally {
+      setDelBusy(false);
+    }
+  }
+
   const total = transactions.reduce((s, t) => s + Number(t.amount ?? 0), 0);
   const TX_SUCCESS = new Set([0, 4, 11, 22]);
   const paid = transactions
@@ -85,8 +111,15 @@ export function ObligationDetailModal({
 
   return (
     <div>
-      {/* מטופל toggle */}
-      <div className="mb-3 flex justify-end">
+      {/* מטופל toggle + delete */}
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={() => setDelOpen((v) => !v)}
+          className="rounded-full border border-red-200 bg-white px-4 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50"
+        >
+          🗑 מחק התחייבות
+        </button>
         <button
           type="button"
           onClick={toggleHandled}
@@ -100,6 +133,57 @@ export function ObligationDetailModal({
           {handled ? "✓ טופל" : "סמן כטופל"}
         </button>
       </div>
+
+      {delOpen && (
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50/50 p-4">
+          <div className="mb-2 text-sm font-semibold text-red-700">מחיקת ההתחייבות</div>
+          {isKesher ? (
+            <div className="space-y-2 text-sm text-gray-700">
+              <label className="flex items-start gap-2">
+                <input
+                  type="radio"
+                  className="mt-1"
+                  checked={!cancelInKesher}
+                  onChange={() => setCancelInKesher(false)}
+                />
+                <span>
+                  <b>הסר מהמערכת בלבד</b> — ההוראה תישאר <b>פעילה בקשר</b> ותמשיך להתחייב שם.
+                </span>
+              </label>
+              <label className="flex items-start gap-2">
+                <input
+                  type="radio"
+                  className="mt-1"
+                  checked={cancelInKesher}
+                  onChange={() => setCancelInKesher(true)}
+                />
+                <span>
+                  <b>בטל בקשר וגם הסר מהמערכת</b> — ההוראה תבוטל בקשר (תפסיק לחייב).
+                </span>
+              </label>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-600">ההתחייבות תוסר מהמערכת.</p>
+          )}
+
+          {hasCard && (
+            <label className="mt-3 flex items-center gap-2 text-sm text-gray-700">
+              <input type="checkbox" checked={removeCard} onChange={(e) => setRemoveCard(e.target.checked)} />
+              מחק גם את הכרטיס מאיש הקשר (אם לא בשימוש בהתחייבות אחרת)
+            </label>
+          )}
+
+          {delError && <p className="mt-2 text-xs text-red-600">{delError}</p>}
+          <div className="mt-3 flex justify-end gap-2">
+            <button className="btn-secondary !py-1.5 text-sm" onClick={() => setDelOpen(false)}>
+              ביטול
+            </button>
+            <button className="btn-danger !py-1.5 text-sm" onClick={deleteObligation} disabled={delBusy}>
+              {delBusy ? "מוחק…" : "מחק"}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="mb-4 flex gap-1 border-b border-gray-200">
