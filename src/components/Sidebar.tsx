@@ -124,8 +124,9 @@ export function Sidebar({ userName, role }: { userName: string; role: "admin" | 
     <aside className="fixed inset-y-0 right-0 z-30 flex w-[76px] flex-col border-l border-white/5 bg-gradient-to-b from-[#141a2e] via-[#111629] to-[#0c0f1d] text-slate-300 lg:w-[264px]">
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 py-5">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-lg font-extrabold text-white shadow-glow">
-          ד
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white p-1 shadow-glow">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="לוגו" className="h-full w-full object-contain" />
         </span>
         <div className="hidden min-w-0 lg:block">
           <div className="truncate font-extrabold tracking-tight text-white">ניהול כספים</div>
