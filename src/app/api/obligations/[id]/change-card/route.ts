@@ -43,7 +43,13 @@ export const POST = handler(async (req, ctx) => {
       cardExpiry: card.expiry,
       name: card.holderName ?? undefined,
     });
-    if (!res.ok) throw new ApiError(`החלפת הכרטיס בקשר נכשלה: ${res.message ?? "שגיאה"}`, 502);
+    if (!res.ok) {
+      const detail = [res.message, res.code != null ? `קוד ${res.code}` : null]
+        .filter(Boolean)
+        .join(" · ");
+      const raw = res.raw ? ` | ${JSON.stringify(res.raw).slice(0, 300)}` : "";
+      throw new ApiError(`החלפת הכרטיס בקשר נכשלה: ${detail || "שגיאה"}${raw}`, 502);
+    }
   } catch (e) {
     if (e instanceof KesherConfigError) {
       throw new ApiError(
