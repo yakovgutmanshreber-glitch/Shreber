@@ -50,6 +50,38 @@ export default function ContactsPage() {
     load();
   }, [load]);
 
+  // Restore the scroll position after returning from a contact's page, once the
+  // list has rendered (it loads async, so native scroll restoration can't).
+  useEffect(() => {
+    if (loading) return;
+    let saved: string | null = null;
+    try {
+      saved = sessionStorage.getItem("contactsScroll");
+    } catch {
+      /* ignore */
+    }
+    if (!saved) return;
+    const y = Number(saved);
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        window.scrollTo(0, y);
+        try {
+          sessionStorage.removeItem("contactsScroll");
+        } catch {
+          /* ignore */
+        }
+      }),
+    );
+  }, [loading]);
+
+  const rememberScroll = () => {
+    try {
+      sessionStorage.setItem("contactsScroll", String(window.scrollY));
+    } catch {
+      /* ignore */
+    }
+  };
+
   // Instant client-side search: first name, last name, or phone — no server
   // round-trip per keystroke. Multi-word queries match name parts in any order.
   const shown = useMemo(() => {
@@ -160,7 +192,11 @@ export default function ContactsPage() {
               {shown.map((c) => (
                 <tr key={c.id} className="hover:bg-gray-50">
                   <td className="td font-medium">
-                    <Link href={`/contacts/${c.id}`} className="text-brand-700 hover:underline">
+                    <Link
+                      href={`/contacts/${c.id}`}
+                      onClick={rememberScroll}
+                      className="text-brand-700 hover:underline"
+                    >
                       {c.firstName} {c.lastName ?? ""}
                     </Link>
                   </td>
