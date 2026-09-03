@@ -1,59 +1,61 @@
 import { prisma } from "@/lib/prisma";
 import { handler, serialize, ApiError } from "@/lib/api";
-import { kesher } from "@/lib/kesher/client";
-
-function pick(obj: unknown, ...keys: string[]): string | undefined {
-  if (!obj || typeof obj !== "object") return undefined;
-  const o = obj as Record<string, unknown>;
-  for (const k of keys) if (o[k] !== undefined && o[k] !== null && o[k] !== "") return String(o[k]);
-  return undefined;
-}
+import { kesher, KesherConfigError } from "@/lib/kesher/client";
+import { cardEntrySchema } from "@/lib/schemas";
 
 // POST /api/obligations/[id]/change-card
-// Generate a Kesher "יצירת טוקן" (tokenization) page link for changing the card
-// on a credit הוראת קבע — NO charge. The client enters card+expiry on Kesher's
-// secure page; Kesher sends the token to our callback (/api/kesher/token) which
-// saves the card and swaps the hok.
-export const POST = handler(async (_req, ctx) => {
+// Change the card on a Kesher credit הוראת קבע ENTIRELY IN-SYSTEM: the operator
+// types the new card → GetToken tokenizes it (no charge) → we save it on the
+// contact and swap the hok's card to the new token.
+export const POST = handler(async (req, ctx) => {
   const { id } = await ctx.params;
-  const obl = await prisma.obligation.findUnique({
-    where: { id: Number(id) },
-    include: { contact: true },
-  });
+  const obl = await prisma.obligation.findUnique({ where: { id: Number(id) } });
   if (!obl) throw new ApiError("התחייבות לא נמצאה", 404);
   if (!obl.kesherObligationReference)
     throw new ApiError("החלפת כרטיס זמינה רק להוראת קבע שמנוהלת בקשר", 400);
-  if (!obl.contactId) throw new ApiError("להתחייבות אין איש קשר משויך", 400);
 
-  const settings = await prisma.kesherSettings.findFirst();
-  const tokenPageUrl = settings?.tokenPageUrl;
-  if (!tokenPageUrl)
-    throw new ApiError(
-      "יש להגדיר בהגדרות את כתובת עמוד יצירת הטוקן (דף מסוג 'יצירת טוקן' בקשר).",
-      400,
-    );
+  const card = cardEntrySchema.parse(await req.json());
 
-  // Ask Kesher to start a tokenization session for this customer + hok.
-  const res = await kesher.getToken({
-    customerRef: String(obl.contactId),
-    obligationRef: obl.kesherObligationReference,
-  });
-  if (!res.ok) throw new ApiError(res.message ?? "יצירת קישור הטוקן נכשלה", 502);
-  const sessionToken = pick(res.data, "String", "Token", "token") ?? pick(res.raw, "String", "Token", "token");
+  // 1) Tokenize the new card (GetToken — no charge).
+  const tok = await kesher.tokenizeCard({ cardNumber: card.cardNumber, cardExpiry: card.expiry });
+  if (!tok.ok || !tok.token) throw new ApiError(tok.message ?? "אסימון הכרטיס בקשר נכשל", 502);
 
-  const baseUrl = process.env.AUTH_URL ?? process.env.NEXTAUTH_URL ?? "http://localhost:3000";
-  const url = new URL(tokenPageUrl);
-  if (sessionToken) url.searchParams.set("token", sessionToken);
-  url.searchParams.set("customerRef", String(obl.contactId));
-  url.searchParams.set("obligationRef", obl.kesherObligationReference);
-  const c = obl.contact;
-  if (c?.firstName) url.searchParams.set("firstname", c.firstName);
-  if (c?.lastName) url.searchParams.set("lastname", c.lastName);
-  if (c?.phone) url.searchParams.set("tel", c.phone);
-  if (c?.email) url.searchParams.set("mail", c.email);
-  url.searchParams.set("lang", "Hebrew");
-  url.searchParams.set("successurl", `${baseUrl}/payment/complete`);
-  url.searchParams.set("failedurl", `${baseUrl}/payment/failed`);
+  // 2) Save the card (token only — never the PAN) on the contact.
+  const savedCard = obl.contactId
+    ? await prisma.creditCard.create({
+        data: {
+          contactId: obl.contactId,
+          token: tok.token,
+          last4: card.cardNumber.slice(-4),
+          expiry: card.expiry,
+          holderName: card.holderName ?? null,
+          isDefault: card.isDefault ?? false,
+        },
+      })
+    : null;
 
-  return serialize({ ok: true, url: url.toString() });
+  // 3) Swap the hok's card in Kesher (ChangeChargeOptionForObligation, Bearer).
+  try {
+    const res = await kesher.changeChargeOptionForObligation({
+      obligationReference: obl.kesherObligationReference,
+      paymentMethod: "credit",
+      token: tok.token,
+      cardExpiry: card.expiry,
+      name: card.holderName ?? undefined,
+    });
+    if (!res.ok) throw new ApiError(`החלפת הכרטיס בקשר נכשלה: ${res.message ?? "שגיאה"}`, 502);
+  } catch (e) {
+    if (e instanceof KesherConfigError) {
+      throw new ApiError(
+        "הכרטיס אומת ונשמר, אך החלפתו בהוראת הקבע דורשת טוקן API של קשר (KESHER_API_TOKEN) שעדיין לא הוגדר. יש להנפיקו בפאנל של קשר ולהגדירו ב-Vercel.",
+        400,
+      );
+    }
+    throw e;
+  }
+
+  if (savedCard) {
+    await prisma.obligation.update({ where: { id: obl.id }, data: { creditCardId: savedCard.id } });
+  }
+  return serialize({ ok: true, last4: card.cardNumber.slice(-4) });
 });

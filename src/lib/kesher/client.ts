@@ -314,61 +314,39 @@ export const kesher = {
   },
 
   /**
-   * Verify a card (J2 — no money moves) and obtain a Kesher token for it, so
-   * staff can type a card once and we store only the token. Token extraction:
-   * the SendTransaction response's top-level `Token`, with a fallback to the
-   * transaction report row matched by our UniqNum.
+   * Tokenize a card with GetToken — a DIRECT, no-charge API: send the card
+   * number + validity (YYMM) and it returns the encrypted token string. Staff
+   * type the card once and we store ONLY the token (never the PAN).
    */
   async tokenizeCard(input: {
     cardNumber: string;
-    cardExpiry: string; // MMYY
+    cardExpiry: string; // MMYY (converted to YYMM for Kesher)
     cvv?: string;
     holderName?: string;
   }): Promise<{ ok: boolean; token?: string; message?: string }> {
     if (isMockMode()) {
       const last4 = input.cardNumber.replace(/\D/g, "").slice(-4);
-      return { ok: true, token: `MOCKTOK${last4}` };
+      return { ok: true, token: `0MOCKTOK${last4}` };
     }
-    const creds = await loadCredentials();
-    const uniqNum = `V${Date.now()}${Math.floor(Math.random() * 100)}`.slice(0, 19);
-    const res = await postLegacy("SendTransaction", {
-      tran: {
-        CreditNum: input.cardNumber,
-        Expiry: toYymmExpiry(input.cardExpiry),
-        Cvv2: input.cvv || undefined,
-        Total: 100, // ₪1 verification amount — J2 does not charge
-        Currency: 1,
-        CreditType: 1,
-        TransactionType: "debit",
-        ParamJ: "J2", // verification only
-        ProjectNumber: Number(creds.projectNumber) || creds.projectNumber,
-        UniqNum: uniqNum,
-      },
+    const res = await postLegacy("GetToken", {
+      creditNum: input.cardNumber.replace(/\D/g, ""),
+      validity: toYymmExpiry(input.cardExpiry), // YYMM
     });
-    if (!res.ok) {
-      return { ok: false, message: res.message ?? "אימות הכרטיס נכשל" };
-    }
-    // 1) token straight from the response
+    // GetToken returns the token as a bare string (e.g. "04523042138300000");
+    // a short numeric string (e.g. "406") is an error code.
     const d = res.data as Record<string, unknown> | undefined;
-    let token = typeof d?.Token === "string" && d.Token.trim() ? String(d.Token).trim() : undefined;
-    // 2) fallback: find our verification row in today's report
-    if (!token) {
-      const today = new Date().toISOString().slice(0, 10);
-      const rep = await this.getAllTransForCompany(`${today}T00:00:00`, `${today}T23:59:59`);
-      const rows =
-        ((rep.data as { TransactionResponseData?: Record<string, unknown>[] })
-          ?.TransactionResponseData) ?? [];
-      const mine = rows.find((r) => String(r.Uniq ?? "") === uniqNum);
-      if (mine && typeof mine.Token === "string" && mine.Token.trim()) token = mine.Token.trim();
-    }
+    const candidate =
+      (typeof d?.String === "string" && d.String) ||
+      (typeof d?.Token === "string" && d.Token) ||
+      (typeof res.raw === "string" ? res.raw : res.raw != null ? String(res.raw) : "");
+    const token = /^\d{12,}$/.test(String(candidate).trim()) ? String(candidate).trim() : undefined;
     if (!token) {
       return {
         ok: false,
-        message:
-          "הכרטיס אומת בהצלחה אך קשר לא החזיר טוקן. ניתן להוסיף את הכרטיס דרך חיוב ראשון (התחייבות עם 'כרטיס חדש').",
+        message: `אימות הכרטיס בקשר נכשל${candidate ? ` (קוד ${candidate})` : ""}`,
       };
     }
-    return { ok: true, token, message: res.message };
+    return { ok: true, token };
   },
 
   /** Charge with a saved token or full card details (recurring Obligation charges). */
