@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { api } from "@/lib/client";
 import { formatMoney, formatCurrency, formatDate } from "@/lib/format";
-import { Modal, PageHeader, EmptyState, ConfirmButton } from "@/components/ui";
+import { PAYMENT_METHOD, statusLabel } from "@/lib/constants";
+import { Modal, PageHeader, EmptyState, ConfirmButton, TxStatusBadge } from "@/components/ui";
 import { ObligationDetailModal } from "@/components/ObligationDetailModal";
 import type { ObligationData, SavedCard } from "@/components/ObligationForm";
 import { TransactionForm, type TransactionData } from "@/components/TransactionForm";
@@ -475,9 +476,21 @@ interface UnlinkedTx {
   numTransaction: string | null;
   amount: number;
   currency: number;
+  amountIls: number | null;
   date: string;
   statusCode: number | null;
   statusText: string | null;
+  chargeOptionType: string | null;
+  cardLast4: string | null;
+  cardExpiry: string | null;
+  authNum: string | null;
+  receiptDocNumber: string | null;
+  comment: string | null;
+}
+interface CategoryRow {
+  id: number;
+  mainCategory: string;
+  category: string;
 }
 interface ContactHit {
   id: number;
@@ -490,6 +503,11 @@ function UnlinkedReport() {
   const [data, setData] = useState<{ obligations: UnlinkedObl[]; transactions: UnlinkedTx[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [pick, setPick] = useState<{ obligationId?: number; transactionId?: number; label: string } | null>(null);
+  // Send-to-income (no customer) state.
+  const [incomeTx, setIncomeTx] = useState<UnlinkedTx | null>(null);
+  const [categories, setCategories] = useState<CategoryRow[]>([]);
+  const [incomeCat, setIncomeCat] = useState<string>("");
+  const [incomeBusy, setIncomeBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -498,6 +516,7 @@ function UnlinkedReport() {
   }, []);
   useEffect(() => {
     load();
+    api<CategoryRow[]>("/api/categories").then(setCategories).catch(() => {});
   }, [load]);
 
   async function assign(contactId: number) {
@@ -508,6 +527,22 @@ function UnlinkedReport() {
     });
     setPick(null);
     load();
+  }
+
+  async function sendToIncome() {
+    if (!incomeTx || !incomeCat) return;
+    setIncomeBusy(true);
+    try {
+      await api("/api/reports/unlinked", {
+        method: "POST",
+        body: { transactionId: incomeTx.id, categoryId: Number(incomeCat) },
+      });
+      setIncomeTx(null);
+      setIncomeCat("");
+      load();
+    } finally {
+      setIncomeBusy(false);
+    }
   }
 
   if (loading) return <div className="card p-8 text-center text-slate-400">טוען…</div>;
@@ -563,26 +598,48 @@ function UnlinkedReport() {
               <thead className="border-b border-slate-200 bg-slate-50/60">
                 <tr>
                   <th className="th">תאריך</th>
-                  <th className="th">אסמכתא עסקה</th>
+                  <th className="th">מס׳ עסקה</th>
                   <th className="th">סכום</th>
+                  <th className="th">אמצעי</th>
+                  <th className="th">כרטיס</th>
+                  <th className="th">אישור</th>
                   <th className="th">סטטוס</th>
+                  <th className="th">הערה</th>
                   <th className="th"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {txs.map((t) => (
-                  <tr key={t.id} className="hover:bg-slate-50">
-                    <td className="td num">{formatDate(t.date)}</td>
+                  <tr key={t.id} className="align-top hover:bg-slate-50">
+                    <td className="td num whitespace-nowrap">{formatDate(t.date)}</td>
                     <td className="td num text-slate-500">{t.numTransaction ?? "—"}</td>
-                    <td className="td num">{formatMoney(t.amount, t.currency)}</td>
-                    <td className="td text-slate-500">{t.statusText ?? "—"}</td>
+                    <td className="td num font-medium">{formatMoney(t.amount, t.currency, t.amountIls)}</td>
+                    <td className="td text-slate-500">
+                      {t.chargeOptionType ? statusLabel(PAYMENT_METHOD, t.chargeOptionType) : "—"}
+                    </td>
+                    <td className="td num text-slate-500" dir="ltr">
+                      {t.cardLast4 ? `•••• ${t.cardLast4}${t.cardExpiry ? ` (${t.cardExpiry})` : ""}` : "—"}
+                    </td>
+                    <td className="td num text-slate-500">{t.authNum ?? "—"}</td>
+                    <td className="td">
+                      <TxStatusBadge code={t.statusCode} text={t.statusText} />
+                    </td>
+                    <td className="td max-w-[16rem] whitespace-pre-wrap text-slate-500">{t.comment ?? "—"}</td>
                     <td className="td text-left">
-                      <button
-                        className="btn-primary !py-1.5 text-xs"
-                        onClick={() => setPick({ transactionId: t.id, label: `עסקה ${t.numTransaction ?? t.id}` })}
-                      >
-                        שייך לאיש קשר
-                      </button>
+                      <div className="flex flex-col items-end gap-1">
+                        <button
+                          className="text-xs font-medium text-emerald-600 hover:underline"
+                          onClick={() => setIncomeTx(t)}
+                        >
+                          → רשום בהכנסות
+                        </button>
+                        <button
+                          className="text-xs text-brand-600 hover:underline"
+                          onClick={() => setPick({ transactionId: t.id, label: `עסקה ${t.numTransaction ?? t.id}` })}
+                        >
+                          שייך לאיש קשר
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -594,6 +651,37 @@ function UnlinkedReport() {
 
       <Modal open={!!pick} onClose={() => setPick(null)} title={`שיוך ${pick?.label ?? ""} לאיש קשר`}>
         <ContactPicker onPick={assign} />
+      </Modal>
+
+      {/* Send transaction to הכנסות (no customer) */}
+      <Modal open={!!incomeTx} onClose={() => setIncomeTx(null)} title="רישום העסקה בהכנסות (ללא איש קשר)">
+        {incomeTx && (
+          <div className="space-y-4">
+            <p className="text-sm text-slate-500">
+              העסקה על סך <b>{formatMoney(incomeTx.amount, incomeTx.currency, incomeTx.amountIls)}</b> תירשם
+              כהכנסה עצמאית (ללא איש קשר) תחת הקטגוריה שתבחר, ותופיע בטאב הכנסות.
+            </p>
+            <div>
+              <label className="label">קטגוריה</label>
+              <select className="input" value={incomeCat} onChange={(e) => setIncomeCat(e.target.value)}>
+                <option value="">— בחר קטגוריה —</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.mainCategory} › {c.category}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button className="btn-secondary" onClick={() => setIncomeTx(null)}>
+                ביטול
+              </button>
+              <button className="btn-primary" onClick={sendToIncome} disabled={incomeBusy || !incomeCat}>
+                {incomeBusy ? "רושם…" : "רשום בהכנסות"}
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

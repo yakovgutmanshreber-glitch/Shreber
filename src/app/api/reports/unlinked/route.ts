@@ -37,20 +37,58 @@ export const GET = handler(async () => {
       numTransaction: t.kesherNumTransaction,
       amount: t.amount,
       currency: t.currency,
+      amountIls: t.amountIls,
       date: t.transactionDate,
       statusCode: t.statusCode,
       statusText: t.statusText,
+      chargeOptionType: t.chargeOptionType,
+      cardLast4: t.cardLast4,
+      cardExpiry: t.cardExpiry,
+      authNum: t.authNum,
+      receiptDocNumber: t.receiptDocNumber,
+      comment: t.comment,
     })),
   });
 });
 
-// Assign a contact to an unlinked obligation (+ its transactions) or transaction.
+// Two actions:
+//  • assign a contact to an unlinked obligation (+ its transactions) or transaction;
+//  • send an unlinked transaction to הכנסות (standalone income, no customer) by
+//    creating a one-time income obligation under a category and linking it.
 export const POST = handler(async (req) => {
-  const { obligationId, transactionId, contactId } = (await req.json()) as {
+  const { obligationId, transactionId, contactId, categoryId } = (await req.json()) as {
     obligationId?: number;
     transactionId?: number;
     contactId?: number;
+    categoryId?: number;
   };
+
+  // Send a transaction to הכנסות under a category (no customer).
+  if (transactionId && categoryId && !contactId) {
+    const tx = await prisma.transaction.findUnique({ where: { id: transactionId } });
+    if (!tx) throw new ApiError("עסקה לא נמצאה", 404);
+    const category = await prisma.category.findUnique({ where: { id: categoryId } });
+    if (!category) throw new ApiError("קטגוריה לא נמצאה", 404);
+    const obl = await prisma.obligation.create({
+      data: {
+        kind: "income",
+        contactId: null,
+        categoryId,
+        chargeType: "onetime",
+        recurringAmount: tx.amount,
+        currency: tx.currency,
+        numPayments: 1,
+        startDate: tx.transactionDate,
+        status: "active",
+        paymentMethod: (tx.chargeOptionType as string) ?? "credit",
+        comment: "נרשם בהכנסות מרשומות ללא שיוך",
+      },
+    });
+    await prisma.transaction.update({ where: { id: transactionId }, data: { obligationId: obl.id } });
+    return { ok: true };
+  }
+
+  // Otherwise: assign a contact.
   if (!contactId) throw new ApiError("נדרש איש קשר", 400);
   const contact = await prisma.contact.findUnique({ where: { id: contactId } });
   if (!contact) throw new ApiError("איש קשר לא נמצא", 404);
