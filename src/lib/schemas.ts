@@ -95,6 +95,14 @@ export const settingsSchema = z.object({
     .nullable()
     .or(z.literal(""))
     .transform((v) => v || null),
+  tokenPageUrl: z
+    .string()
+    .trim()
+    .url("כתובת לא תקינה")
+    .optional()
+    .nullable()
+    .or(z.literal(""))
+    .transform((v) => v || null),
 });
 
 // Add-card by typing the card once: the details are sent to Kesher for

@@ -78,6 +78,8 @@ export async function getKesherConfigStatus() {
     paymentPageId: settings?.paymentPageId ?? null,
     paymentPageUrl: settings?.paymentPageUrl ?? "",
     hasPaymentPage: Boolean(settings?.paymentPageId && settings?.paymentPageUrl),
+    tokenPageUrl: settings?.tokenPageUrl ?? "",
+    hasTokenPage: Boolean(settings?.tokenPageUrl),
   };
 }
 

@@ -49,6 +49,7 @@ export default async function SettingsPage() {
           projectNumber={status.projectNumber}
           paymentPageId={status.paymentPageId}
           paymentPageUrl={status.paymentPageUrl}
+          tokenPageUrl={status.tokenPageUrl}
         />
       </div>
 

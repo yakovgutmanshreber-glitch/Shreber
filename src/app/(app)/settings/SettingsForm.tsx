@@ -8,15 +8,18 @@ export function SettingsForm({
   projectNumber,
   paymentPageId,
   paymentPageUrl,
+  tokenPageUrl,
 }: {
   projectNumber: string;
   paymentPageId: number | null;
   paymentPageUrl: string;
+  tokenPageUrl: string;
 }) {
   const router = useRouter();
   const [project, setProject] = useState(projectNumber);
   const [pageId, setPageId] = useState(paymentPageId ? String(paymentPageId) : "");
   const [pageUrl, setPageUrl] = useState(paymentPageUrl);
+  const [tokenUrl, setTokenUrl] = useState(tokenPageUrl);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,6 +36,7 @@ export function SettingsForm({
           projectNumber: project,
           paymentPageId: pageId ? Number(pageId) : null,
           paymentPageUrl: pageUrl,
+          tokenPageUrl: tokenUrl,
         },
       });
       setSaved(true);
@@ -76,6 +80,23 @@ export function SettingsForm({
         מזהה העמוד וכתובתו מתקבלים מפאנל הניהול של קשר, במקום בו מוגדר עמוד התשלום. הם נחוצים ללכידת
         כרטיסים דרך העמוד המאובטח (הטוקן חוזר אוטומטית ל-Webhook).
       </p>
+      <div>
+        <label className="label">כתובת עמוד יצירת טוקן (החלפת כרטיס)</label>
+        <input
+          className="input"
+          dir="ltr"
+          placeholder="https://ultra.kesherhk.info/external/paymentPage/…"
+          value={tokenUrl}
+          onChange={(e) => setTokenUrl(e.target.value)}
+        />
+        <p className="mt-1 text-xs text-gray-400">
+          כתובת דף מסוג &quot;יצירת טוקן&quot; בקשר, עם נתיב לקבלת טוקן:
+          <code className="mx-1 rounded bg-gray-100 px-1" dir="ltr">
+            /api/kesher/token
+          </code>
+          . משמש לכפתור &quot;החלף כרטיס&quot; בהתחייבות — ללא חיוב.
+        </p>
+      </div>
       <div className="flex items-center gap-3">
         <button type="submit" className="btn-primary" disabled={saving}>
           {saving ? "שומר…" : "שמירה"}
