@@ -6,7 +6,10 @@ import { handler, serialize, ApiError } from "@/lib/api";
 export const GET = handler(async () => {
   const [obligations, transactions] = await Promise.all([
     prisma.obligation.findMany({
-      where: { contactId: null, kesherObligationReference: { not: null } },
+      // Truly unhandled: from Kesher, with NO contact AND NO category. Standalone
+      // income obligations already have a category and show in הכנסות, so they're
+      // excluded here to avoid appearing in both places.
+      where: { contactId: null, categoryId: null, kesherObligationReference: { not: null } },
       include: { category: { select: { category: true } }, _count: { select: { transactions: true } } },
       orderBy: { createdAt: "desc" },
       take: 500,
