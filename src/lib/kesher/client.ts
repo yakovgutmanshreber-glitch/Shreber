@@ -188,16 +188,19 @@ async function requestRest<T = unknown>(
   body?: Record<string, unknown>,
 ): Promise<KesherResult<T>> {
   const creds = await loadCredentials();
-  if (!creds.token) {
+  // The KesherAPI (REST) Bearer token is the API password itself; an explicit
+  // KESHER_API_TOKEN overrides it if ever needed.
+  const bearer = creds.token || creds.password;
+  if (!bearer) {
     throw new KesherConfigError(
-      "נדרש KESHER_API_TOKEN (Bearer) עבור נקודות הקצה החדשות (KesherAPI). יש להנפיק אותו בפאנל הניהול של קשר.",
+      "נדרשים פרטי התחברות לקשר (KESHER_API_PASSWORD) עבור נקודות הקצה החדשות (KesherAPI).",
     );
   }
   const url = new URL(`${REST_BASE}${path}`);
   const init: RequestInit = {
     method,
     headers: {
-      Authorization: `Bearer ${creds.token}`,
+      Authorization: `Bearer ${bearer}`,
       "Content-Type": "application/json",
     },
   };
