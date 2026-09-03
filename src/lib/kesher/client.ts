@@ -298,6 +298,20 @@ export const kesher = {
   },
 
   /**
+   * GetToken — start a no-charge tokenization on Kesher's dedicated "יצירת טוקן"
+   * page. Returns a page-session token (`String`) used to open the 2-field card
+   * page. `customerRef` links the token to our contact; the final card token is
+   * delivered to the page's configured callback ("נתיב לקבלת טוקן").
+   */
+  async getToken(input: { customerRef: string; obligationRef?: string }): Promise<KesherResult> {
+    if (isMockMode()) return mockLegacy({ String: `MOCKPAGETOK${Date.now()}` });
+    return postLegacy("GetToken", {
+      customerRef: input.customerRef,
+      obligationRef: input.obligationRef,
+    });
+  },
+
+  /**
    * Verify a card (J2 — no money moves) and obtain a Kesher token for it, so
    * staff can type a card once and we store only the token. Token extraction:
    * the SendTransaction response's top-level `Token`, with a fallback to the
