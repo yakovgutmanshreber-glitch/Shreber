@@ -84,6 +84,7 @@ model Contact {
   transactions    Transaction[]
   creditCards     CreditCard[]
   specialDonations SpecialDonation[]
+  tasks           Task[]
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
@@ -255,6 +256,26 @@ model Transaction {
 
   @@index([obligationId])
   @@index([contactId])
+}
+
+// משימות — a reminder task that emails the operator when its due date/time
+// arrives. A background job (every-minute cron) sends the mail once and flags
+// `notified`. Optional links to a contact/obligation for context.
+model Task {
+  id           Int       @id @default(autoincrement())
+  title        String
+  notes        String?
+  dueAt        DateTime // when the reminder email should go out
+  done         Boolean   @default(false) // בוצע — no reminder is sent for done tasks
+  notified     Boolean   @default(false) // set true after the reminder email is sent
+  notifiedAt   DateTime?
+  contactId    Int?
+  contact      Contact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  createdBy    String? // email of the user who created it (audit)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([done, notified, dueAt])
 }
 
 // Daily currency exchange rates (foreign -> ILS), auto-updated each morning.

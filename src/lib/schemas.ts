@@ -28,6 +28,24 @@ export const categorySchema = z.object({
   defaultPrice: z.coerce.number().min(0).default(0),
 });
 
+// משימה — reminder task. `dueAt` is an ISO datetime string (UTC) from the form.
+export const taskSchema = z.object({
+  title: z.string().trim().min(1, "כותרת חובה"),
+  notes: optionalString,
+  dueAt: z.coerce.date({ errorMap: () => ({ message: "תאריך ושעה חובה" }) }),
+  contactId: z.coerce.number().int().positive().optional().nullable(),
+  done: z.boolean().optional(),
+});
+
+// PATCH — every field optional; editing a task or toggling done.
+export const taskUpdateSchema = z.object({
+  title: z.string().trim().min(1).optional(),
+  notes: optionalString,
+  dueAt: z.coerce.date().optional(),
+  contactId: z.coerce.number().int().positive().nullable().optional(),
+  done: z.boolean().optional(),
+});
+
 export const obligationSchema = z.object({
   kind: z.enum(["expense", "income"]),
   categoryId: z.coerce.number().int().positive().optional().nullable(),
