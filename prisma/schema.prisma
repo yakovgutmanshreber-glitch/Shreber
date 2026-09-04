@@ -224,6 +224,7 @@ model Transaction {
   contact             Contact?    @relation(fields: [contactId], references: [id], onDelete: SetNull)
   source              String // 'api' | 'manual'
   kesherNumTransaction String?    @unique // Kesher NumTransaction
+  kesherObligationReference String? // Kesher ObligationReference (אסמכתא) the charge belongs to
   uniqNum             String? // our unique id sent to Kesher, max 19 chars
   amount              Decimal
   currency            Int         @default(1) // 1=ILS 2=USD 826=GBP 978=EUR 124=CAD

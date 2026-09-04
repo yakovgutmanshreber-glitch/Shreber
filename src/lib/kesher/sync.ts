@@ -251,6 +251,7 @@ export async function importTransactions(
       contactId,
       source: "api" as const,
       kesherNumTransaction: numTransaction,
+      kesherObligationReference: s(r.ObligationReference),
       uniqNum: s(r.Uniq),
       amount: Number(r.Total ?? 0) / 100, // report Total is agorot
       currency: currencyToCode(r.Currency),

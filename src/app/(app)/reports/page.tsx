@@ -477,6 +477,7 @@ interface UnlinkedObl {
 interface UnlinkedTx {
   id: number;
   numTransaction: string | null;
+  reference: string | null;
   amount: number;
   currency: number;
   amountIls: number | null;
@@ -611,6 +612,7 @@ function UnlinkedReport() {
                 <tr>
                   <th className="th">תאריך</th>
                   <th className="th">מס׳ עסקה</th>
+                  <th className="th">אסמכתא</th>
                   <th className="th">שם</th>
                   <th className="th">טלפון</th>
                   <th className="th">פרויקט</th>
@@ -628,6 +630,7 @@ function UnlinkedReport() {
                   <tr key={t.id} className="align-top hover:bg-slate-50">
                     <td className="td num whitespace-nowrap">{formatDate(t.date)}</td>
                     <td className="td num text-slate-500">{t.numTransaction ?? "—"}</td>
+                    <td className="td num text-slate-500">{t.reference ?? "—"}</td>
                     <td className="td whitespace-nowrap">{t.payerName ?? "—"}</td>
                     <td className="td num text-slate-500" dir="ltr">{t.payerPhone ?? "—"}</td>
                     <td className="td text-slate-500">{t.projectName ?? "—"}</td>

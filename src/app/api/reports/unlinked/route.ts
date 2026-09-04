@@ -38,6 +38,7 @@ export const GET = handler(async () => {
     transactions: transactions.map((t) => ({
       id: t.id,
       numTransaction: t.kesherNumTransaction,
+      reference: t.kesherObligationReference,
       amount: t.amount,
       currency: t.currency,
       amountIls: t.amountIls,

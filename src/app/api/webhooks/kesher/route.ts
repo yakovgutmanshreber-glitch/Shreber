@@ -375,6 +375,7 @@ async function upsertTransaction(body: Record<string, unknown>): Promise<"proces
     contactId,
     source: "api" as const,
     kesherNumTransaction: numTransaction ?? null,
+    kesherObligationReference: oblRef ?? null,
     uniqNum: uniqNum ?? null,
     // `Sum`/`Total` are decimal shekels per the API docs — no agorot conversion.
     amount: toAmount(pick(body, "Sum", "Total", "Amount", "sum")) ?? 0,
