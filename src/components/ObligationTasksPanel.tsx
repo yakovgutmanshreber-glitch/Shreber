@@ -19,6 +19,7 @@ export function ObligationTasksPanel({
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<Task | null>(null);
+  const [sub, setSub] = useState<"open" | "done">("open");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -39,9 +40,34 @@ export function ObligationTasksPanel({
   }
 
   const showForm = adding || editing;
+  const openTasks = tasks.filter((t) => !t.done);
+  const doneTasks = tasks.filter((t) => t.done);
+  const shown = sub === "open" ? openTasks : doneTasks;
 
   return (
     <div className="space-y-4">
+      {/* open / done sub-tabs */}
+      <div className="flex gap-1 rounded-xl bg-gray-100 p-1">
+        <button
+          type="button"
+          onClick={() => setSub("open")}
+          className={`flex-1 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+            sub === "open" ? "bg-white text-gray-800 shadow-sm" : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          פתוחות ({openTasks.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setSub("done")}
+          className={`flex-1 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+            sub === "done" ? "bg-white text-gray-800 shadow-sm" : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          בוצעו ({doneTasks.length})
+        </button>
+      </div>
+
       {showForm ? (
         <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-3">
           <div className="mb-3 text-sm font-semibold text-gray-700">
@@ -63,20 +89,24 @@ export function ObligationTasksPanel({
           />
         </div>
       ) : (
-        <div className="flex justify-end">
-          <button className="btn-primary !py-1.5 text-sm" onClick={() => setAdding(true)}>
-            + משימה
-          </button>
-        </div>
+        sub === "open" && (
+          <div className="flex justify-end">
+            <button className="btn-primary !py-1.5 text-sm" onClick={() => setAdding(true)}>
+              + משימה
+            </button>
+          </div>
+        )
       )}
 
       {loading ? (
         <p className="py-4 text-center text-sm text-gray-400">טוען…</p>
-      ) : tasks.length === 0 ? (
-        <p className="py-4 text-center text-sm text-gray-400">אין משימות להתחייבות זו</p>
+      ) : shown.length === 0 ? (
+        <p className="py-4 text-center text-sm text-gray-400">
+          {sub === "open" ? "אין משימות פתוחות" : "אין משימות שבוצעו"}
+        </p>
       ) : (
         <ul className="space-y-2">
-          {tasks.map((t) => (
+          {shown.map((t) => (
             <li key={t.id} className="rounded-lg border border-gray-200 px-3 py-2">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-start gap-2">
