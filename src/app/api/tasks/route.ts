@@ -3,8 +3,12 @@ import { handler, serialize, requireUser } from "@/lib/api";
 import { taskSchema } from "@/lib/schemas";
 
 // GET /api/tasks — all tasks (open first, then by due date).
-export const GET = handler(async () => {
+// Optional ?contactId=<n> filters to one contact's tasks.
+export const GET = handler(async (req) => {
+  const { searchParams } = new URL(req.url);
+  const contactId = searchParams.get("contactId");
   const tasks = await prisma.task.findMany({
+    where: contactId ? { contactId: Number(contactId) } : undefined,
     include: { contact: { select: { id: true, firstName: true, lastName: true } } },
     orderBy: [{ done: "asc" }, { dueAt: "asc" }],
     take: 500,

@@ -18,6 +18,7 @@ import { ObligationForm } from "@/components/ObligationForm";
 import { ObligationDetailModal } from "@/components/ObligationDetailModal";
 import { CreditCardsSection, type CreditCard } from "@/components/CreditCardsSection";
 import { KesherAdoptForm } from "@/components/KesherAdoptForm";
+import { ContactTasksSection } from "@/components/ContactTasksSection";
 
 interface Obligation {
   id: number;
@@ -453,6 +454,10 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
             </div>
           </div>
         )}
+
+        <ContactTasksSection
+          contact={{ id: contact.id, firstName: contact.firstName, lastName: contact.lastName ?? null }}
+        />
       </div>
 
       <Modal open={editOpen} onClose={() => setEditOpen(false)} title="עריכת איש קשר" wide>
