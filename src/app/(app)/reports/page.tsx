@@ -470,6 +470,9 @@ interface UnlinkedObl {
   status: string;
   transactions: number;
   startDate: string;
+  payerName: string | null;
+  payerPhone: string | null;
+  projectName: string | null;
 }
 interface UnlinkedTx {
   id: number;
@@ -486,6 +489,9 @@ interface UnlinkedTx {
   authNum: string | null;
   receiptDocNumber: string | null;
   comment: string | null;
+  payerName: string | null;
+  payerPhone: string | null;
+  projectName: string | null;
 }
 interface CategoryRow {
   id: number;
@@ -561,6 +567,9 @@ function UnlinkedReport() {
               <thead className="border-b border-slate-200 bg-slate-50/60">
                 <tr>
                   <th className="th">אסמכתא</th>
+                  <th className="th">שם</th>
+                  <th className="th">טלפון</th>
+                  <th className="th">פרויקט</th>
                   <th className="th">קטגוריה</th>
                   <th className="th">סכום</th>
                   <th className="th">עסקאות</th>
@@ -571,6 +580,9 @@ function UnlinkedReport() {
                 {obls.map((o) => (
                   <tr key={o.id} className="hover:bg-slate-50">
                     <td className="td num font-medium">{o.reference}</td>
+                    <td className="td">{o.payerName ?? "—"}</td>
+                    <td className="td num text-slate-500" dir="ltr">{o.payerPhone ?? "—"}</td>
+                    <td className="td text-slate-500">{o.projectName ?? "—"}</td>
                     <td className="td text-slate-500">{o.category ?? "—"}</td>
                     <td className="td num">{formatMoney(o.amount, o.currency)}</td>
                     <td className="td num">{o.transactions}</td>
@@ -599,6 +611,9 @@ function UnlinkedReport() {
                 <tr>
                   <th className="th">תאריך</th>
                   <th className="th">מס׳ עסקה</th>
+                  <th className="th">שם</th>
+                  <th className="th">טלפון</th>
+                  <th className="th">פרויקט</th>
                   <th className="th">סכום</th>
                   <th className="th">אמצעי</th>
                   <th className="th">כרטיס</th>
@@ -613,6 +628,9 @@ function UnlinkedReport() {
                   <tr key={t.id} className="align-top hover:bg-slate-50">
                     <td className="td num whitespace-nowrap">{formatDate(t.date)}</td>
                     <td className="td num text-slate-500">{t.numTransaction ?? "—"}</td>
+                    <td className="td whitespace-nowrap">{t.payerName ?? "—"}</td>
+                    <td className="td num text-slate-500" dir="ltr">{t.payerPhone ?? "—"}</td>
+                    <td className="td text-slate-500">{t.projectName ?? "—"}</td>
                     <td className="td num font-medium">{formatMoney(t.amount, t.currency, t.amountIls)}</td>
                     <td className="td text-slate-500">
                       {t.chargeOptionType ? statusLabel(PAYMENT_METHOD, t.chargeOptionType) : "—"}

@@ -31,6 +31,9 @@ export const GET = handler(async () => {
       status: o.status,
       transactions: o._count.transactions,
       startDate: o.startDate,
+      payerName: o.payerName,
+      payerPhone: o.payerPhone,
+      projectName: o.projectName,
     })),
     transactions: transactions.map((t) => ({
       id: t.id,
@@ -47,6 +50,9 @@ export const GET = handler(async () => {
       authNum: t.authNum,
       receiptDocNumber: t.receiptDocNumber,
       comment: t.comment,
+      payerName: t.payerName,
+      payerPhone: t.payerPhone,
+      projectName: t.projectName,
     })),
   });
 });

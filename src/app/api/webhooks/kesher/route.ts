@@ -195,6 +195,23 @@ async function upsertCustomer(body: Record<string, unknown>): Promise<"processed
   return "processed";
 }
 
+/** Payer display name as Kesher sent it (FirstName holds the full name; LastName often empty). */
+function payerName(body: Record<string, unknown>): string | undefined {
+  const full = [toStr(pick(body, "FirstName", "first_name")), toStr(pick(body, "LastName", "last_name"))]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  return full || toStr(pick(body, "ReceiptName", "CardName", "Name"));
+}
+/** Payer phone as Kesher sent it. */
+function payerPhone(body: Record<string, unknown>): string | undefined {
+  return toStr(pick(body, "Phone", "phone")) || toStr(pick(body, "Phone2", "phone2"));
+}
+/** Kesher project / payment-page name (פרויקט). */
+function projectName(body: Record<string, unknown>): string | undefined {
+  return toStr(pick(body, "ProjectName", "PaymentPage", "project_name"));
+}
+
 /** National phone digits (drop +972 / leading 0 / punctuation). */
 function normPhone(v: unknown): string {
   return String(v ?? "").replace(/\D/g, "").replace(/^972/, "").replace(/^0/, "");
@@ -279,6 +296,9 @@ async function upsertObligation(body: Record<string, unknown>): Promise<"process
         startDate: parseDate(pick(body, "StartDate", "start_date", "TransactionDate", "Date")),
         status: mapObligationStatus(statusRaw),
         paymentMethod: mapChargeOption(toStr(pick(body, "ChargeOptionType", "ChargeOption", "PaymentMethod"))),
+        payerName: payerName(body),
+        payerPhone: payerPhone(body),
+        projectName: projectName(body),
         comment: "התקבל מקשר (Webhook)",
       },
     });
@@ -294,6 +314,10 @@ async function upsertObligation(body: Record<string, unknown>): Promise<"process
         ? Number(pick(body, "ChargeDay", "charge_day"))
         : existing.chargeDay,
       status: mapObligationStatus(statusRaw),
+      // Backfill payer/project when missing (undefined => Prisma skips the field).
+      payerName: existing.payerName ?? payerName(body),
+      payerPhone: existing.payerPhone ?? payerPhone(body),
+      projectName: existing.projectName ?? projectName(body),
       // Back-fill the contact link if it was unlinked and a phone now matches.
       ...(existing.contactId
         ? {}
@@ -372,6 +396,9 @@ async function upsertTransaction(body: Record<string, unknown>): Promise<"proces
     authNum: toStr(pick(body, "OKNum", "AuthNum")),
     receiptDocNumber: toStr(docs?.DocNumber ?? pick(body, "DocNumber", "ReceiptDocNumber")),
     receiptLink: toStr(docs?.PdfLink ?? pick(body, "PdfLink", "ReceiptLink")),
+    payerName: payerName(body),
+    payerPhone: payerPhone(body),
+    projectName: projectName(body),
     kind: (obligation?.kind ?? "income") as "income" | "expense",
   };
 

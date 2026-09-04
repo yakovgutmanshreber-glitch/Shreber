@@ -203,6 +203,11 @@ model Obligation {
   account                   String?
   checkNumber               String?
   comment                   String?
+  // Payer/project snapshot from Kesher (used to identify UNLINKED records for
+  // review — filled from the webhook/report even when no contact matched).
+  payerName                 String? // Customer name as Kesher sent it
+  payerPhone                String? // Customer phone as Kesher sent it
+  projectName               String? // Kesher project / payment-page name (פרויקט)
   handled                   Boolean      @default(false) // מטופל — flagged as handled/taken care of
   replacesObligationId      Int? // set on a card-change hok; the old hok is cancelled when this activates
   transactions              Transaction[]
@@ -238,6 +243,10 @@ model Transaction {
   comment             String?
   receiptDocNumber    String?
   receiptLink         String? // DocumentsDetails.PdfLink
+  // Payer/project snapshot from Kesher (used to identify UNLINKED transactions).
+  payerName           String? // Customer / ReceiptName as Kesher sent it
+  payerPhone          String? // Customer phone as Kesher sent it
+  projectName         String? // Kesher project name (פרויקט), e.g. "הוראות קבע חודשיות"
   kind                String // 'expense' | 'income'
   communications      Communication[]
   createdAt           DateTime @default(now())

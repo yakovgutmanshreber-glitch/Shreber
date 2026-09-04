@@ -264,6 +264,12 @@ export async function importTransactions(
       authNum: s(r.OKNum),
       receiptDocNumber: doc.docNum ?? s(r.DocNumber),
       receiptLink: doc.pdf,
+      payerName:
+        [s(r.FirstName), s(r.LastName)].filter(Boolean).join(" ").trim() ||
+        s(r.ReceiptName) ||
+        s(r.Name),
+      payerPhone: s(r.Phone) || s(r.Phone2),
+      projectName: s(r.ProjectName),
       kind,
     };
 
