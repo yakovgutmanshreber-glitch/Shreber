@@ -6,6 +6,7 @@ import { formatCurrency, formatMoney, formatDate } from "@/lib/format";
 import { ObligationForm, type ObligationData, type SavedCard } from "@/components/ObligationForm";
 import { TransactionForm, type TransactionData } from "@/components/TransactionForm";
 import { TxStatusBadge, ConfirmButton } from "@/components/ui";
+import { ObligationTasksPanel } from "@/components/ObligationTasksPanel";
 
 // A single popup that lets you edit an obligation AND manage every transaction
 // belonging to it. Used from the contact profile (and reusable elsewhere).
@@ -24,7 +25,7 @@ export function ObligationDetailModal({
   onChanged: () => void; // reload parent data (keeps modal open)
   onClose: () => void; // close the whole popup
 }) {
-  const [tab, setTab] = useState<"details" | "transactions" | "communications">("details");
+  const [tab, setTab] = useState<"details" | "transactions" | "communications" | "tasks">("details");
   // Which transaction is being added/edited inside the transactions tab.
   const [txEditing, setTxEditing] = useState<"new" | TransactionData | null>(null);
   // Charge-balance panel state.
@@ -292,9 +293,14 @@ export function ObligationDetailModal({
         <TabBtn active={tab === "communications"} onClick={() => setTab("communications")}>
           שיחות
         </TabBtn>
+        <TabBtn active={tab === "tasks"} onClick={() => setTab("tasks")}>
+          משימות
+        </TabBtn>
       </div>
 
-      {tab === "communications" ? (
+      {tab === "tasks" ? (
+        <ObligationTasksPanel obligationId={obligation.id} />
+      ) : tab === "communications" ? (
         <CommunicationsSection obligationId={obligation.id} />
       ) : tab === "details" ? (
         <ObligationForm

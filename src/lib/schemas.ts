@@ -34,6 +34,7 @@ export const taskSchema = z.object({
   notes: optionalString,
   dueAt: z.coerce.date({ errorMap: () => ({ message: "תאריך ושעה חובה" }) }),
   contactId: z.coerce.number().int().positive().optional().nullable(),
+  obligationId: z.coerce.number().int().positive().optional().nullable(),
   done: z.boolean().optional(),
 });
 

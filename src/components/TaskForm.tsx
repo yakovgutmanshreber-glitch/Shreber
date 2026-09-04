@@ -35,12 +35,15 @@ export function toInputValue(d: Date): string {
 export function TaskForm({
   task,
   fixedContact,
+  fixedObligationId,
   onSaved,
   onCancel,
 }: {
   task: Task | null;
   // When set, the task is locked to this contact (e.g. on the contact page).
   fixedContact?: TaskContact | null;
+  // When set, the task is attached to this obligation (from the obligation modal).
+  fixedObligationId?: number | null;
   onSaved: () => void;
   onCancel: () => void;
 }) {
@@ -79,6 +82,7 @@ export function TaskForm({
         // datetime-local is local time; send an absolute instant (UTC ISO).
         dueAt: new Date(form.dueAt).toISOString(),
         contactId: contact?.id ?? null,
+        ...(fixedObligationId ? { obligationId: fixedObligationId } : {}),
       };
       if (task) await api(`/api/tasks/${task.id}`, { method: "PATCH", body });
       else await api("/api/tasks", { method: "POST", body });
@@ -122,8 +126,12 @@ export function TaskForm({
         />
       </div>
 
-      {/* Contact link — hidden/locked when the form is opened from a contact page. */}
-      {fixedContact ? (
+      {/* Contact link — hidden/locked when opened from a contact or obligation. */}
+      {fixedObligationId && !fixedContact ? (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+          משויך להתחייבות זו
+        </div>
+      ) : fixedContact ? (
         <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
           משויך ל: <b>{fixedContact.firstName}{fixedContact.lastName ? " " + fixedContact.lastName : ""}</b>
         </div>
