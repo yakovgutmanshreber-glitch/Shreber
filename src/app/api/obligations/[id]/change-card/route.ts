@@ -44,6 +44,14 @@ export const POST = handler(async (req, ctx) => {
       name: card.holderName ?? undefined,
     });
     if (!res.ok) {
+      // Code 309 = the CompanyDeveloperMail we sent isn't a registered developer
+      // user on the Kesher company. This is a configuration issue, not the card.
+      if (res.code === 309) {
+        throw new ApiError(
+          "החלפת הכרטיס דורשת הגדרת 'מייל מפתח החברה' (KESHER_DEVELOPER_MAIL) התואם למשתמש מפתח בקשר. יש להגדירו ב-Vercel ולעשות Redeploy.",
+          400,
+        );
+      }
       const detail = [res.message, res.code != null ? `קוד ${res.code}` : null]
         .filter(Boolean)
         .join(" · ");
@@ -53,7 +61,7 @@ export const POST = handler(async (req, ctx) => {
   } catch (e) {
     if (e instanceof KesherConfigError) {
       throw new ApiError(
-        "הכרטיס אומת ונשמר, אך החלפתו בהוראת הקבע דורשת טוקן API של קשר (KESHER_API_TOKEN) שעדיין לא הוגדר. יש להנפיקו בפאנל של קשר ולהגדירו ב-Vercel.",
+        "הכרטיס אומת ונשמר, אך החלפתו בהוראת הקבע דורשת פרטי התחברות לקשר שעדיין לא הוגדרו (KESHER_API_PASSWORD / KESHER_DEVELOPER_MAIL).",
         400,
       );
     }

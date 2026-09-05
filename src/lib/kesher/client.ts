@@ -507,10 +507,18 @@ export const kesher = {
   /** Change the payment method on an obligation (REST endpoint, Bearer). */
   async changeChargeOptionForObligation(input: ChangeChargeOptionInput): Promise<KesherResult> {
     if (isMockMode()) return mockLegacy({ changed: true });
-    // Exact shape per the API doc (project 1596). type: 1 = credit card, 2 = bank
-    // (verified: the webhook's ChargeOption.Type is 1 for a tokenized card).
-    // accountOrToken = the card token; expiryOrBranch = card expiry (MMYY).
+    // Exact shape per Kesher's ChangeChargeOptionForObligation doc:
+    //   IsToken           — true when accountOrToken is a card TOKEN, false a PAN.
+    //                       (Missing this made Kesher read our token as a card
+    //                        number => Code 307 "אמצעי תשלום לא תקין".)
+    //   CompanyDeveloperMail — REQUIRED; must match a developer user on the
+    //                          company (else Code 309), from KESHER_DEVELOPER_MAIL.
+    //   entity.type       — 1 = credit card, 2 = bank.
+    //   entity.expiryOrBranch — card expiry in YYMM (credit) / branch (bank).
+    const isCredit = input.paymentMethod !== "bank";
+    const useToken = Boolean(input.token);
     return requestRest("POST", "/ChangeChargeOptionForObligation", {
+      IsToken: isCredit ? useToken : undefined,
       obligationReference: input.obligationReference,
       CompanyDeveloperMail:
         input.companyDeveloperMail ?? process.env.KESHER_DEVELOPER_MAIL ?? undefined,
@@ -519,12 +527,12 @@ export const kesher = {
           tz: input.tz ?? null,
           bank: input.bank ?? null,
           name: input.name ?? null,
-          type: input.paymentMethod === "bank" ? 2 : 1,
+          type: isCredit ? 1 : 2,
           limitSum: null,
           limitDate: null,
           hasBankAuth: 0,
           accountOrToken: input.token ?? input.cardNumber,
-          expiryOrBranch: input.cardExpiry ?? input.branch,
+          expiryOrBranch: isCredit ? toYymmExpiry(input.cardExpiry) : input.branch,
         },
       },
     });
