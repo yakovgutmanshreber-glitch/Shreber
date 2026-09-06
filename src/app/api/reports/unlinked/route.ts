@@ -101,7 +101,14 @@ export const POST = handler(async (req) => {
   if (!contact) throw new ApiError("איש קשר לא נמצא", 404);
 
   if (obligationId) {
-    await prisma.obligation.update({ where: { id: obligationId }, data: { contactId } });
+    // Optionally set a category on the obligation at the same time.
+    const oblData: { contactId: number; categoryId?: number } = { contactId };
+    if (categoryId) {
+      const category = await prisma.category.findUnique({ where: { id: categoryId } });
+      if (!category) throw new ApiError("קטגוריה לא נמצאה", 404);
+      oblData.categoryId = categoryId;
+    }
+    await prisma.obligation.update({ where: { id: obligationId }, data: oblData });
     await prisma.transaction.updateMany({ where: { obligationId }, data: { contactId } });
   }
   if (transactionId) {

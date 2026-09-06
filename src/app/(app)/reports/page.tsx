@@ -633,6 +633,7 @@ function UnlinkedReport() {
   const [data, setData] = useState<{ obligations: UnlinkedObl[]; transactions: UnlinkedTx[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [pick, setPick] = useState<{ obligationId?: number; transactionId?: number; label: string } | null>(null);
+  const [assignCat, setAssignCat] = useState<string>(""); // optional category when linking a contact
   // Send-to-income (no customer) state.
   const [incomeTx, setIncomeTx] = useState<UnlinkedTx | null>(null);
   const [categories, setCategories] = useState<CategoryRow[]>([]);
@@ -653,9 +654,15 @@ function UnlinkedReport() {
     if (!pick) return;
     await api("/api/reports/unlinked", {
       method: "POST",
-      body: { obligationId: pick.obligationId, transactionId: pick.transactionId, contactId },
+      body: {
+        obligationId: pick.obligationId,
+        transactionId: pick.transactionId,
+        contactId,
+        categoryId: assignCat ? Number(assignCat) : undefined,
+      },
     });
     setPick(null);
+    setAssignCat("");
     load();
   }
 
@@ -793,7 +800,21 @@ function UnlinkedReport() {
         </div>
       )}
 
-      <Modal open={!!pick} onClose={() => setPick(null)} title={`שיוך ${pick?.label ?? ""} לאיש קשר`}>
+      <Modal open={!!pick} onClose={() => { setPick(null); setAssignCat(""); }} title={`שיוך ${pick?.label ?? ""} לאיש קשר`}>
+        {pick?.obligationId && (
+          <div className="mb-4">
+            <label className="label">קטגוריה (אופציונלי)</label>
+            <select className="input" value={assignCat} onChange={(e) => setAssignCat(e.target.value)}>
+              <option value="">— ללא קטגוריה —</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.mainCategory} › {c.category}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-slate-400">תשויך להתחייבות יחד עם איש הקשר.</p>
+          </div>
+        )}
         <ContactPicker onPick={assign} />
       </Modal>
 
