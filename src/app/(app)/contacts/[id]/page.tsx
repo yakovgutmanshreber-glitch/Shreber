@@ -343,6 +343,7 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
                       <table className="w-full">
                         <thead className="border-b border-gray-200">
                           <tr>
+                            <th className="th">אסמכתא</th>
                             <th className="th">סכום</th>
                             <th className="th">תשלומים</th>
                             <th className="th">אמצעי</th>
@@ -370,6 +371,7 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
                                 className="cursor-pointer hover:bg-gray-50"
                                 onClick={() => setOpenOblId(o.id)}
                               >
+                                <td className="td num text-gray-500">{o.kesherObligationReference ?? "—"}</td>
                                 <td className="td">{showMoney(o.recurringAmount, o.currency, o.amountIls)}</td>
                                 <td className="td">{o.numPayments === 9999 ? "ללא הגבלה" : o.numPayments}</td>
                                 <td className="td">{statusLabel(PAYMENT_METHOD, o.paymentMethod)}</td>
