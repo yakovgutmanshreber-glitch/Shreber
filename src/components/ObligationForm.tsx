@@ -715,16 +715,27 @@ export function ObligationForm({
       {/* Non-credit new obligation: record the received payment inline. */}
       {!isCredit && !isEdit && (
         <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50/70 to-white p-4 shadow-soft">
-          <label className="flex cursor-pointer items-center gap-2.5 text-sm font-semibold text-slate-700">
-            <input
-              type="checkbox"
-              checked={recordTx}
-              onChange={(e) => setRecordTx(e.target.checked)}
-              className="h-4 w-4 accent-emerald-600"
-            />
-            <span className="text-lg">🧾</span>
-            רשום תשלום שהתקבל (עסקה)
-          </label>
+          <div className="flex items-center justify-between gap-3">
+            <span className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <span className="text-lg">🧾</span>
+              רשום תשלום שהתקבל (עסקה)
+            </span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={recordTx}
+              onClick={() => setRecordTx(!recordTx)}
+              className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
+                recordTx ? "bg-emerald-500" : "bg-slate-300"
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
+                  recordTx ? "left-0.5" : "right-0.5"
+                }`}
+              />
+            </button>
+          </div>
           {recordTx && (
             <div className="mt-3 grid grid-cols-2 gap-3">
               <div>
