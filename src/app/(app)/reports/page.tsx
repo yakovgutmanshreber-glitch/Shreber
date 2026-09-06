@@ -801,20 +801,22 @@ function UnlinkedReport() {
       )}
 
       <Modal open={!!pick} onClose={() => { setPick(null); setAssignCat(""); }} title={`שיוך ${pick?.label ?? ""} לאיש קשר`}>
-        {pick?.obligationId && (
-          <div className="mb-4">
-            <label className="label">קטגוריה (אופציונלי)</label>
-            <select className="input" value={assignCat} onChange={(e) => setAssignCat(e.target.value)}>
-              <option value="">— ללא קטגוריה —</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.mainCategory} › {c.category}
-                </option>
-              ))}
-            </select>
-            <p className="mt-1 text-xs text-slate-400">תשויך להתחייבות יחד עם איש הקשר.</p>
-          </div>
-        )}
+        <div className="mb-4">
+          <label className="label">קטגוריה (אופציונלי)</label>
+          <select className="input" value={assignCat} onChange={(e) => setAssignCat(e.target.value)}>
+            <option value="">— ללא קטגוריה —</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.mainCategory} › {c.category}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-slate-400">
+            {pick?.transactionId
+              ? "תיווצר התחייבות לאיש הקשר תחת הקטגוריה, והעסקה תשויך אליה."
+              : "תשויך להתחייבות יחד עם איש הקשר."}
+          </p>
+        </div>
         <ContactPicker onPick={assign} />
       </Modal>
 

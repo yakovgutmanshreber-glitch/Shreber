@@ -70,16 +70,22 @@ export const POST = handler(async (req) => {
     categoryId?: number;
   };
 
-  // Send a transaction to הכנסות under a category (no customer).
-  if (transactionId && categoryId && !contactId) {
+  // A transaction + a category → wrap it in a one-time income obligation under
+  // that category (optionally linked to a contact) and attach the transaction.
+  // (Transactions have no category of their own — the obligation carries it.)
+  if (transactionId && categoryId) {
     const tx = await prisma.transaction.findUnique({ where: { id: transactionId } });
     if (!tx) throw new ApiError("עסקה לא נמצאה", 404);
     const category = await prisma.category.findUnique({ where: { id: categoryId } });
     if (!category) throw new ApiError("קטגוריה לא נמצאה", 404);
+    if (contactId) {
+      const contact = await prisma.contact.findUnique({ where: { id: contactId } });
+      if (!contact) throw new ApiError("איש קשר לא נמצא", 404);
+    }
     const obl = await prisma.obligation.create({
       data: {
         kind: "income",
-        contactId: null,
+        contactId: contactId ?? null,
         categoryId,
         chargeType: "onetime",
         recurringAmount: tx.amount,
@@ -88,10 +94,13 @@ export const POST = handler(async (req) => {
         startDate: tx.transactionDate,
         status: "active",
         paymentMethod: (tx.chargeOptionType as string) ?? "credit",
-        comment: "נרשם בהכנסות מרשומות ללא שיוך",
+        comment: contactId ? "שויך מרשומות ללא שיוך" : "נרשם בהכנסות מרשומות ללא שיוך",
       },
     });
-    await prisma.transaction.update({ where: { id: transactionId }, data: { obligationId: obl.id } });
+    await prisma.transaction.update({
+      where: { id: transactionId },
+      data: { obligationId: obl.id, contactId: contactId ?? null },
+    });
     return { ok: true };
   }
 
