@@ -152,7 +152,10 @@ export async function POST(req: Request) {
       // After obligation + its transaction are in, derive "finished" for a
       // covered cash/check receipt (Kesher never webhooks that auto-finish).
       const oblRef = obl ? toStr(pick(obl, "ObligationReference")) : undefined;
-      if (oblRef) await refreshFiniteStatus(oblRef);
+      if (oblRef) {
+        await syncObligationCurrency(oblRef);
+        await refreshFiniteStatus(oblRef);
+      }
     } else {
       // Legacy flat / CrmX payloads.
       const flat = unwrapCrm(body);
@@ -384,7 +387,8 @@ async function upsertTransaction(body: Record<string, unknown>): Promise<"proces
     uniqNum: uniqNum ?? null,
     // `Sum`/`Total` are decimal shekels per the API docs — no agorot conversion.
     amount: toAmount(pick(body, "Sum", "Total", "Amount", "sum")) ?? 0,
-    currency: Number(pick(body, "Currency", "currency") ?? 1),
+    // Guard: Kesher sometimes sends Currency:0 — treat 0/missing as shekel (1).
+    currency: Number(pick(body, "Currency", "currency")) || 1,
     transactionDate: parseDate(pick(body, "TransactionDate", "Date", "transaction_date")),
     transactionType: (toStr(pick(body, "TransactionType")) === "credit" ? "credit" : "debit") as
       | "credit"
@@ -541,6 +545,21 @@ async function refreshFiniteStatus(ref: string): Promise<void> {
     .reduce((s, t) => s + Number(t.amount), 0);
   if (paid + 0.001 >= total) {
     await prisma.obligation.update({ where: { id: o.id }, data: { status: "finished" } });
+  }
+}
+
+// Kesher's webhook Obligation object carries NO Currency field — only the
+// Transaction does. So an obligation defaults to shekel even when its charge is
+// in USD. Backfill the obligation's currency from its (foreign) transaction.
+async function syncObligationCurrency(ref: string): Promise<void> {
+  const o = await prisma.obligation.findUnique({
+    where: { kesherObligationReference: ref },
+    include: { transactions: { select: { currency: true } } },
+  });
+  if (!o || o.currency !== 1) return; // only fill when still the default shekel
+  const foreign = o.transactions.map((t) => t.currency).find((c) => c && c !== 1);
+  if (foreign) {
+    await prisma.obligation.update({ where: { id: o.id }, data: { currency: foreign } });
   }
 }
 

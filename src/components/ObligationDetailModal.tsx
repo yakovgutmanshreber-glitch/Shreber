@@ -108,6 +108,8 @@ export function ObligationDetailModal({
     })
     .reduce((s, t) => s + Number(t.amount ?? 0), 0);
   const balance = Number((obligation as { recurringAmount?: number }).recurringAmount ?? 0) - paid;
+  // The obligation's own currency (USD hoks show $ paid/balance, not ₪).
+  const oblCurrency = Number((obligation as { currency?: number }).currency ?? 1);
 
   async function chargeBalance() {
     if (!chargeCardId) {
@@ -336,10 +338,10 @@ export function ObligationDetailModal({
         <div>
           <div className="mb-3 flex items-center justify-between">
             <span className="text-sm text-gray-500">
-              נגבה: <b className="text-green-700">{formatCurrency(paid)}</b>
+              נגבה: <b className="text-green-700">{formatCurrency(paid, oblCurrency)}</b>
               {balance > 0 && (
                 <>
-                  {" · "}יתרה: <b className="text-amber-600">{formatCurrency(balance)}</b>
+                  {" · "}יתרה: <b className="text-amber-600">{formatCurrency(balance, oblCurrency)}</b>
                 </>
               )}
             </span>
@@ -361,7 +363,7 @@ export function ObligationDetailModal({
           {chargeOpen && balance > 0 && (
             <div className="mb-3 rounded-xl border border-brand-100 bg-brand-50/40 p-3">
               <div className="mb-2 text-sm text-gray-600">
-                חיוב יתרה של <b>{formatCurrency(balance)}</b> בכרטיס:
+                חיוב יתרה של <b>{formatCurrency(balance, oblCurrency)}</b> בכרטיס:
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <select
@@ -377,7 +379,7 @@ export function ObligationDetailModal({
                   ))}
                 </select>
                 <button className="btn-danger !py-1.5 text-xs" onClick={chargeBalance} disabled={chargeBusy}>
-                  {chargeBusy ? "מחייב…" : `חייב ${formatCurrency(balance)}`}
+                  {chargeBusy ? "מחייב…" : `חייב ${formatCurrency(balance, oblCurrency)}`}
                 </button>
               </div>
               {chargeError && <p className="mt-2 text-xs text-red-600">{chargeError}</p>}

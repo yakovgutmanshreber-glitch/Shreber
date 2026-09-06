@@ -399,7 +399,7 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
                                   {remaining === null ? (
                                     <span className="text-gray-300">—</span>
                                   ) : (
-                                    <span className="text-amber-600">{formatCurrency(remaining)}</span>
+                                    <span className="text-amber-600">{formatCurrency(remaining, o.currency)}</span>
                                   )}
                                 </td>
                                 <td className="td">
