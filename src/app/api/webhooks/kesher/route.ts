@@ -486,7 +486,24 @@ async function maybeSaveCardToken(
 
 function parseDate(v: unknown): Date {
   if (!v) return new Date();
-  const d = new Date(String(v));
+  const str = String(v).trim();
+  // Kesher sends dates as DD/MM/YYYY [HH:MM:SS] — parse explicitly so the day and
+  // month aren't swapped (JS's new Date() reads "06/09/2026" as MM/DD = June 9,
+  // but Kesher means 6 September).
+  const m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+  if (m) {
+    const [, dd, mm, yyyy, hh, mi, ss] = m;
+    const d = new Date(
+      Number(yyyy),
+      Number(mm) - 1,
+      Number(dd),
+      Number(hh ?? 0),
+      Number(mi ?? 0),
+      Number(ss ?? 0),
+    );
+    if (!Number.isNaN(d.getTime())) return d;
+  }
+  const d = new Date(str); // ISO or other recognizable formats
   return Number.isNaN(d.getTime()) ? new Date() : d;
 }
 
