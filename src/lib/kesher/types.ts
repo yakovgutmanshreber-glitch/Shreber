@@ -20,7 +20,7 @@ export type CurrencyCode = 1 | 2 | 826 | 978;
 export interface SendTransactionInput {
   /** amount in shekels (NOT agorot) — the client converts to agorot */
   amount: number;
-  currency?: CurrencyCode;
+  currency?: number; // numeric Kesher currency code (1 ILS, 2 USD, 826 GBP, 978 EUR, 124 CAD)
   /** our unique id, max 19 chars */
   uniqNum: string;
   /** saved token OR full card details */
@@ -103,7 +103,7 @@ export interface GetTransInput {
 export interface GetLinkTokenInput {
   paymentPageId: number; // account-specific payment page id (from Kesher panel)
   total?: number; // shekels
-  currency?: CurrencyCode;
+  currency?: number; // numeric Kesher currency code (1 ILS, 2 USD, 826 GBP, 978 EUR, 124 CAD)
   firstName?: string;
   lastName?: string;
   mail?: string;

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { handler, serialize, ApiError } from "@/lib/api";
 import { kesher, looksLikeCardNumber } from "@/lib/kesher/client";
+import { convertToIls } from "@/lib/currency";
 import { z } from "zod";
 
 const schema = z.object({
@@ -74,6 +75,7 @@ export const POST = handler(
     try {
       res = await kesher.sendTransaction({
         amount: chargeAmount,
+        currency: obligation.currency, // charge in the obligation's own currency
         uniqNum,
         token,
         cardNumber: newCard ? input.cardNumber : undefined,
@@ -120,6 +122,7 @@ export const POST = handler(
       });
     }
 
+    const txFx = await convertToIls(chargeAmount, obligation.currency);
     const transaction = await prisma.transaction.create({
       data: {
         obligationId: oblId,
@@ -128,7 +131,9 @@ export const POST = handler(
         kesherNumTransaction: numTransaction ?? null,
         uniqNum,
         amount: chargeAmount,
-        currency: 1,
+        currency: obligation.currency,
+        exchangeRate: txFx.exchangeRate,
+        amountIls: txFx.amountIls,
         transactionDate: new Date(),
         transactionType: "debit",
         chargeOptionType: "credit",

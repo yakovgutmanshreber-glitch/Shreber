@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { handler, serialize, ApiError } from "@/lib/api";
 import { obligationSchema } from "@/lib/schemas";
 import { kesher } from "@/lib/kesher/client";
+import { convertToIls } from "@/lib/currency";
 import { z } from "zod";
 
 // Extra payment fields (a saved card id OR raw card details to tokenize once).
@@ -69,6 +70,7 @@ export const POST = handler(async (req) => {
   try {
     res = await kesher.sendTransaction({
       amount: chargeAmount,
+      currency: input.currency ?? 1, // charge in the obligation's own currency
       uniqNum,
       token,
       cardNumber: newCard ? cardNumber : undefined,
@@ -167,6 +169,9 @@ export const POST = handler(async (req) => {
   // Record the first transaction whenever a charge was ATTEMPTED — approved OR
   // declined — so the outcome (עבר בהצלחה / סירוב) is visible. A future-dated hok
   // hasn't charged yet, so nothing is recorded; the webhook delivers it later.
+  const txFx = firstChargeAttempted
+    ? await convertToIls(chargeAmount, input.currency ?? 1)
+    : { exchangeRate: null, amountIls: null };
   const transaction = firstChargeAttempted
     ? await prisma.transaction.create({
         data: {
@@ -176,7 +181,9 @@ export const POST = handler(async (req) => {
           kesherNumTransaction: numTransaction ?? null,
           uniqNum,
           amount: chargeAmount,
-          currency: 1,
+          currency: input.currency ?? 1,
+          exchangeRate: txFx.exchangeRate,
+          amountIls: txFx.amountIls,
           transactionDate: new Date(),
           transactionType: "debit",
           chargeOptionType: "credit",

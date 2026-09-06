@@ -61,7 +61,7 @@ export const POST = handler(async (req) => {
   const res = await kesher.getLinkToken({
     paymentPageId: pageId,
     total: Number(data.recurringAmount) || undefined,
-    currency: 1,
+    currency: data.currency ?? 1, // use the obligation's own currency
     firstName: contact?.firstName,
     lastName: contact?.lastName ?? undefined,
     mail: contact?.email ?? undefined,
