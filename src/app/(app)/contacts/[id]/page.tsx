@@ -89,6 +89,7 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
   const [oblOpen, setOblOpen] = useState(false);
   const [cardsOpen, setCardsOpen] = useState(false);
   const [adoptOpen, setAdoptOpen] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
   const [openOblId, setOpenOblId] = useState<number | null>(null);
   // Collapsed category groups in the obligations table (by category name).
   const [collapsedCats, setCollapsedCats] = useState<Set<string>>(new Set());
@@ -229,6 +230,11 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
           </h1>
         </div>
         <div className="flex gap-2">
+          {contact.email && (
+            <button className="btn-secondary" onClick={() => setEmailOpen(true)}>
+              ✉️ שלח מייל
+            </button>
+          )}
           <button className="btn-secondary" onClick={() => setCardsOpen(true)}>
             💳 כרטיסי אשראי{contact.creditCards.length > 0 ? ` (${contact.creditCards.length})` : ""}
           </button>
@@ -527,6 +533,15 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
           onCancel={() => setAdoptOpen(false)}
         />
       </Modal>
+
+      <Modal open={emailOpen} onClose={() => setEmailOpen(false)} title={`שליחת מייל ל${contact.firstName}`}>
+        <ContactEmailForm
+          contactId={contact.id}
+          email={contact.email ?? ""}
+          onDone={() => setEmailOpen(false)}
+          onCancel={() => setEmailOpen(false)}
+        />
+      </Modal>
     </div>
   );
 }
@@ -554,5 +569,72 @@ function Detail({ label, value }: { label: string; value: string | null | undefi
       <dt className="text-gray-400">{label}</dt>
       <dd className="font-medium text-gray-800">{value || "—"}</dd>
     </div>
+  );
+}
+
+function ContactEmailForm({
+  contactId,
+  email,
+  onDone,
+  onCancel,
+}: {
+  contactId: number;
+  email: string;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
+  const [subject, setSubject] = useState("");
+  const [body, setBody] = useState("");
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [sent, setSent] = useState(false);
+
+  async function send(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setSending(true);
+    try {
+      await api(`/api/contacts/${contactId}/email`, { method: "POST", body: { subject, body } });
+      setSent(true);
+      setTimeout(onDone, 900);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "שגיאה בשליחת המייל");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  if (sent) {
+    return <div className="py-6 text-center text-emerald-600">✅ המייל נשלח ל-{email}</div>;
+  }
+
+  return (
+    <form onSubmit={send} className="space-y-4">
+      <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+        אל: <b className="text-slate-700" dir="ltr">{email}</b>
+      </div>
+      <div>
+        <label className="label">נושא</label>
+        <input className="input" value={subject} onChange={(e) => setSubject(e.target.value)} required />
+      </div>
+      <div>
+        <label className="label">תוכן ההודעה</label>
+        <textarea
+          className="input min-h-[140px]"
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          required
+        />
+      </div>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
+        <button type="button" className="btn-secondary" onClick={onCancel}>
+          ביטול
+        </button>
+        <button type="submit" className="btn-primary" disabled={sending || !subject.trim() || !body.trim()}>
+          {sending ? "שולח…" : "✉️ שלח מייל"}
+        </button>
+      </div>
+    </form>
   );
 }
