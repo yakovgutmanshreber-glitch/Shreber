@@ -5,8 +5,9 @@ import { api } from "@/lib/client";
 import { formatCurrency, formatMoney, formatDate } from "@/lib/format";
 import { ObligationForm, type ObligationData, type SavedCard } from "@/components/ObligationForm";
 import { TransactionForm, type TransactionData } from "@/components/TransactionForm";
-import { TxStatusBadge, ConfirmButton } from "@/components/ui";
+import { TxStatusBadge, ConfirmButton, ObligationStatusBadge } from "@/components/ui";
 import { ObligationTasksPanel } from "@/components/ObligationTasksPanel";
+import { PAYMENT_METHOD, statusLabel } from "@/lib/constants";
 
 // A single popup that lets you edit an obligation AND manage every transaction
 // belonging to it. Used from the contact profile (and reusable elsewhere).
@@ -107,9 +108,22 @@ export function ObligationDetailModal({
       return sc != null && TX_SUCCESS.has(sc);
     })
     .reduce((s, t) => s + Number(t.amount ?? 0), 0);
-  const balance = Number((obligation as { recurringAmount?: number }).recurringAmount ?? 0) - paid;
+  const recurringAmount = Number((obligation as { recurringAmount?: number }).recurringAmount ?? 0);
+  const balance = recurringAmount - paid;
   // The obligation's own currency (USD hoks show $ paid/balance, not ₪).
   const oblCurrency = Number((obligation as { currency?: number }).currency ?? 1);
+  // --- rich summary header values ---
+  const numPayments = Number((obligation as { numPayments?: number }).numPayments ?? 9999);
+  const chargeType = (obligation as { chargeType?: string }).chargeType ?? "recurring";
+  const chargeTypeLabel =
+    chargeType === "installments" ? "תשלומים" : chargeType === "onetime" ? "חד פעמי" : "הוראת קבע";
+  const categoryName =
+    (obligation as { category?: { category?: string } }).category?.category ??
+    (((obligation as { kind?: string }).kind === "expense") ? "הוצאה" : "הכנסה");
+  const paymentLabel = statusLabel(PAYMENT_METHOD, obligation.paymentMethod);
+  const remaining = numPayments === 9999 ? null : Math.max(0, recurringAmount - paid);
+  const isDebt = obligation.paymentMethod === "cash" && remaining != null && remaining > 0;
+  const isPaidUp = remaining != null && remaining <= 0;
 
   async function chargeBalance() {
     if (!chargeCardId) {
@@ -134,6 +148,60 @@ export function ObligationDetailModal({
 
   return (
     <div>
+      {/* Rich summary header — at-a-glance amount, status, payments, paid/balance */}
+      <div className="mb-4 overflow-hidden rounded-2xl border border-slate-200/70 bg-gradient-to-br from-brand-50/70 via-white to-white p-5 shadow-soft">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium text-slate-500">
+              <span className="rounded-full bg-white/80 px-2 py-0.5 shadow-soft ring-1 ring-slate-200/70">
+                {categoryName}
+              </span>
+              <span className="text-slate-300">•</span>
+              <span>{chargeTypeLabel}</span>
+              <span className="text-slate-300">•</span>
+              <span>{paymentLabel}</span>
+            </div>
+            <div className="mt-2 flex items-baseline gap-1.5">
+              <span className="text-[32px] font-extrabold leading-none tracking-tight text-slate-800">
+                {formatCurrency(recurringAmount, oblCurrency)}
+              </span>
+              {chargeType === "recurring" && numPayments === 9999 && (
+                <span className="text-sm font-medium text-slate-400">/ חודש</span>
+              )}
+            </div>
+          </div>
+          <div className="shrink-0">
+            {isDebt ? (
+              <span className="badge bg-rose-100 text-rose-700">חוב</span>
+            ) : isPaidUp ? (
+              <ObligationStatusBadge status="finished" />
+            ) : (
+              <ObligationStatusBadge status={obligation.status ?? "active"} />
+            )}
+          </div>
+        </div>
+        <div className="mt-4 grid grid-cols-3 gap-2.5">
+          <div className="rounded-xl bg-white/70 px-3 py-2 text-center shadow-soft ring-1 ring-slate-200/60">
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">תשלומים</div>
+            <div className="mt-0.5 text-sm font-bold text-slate-700">
+              {numPayments === 9999 ? "∞" : numPayments}
+            </div>
+          </div>
+          <div className="rounded-xl bg-white/70 px-3 py-2 text-center shadow-soft ring-1 ring-slate-200/60">
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">נגבה</div>
+            <div className="mt-0.5 text-sm font-bold text-emerald-600">{formatCurrency(paid, oblCurrency)}</div>
+          </div>
+          <div className="rounded-xl bg-white/70 px-3 py-2 text-center shadow-soft ring-1 ring-slate-200/60">
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+              {balance > 0 ? "יתרה" : "שולם"}
+            </div>
+            <div className={`mt-0.5 text-sm font-bold ${balance > 0 ? "text-amber-600" : "text-emerald-600"}`}>
+              {balance > 0 ? formatCurrency(balance, oblCurrency) : "✓"}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* מטופל toggle + delete + change card */}
       <div className="mb-3 flex items-center justify-between gap-2">
         <div className="flex flex-wrap gap-2">
