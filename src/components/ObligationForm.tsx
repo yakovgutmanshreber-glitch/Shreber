@@ -294,7 +294,7 @@ export function ObligationForm({
           </select>
         </div>
 
-        {projects.length > 0 && (
+        {isCredit && projects.length > 0 && (
           <div className="sm:col-span-2">
             <label className="label">פרויקט בקשר</label>
             <select
