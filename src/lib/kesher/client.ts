@@ -254,14 +254,15 @@ async function parseRestResponse<T>(res: Response): Promise<KesherResult<T>> {
   const obj = parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {};
   const succeeded = (obj.Succeeded ?? obj.succeeded) as boolean | undefined;
   const code = (obj.Code ?? obj.code) as number | undefined;
-  const message = (obj.Message ?? obj.message) as string | undefined;
-  return {
-    ok: res.ok && (succeeded !== undefined ? succeeded === true : true),
-    code,
-    message,
-    data: parsed as T,
-    raw: parsed,
-  };
+  let message = (obj.Message ?? obj.message) as string | undefined;
+  const ok = res.ok && (succeeded !== undefined ? succeeded === true : true);
+  // Never leave a failure message-less: fall back to any raw text, else the HTTP
+  // status, so the caller always surfaces something actionable (not just "שגיאה").
+  if (!ok && !message) {
+    message =
+      (typeof parsed === "string" && parsed.trim()) || `קשר החזיר שגיאה (HTTP ${res.status})`;
+  }
+  return { ok, code, message, data: parsed as T, raw: parsed };
 }
 
 // --- mock helpers -----------------------------------------------------------
