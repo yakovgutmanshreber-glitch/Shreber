@@ -248,7 +248,7 @@ export function ObligationForm({
   }
 
   return (
-    <form onSubmit={submit} className="space-y-4">
+    <form onSubmit={submit} className="space-y-5">
       {isClosedInKesher && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
           ⚠️ הוראה זו סגורה בקשר ({OBLIGATION_STATUS[form.status as keyof typeof OBLIGATION_STATUS] ?? form.status}).
@@ -256,7 +256,7 @@ export function ObligationForm({
           לחיוב נוסף יש ליצור התחייבות חדשה. (ניתן לערוך הערה בלבד.)
         </div>
       )}
-      <div className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-x-4 gap-y-5 sm:grid-cols-2">
         {!fixedKind && (
           <div>
             <label className="label">סוג</label>
@@ -450,13 +450,18 @@ export function ObligationForm({
                 ? `סכום כולל (${curSymbol})`
                 : `סכום לחיוב חודשי (${curSymbol})`}
           </label>
-          <input
-            type="number"
-            step="0.01"
-            className="input"
-            value={form.recurringAmount ?? 0}
-            onChange={(e) => set("recurringAmount", Number(e.target.value))}
-          />
+          <div className="relative">
+            <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-base font-bold text-slate-400">
+              {curSymbol}
+            </span>
+            <input
+              type="number"
+              step="0.01"
+              className="input !pl-8 text-base font-semibold"
+              value={form.recurringAmount ?? 0}
+              onChange={(e) => set("recurringAmount", Number(e.target.value))}
+            />
+          </div>
           {/* Shekel estimate next to a foreign-currency amount. */}
           {currencyNum !== 1 && amount > 0 && (
             <p className="mt-1 text-xs">
@@ -709,9 +714,15 @@ export function ObligationForm({
 
       {/* Non-credit new obligation: record the received payment inline. */}
       {!isCredit && !isEdit && (
-        <div className="rounded-xl border border-brand-100 bg-brand-50/40 p-4">
-          <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-            <input type="checkbox" checked={recordTx} onChange={(e) => setRecordTx(e.target.checked)} />
+        <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50/70 to-white p-4 shadow-soft">
+          <label className="flex cursor-pointer items-center gap-2.5 text-sm font-semibold text-slate-700">
+            <input
+              type="checkbox"
+              checked={recordTx}
+              onChange={(e) => setRecordTx(e.target.checked)}
+              className="h-4 w-4 accent-emerald-600"
+            />
+            <span className="text-lg">🧾</span>
             רשום תשלום שהתקבל (עסקה)
           </label>
           {recordTx && (
@@ -753,13 +764,13 @@ export function ObligationForm({
       )}
 
       {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-      <div className="flex justify-end gap-2">
-        <button type="button" className="btn-secondary" onClick={onCancel}>
+      <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
+        <button type="button" className="btn-secondary !px-6" onClick={onCancel}>
           ביטול
         </button>
         <button
           type="submit"
-          className={chargesViaKesher ? "btn-danger" : "btn-primary"}
+          className={`!px-6 ${chargesViaKesher ? "btn-danger" : "btn-primary"}`}
           disabled={saving}
         >
           {saving
