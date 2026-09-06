@@ -371,7 +371,9 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
                                 className="cursor-pointer hover:bg-gray-50"
                                 onClick={() => setOpenOblId(o.id)}
                               >
-                                <td className="td num text-gray-500">{o.kesherObligationReference ?? "—"}</td>
+                                <td className="td num text-gray-500">
+                                  {o.kesherObligationReference ?? <span className="text-gray-400">ידני</span>}
+                                </td>
                                 <td className="td">{showMoney(o.recurringAmount, o.currency, o.amountIls)}</td>
                                 <td className="td">{o.numPayments === 9999 ? "ללא הגבלה" : o.numPayments}</td>
                                 <td className="td">{statusLabel(PAYMENT_METHOD, o.paymentMethod)}</td>
@@ -401,7 +403,13 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
                                   )}
                                 </td>
                                 <td className="td">
-                                  {o.paymentMethod === "cash" && remaining !== null && remaining > 0 ? (
+                                  {o.status === "cancelled" || o.status === "paused" ? (
+                                    <ObligationStatusBadge status={o.status} />
+                                  ) : remaining !== null && remaining <= 0 ? (
+                                    // finite obligation fully paid → finished (works for
+                                    // manual entries too, which never got a Kesher event)
+                                    <ObligationStatusBadge status="finished" />
+                                  ) : o.paymentMethod === "cash" && remaining !== null && remaining > 0 ? (
                                     <span className="badge bg-red-100 text-red-700">חוב</span>
                                   ) : (
                                     <ObligationStatusBadge status={o.status} />
