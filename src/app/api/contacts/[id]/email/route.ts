@@ -4,6 +4,7 @@ import { sendMail, MailConfigError } from "@/lib/mail";
 import { z } from "zod";
 
 const schema = z.object({
+  to: z.string().trim().email("כתובת מייל לא תקינה").optional(),
   subject: z.string().trim().min(1, "נושא חובה"),
   body: z.string().trim().min(1, "תוכן ההודעה חובה"),
 });
@@ -14,19 +15,20 @@ export const POST = handler(async (req, ctx) => {
   const { id } = await ctx.params;
   const contact = await prisma.contact.findUnique({ where: { id: Number(id) } });
   if (!contact) throw new ApiError("איש קשר לא נמצא", 404);
-  if (!contact.email) throw new ApiError("לאיש קשר זה אין כתובת מייל", 400);
 
-  const { subject, body } = schema.parse(await req.json());
+  const { to, subject, body } = schema.parse(await req.json());
+  const recipient = to || contact.email;
+  if (!recipient) throw new ApiError("יש להזין כתובת מייל לנמען", 400);
   const html = `<div dir="rtl" style="font-family:Arial,sans-serif;font-size:15px;color:#1e293b;white-space:pre-wrap">${escapeHtml(
     body,
   )}</div>`;
   try {
-    await sendMail({ to: contact.email, subject, text: body, html });
+    await sendMail({ to: recipient, subject, text: body, html });
   } catch (e) {
     if (e instanceof MailConfigError) throw new ApiError(e.message, 400);
     throw e;
   }
-  return { ok: true, to: contact.email };
+  return { ok: true, to: recipient };
 });
 
 function escapeHtml(s: string): string {

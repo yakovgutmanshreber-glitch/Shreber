@@ -230,11 +230,9 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
           </h1>
         </div>
         <div className="flex gap-2">
-          {contact.email && (
-            <button className="btn-secondary" onClick={() => setEmailOpen(true)}>
-              ✉️ שלח מייל
-            </button>
-          )}
+          <button className="btn-secondary" onClick={() => setEmailOpen(true)}>
+            ✉️ שלח מייל
+          </button>
           <button className="btn-secondary" onClick={() => setCardsOpen(true)}>
             💳 כרטיסי אשראי{contact.creditCards.length > 0 ? ` (${contact.creditCards.length})` : ""}
           </button>
@@ -583,6 +581,7 @@ function ContactEmailForm({
   onDone: () => void;
   onCancel: () => void;
 }) {
+  const [to, setTo] = useState(email);
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
@@ -594,7 +593,7 @@ function ContactEmailForm({
     setError(null);
     setSending(true);
     try {
-      await api(`/api/contacts/${contactId}/email`, { method: "POST", body: { subject, body } });
+      await api(`/api/contacts/${contactId}/email`, { method: "POST", body: { to, subject, body } });
       setSent(true);
       setTimeout(onDone, 900);
     } catch (err) {
@@ -605,13 +604,22 @@ function ContactEmailForm({
   }
 
   if (sent) {
-    return <div className="py-6 text-center text-emerald-600">✅ המייל נשלח ל-{email}</div>;
+    return <div className="py-6 text-center text-emerald-600">✅ המייל נשלח ל-{to}</div>;
   }
 
   return (
     <form onSubmit={send} className="space-y-4">
-      <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
-        אל: <b className="text-slate-700" dir="ltr">{email}</b>
+      <div>
+        <label className="label">אל</label>
+        <input
+          type="email"
+          className="input"
+          dir="ltr"
+          value={to}
+          onChange={(e) => setTo(e.target.value)}
+          placeholder="name@example.com"
+          required
+        />
       </div>
       <div>
         <label className="label">נושא</label>
@@ -631,7 +639,11 @@ function ContactEmailForm({
         <button type="button" className="btn-secondary" onClick={onCancel}>
           ביטול
         </button>
-        <button type="submit" className="btn-primary" disabled={sending || !subject.trim() || !body.trim()}>
+        <button
+          type="submit"
+          className="btn-primary"
+          disabled={sending || !to.trim() || !subject.trim() || !body.trim()}
+        >
           {sending ? "שולח…" : "✉️ שלח מייל"}
         </button>
       </div>
