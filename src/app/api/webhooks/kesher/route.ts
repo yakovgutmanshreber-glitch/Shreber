@@ -149,6 +149,10 @@ export async function POST(req: Request) {
       if (cust && pick(cust, "ClientRef")) {
         mark(await upsertCustomer({ ...body, ...cust }));
       }
+      // After obligation + its transaction are in, derive "finished" for a
+      // covered cash/check receipt (Kesher never webhooks that auto-finish).
+      const oblRef = obl ? toStr(pick(obl, "ObligationReference")) : undefined;
+      if (oblRef) await refreshFiniteStatus(oblRef);
     } else {
       // Legacy flat / CrmX payloads.
       const flat = unwrapCrm(body);
@@ -295,7 +299,7 @@ async function upsertObligation(body: Record<string, unknown>): Promise<"process
         chargeDay: day ? Number(day) : null,
         startDate: parseDate(pick(body, "StartDate", "start_date", "TransactionDate", "Date")),
         status: mapObligationStatus(statusRaw),
-        paymentMethod: mapChargeOption(toStr(pick(body, "ChargeOptionType", "ChargeOption", "PaymentMethod"))),
+        paymentMethod: mapChargeType(body),
         payerName: payerName(body),
         payerPhone: payerPhone(body),
         projectName: projectName(body),
@@ -314,6 +318,7 @@ async function upsertObligation(body: Record<string, unknown>): Promise<"process
         ? Number(pick(body, "ChargeDay", "charge_day"))
         : existing.chargeDay,
       status: mapObligationStatus(statusRaw),
+      paymentMethod: mapChargeType(body), // keep Kesher's payment method authoritative
       // Backfill payer/project when missing (undefined => Prisma skips the field).
       payerName: existing.payerName ?? payerName(body),
       payerPhone: existing.payerPhone ?? payerPhone(body),
@@ -480,6 +485,55 @@ function mapChargeOption(v?: string): "credit" | "bank" | "cash" | "check" | "bi
   if (s.includes("check")) return "check";
   if (s.includes("bit")) return "bit";
   return "credit";
+}
+
+// Kesher's real payload carries the payment method as a NUMERIC ChargeOption.Type
+// (1 credit, 2 bank, 3 cash, 4 check), not a string — so read that first, then
+// fall back to any string field. (Missing this stored cash hoks as "credit".)
+function mapChargeType(body: Record<string, unknown>): "credit" | "bank" | "cash" | "check" | "bit" {
+  const co = asObject(body.ChargeOption);
+  const t = co?.Type;
+  if (t != null && /^\d+$/.test(String(t).trim())) {
+    switch (Number(t)) {
+      case 1:
+        return "credit";
+      case 2:
+        return "bank";
+      case 3:
+        return "cash";
+      case 4:
+        return "check";
+    }
+  }
+  return mapChargeOption(toStr(pick(body, "ChargeOptionType", "PaymentMethod")));
+}
+
+// Transaction status codes that mean a real charge settled (mirror sync.ts).
+const TX_SUCCESS = new Set([0, 4, 11, 22]);
+
+// Cash/check obligations are one-time recorded receipts: Kesher marks them
+// "הסתיים" once covered, but sends NO webhook for that auto-finish. Derive it
+// locally — finished when recorded payments cover the amount, else leave as-is
+// (an unpaid cash pledge stays a debt). Never touches cancelled/finished or
+// ongoing recurring hoks.
+async function refreshFiniteStatus(ref: string): Promise<void> {
+  const o = await prisma.obligation.findUnique({
+    where: { kesherObligationReference: ref },
+    include: { transactions: { select: { amount: true, statusCode: true } } },
+  });
+  if (!o) return;
+  if (["cancelled", "finished"].includes(o.status)) return;
+  if (!["cash", "check"].includes(o.paymentMethod)) return; // credit/bank: Kesher status drives it
+  const total = Number(o.recurringAmount);
+  if (!(total > 0)) return;
+  const paid = o.transactions
+    // Cash/check charges often have a null statusCode (no acquirer response) —
+    // a recorded receipt counts as paid; a coded one must be a success code.
+    .filter((t) => (t.statusCode == null ? true : TX_SUCCESS.has(t.statusCode)))
+    .reduce((s, t) => s + Number(t.amount), 0);
+  if (paid + 0.001 >= total) {
+    await prisma.obligation.update({ where: { id: o.id }, data: { status: "finished" } });
+  }
 }
 
 // Kesher's ObligationStatus arrives as an integer code (webhook) or a string.
