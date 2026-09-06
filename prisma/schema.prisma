@@ -291,6 +291,16 @@ model KesherProject {
   updatedAt     DateTime @updatedAt @default(now())
 }
 
+// Saved HTML email templates for the "send email to contact" feature.
+model EmailTemplate {
+  id        Int      @id @default(autoincrement())
+  name      String
+  subject   String   @default("")
+  html      String   @default("") // the template body (HTML)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 // Daily currency exchange rates (foreign -> ILS), auto-updated each morning.
 model CurrencyRate {
   code      String   @id // 'USD' | 'EUR' | 'GBP' | 'CAD'

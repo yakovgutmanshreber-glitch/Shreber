@@ -583,17 +583,36 @@ function ContactEmailForm({
 }) {
   const [to, setTo] = useState(email);
   const [subject, setSubject] = useState("");
-  const [body, setBody] = useState("");
+  const [content, setContent] = useState("");
+  const [isHtml, setIsHtml] = useState(false); // true when a template (HTML) is loaded
+  const [showPreview, setShowPreview] = useState(false);
+  const [templates, setTemplates] = useState<{ id: number; name: string; subject: string; html: string }[]>([]);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+
+  useEffect(() => {
+    api<{ id: number; name: string; subject: string; html: string }[]>("/api/email-templates")
+      .then(setTemplates)
+      .catch(() => {});
+  }, []);
+
+  function applyTemplate(id: string) {
+    const t = templates.find((x) => String(x.id) === id);
+    if (!t) return;
+    setSubject(t.subject);
+    setContent(t.html);
+    setIsHtml(true);
+    setShowPreview(true);
+  }
 
   async function send(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setSending(true);
     try {
-      await api(`/api/contacts/${contactId}/email`, { method: "POST", body: { to, subject, body } });
+      const payload = isHtml ? { to, subject, html: content } : { to, subject, body: content };
+      await api(`/api/contacts/${contactId}/email`, { method: "POST", body: payload });
       setSent(true);
       setTimeout(onDone, 900);
     } catch (err) {
@@ -609,6 +628,19 @@ function ContactEmailForm({
 
   return (
     <form onSubmit={send} className="space-y-4">
+      {templates.length > 0 && (
+        <div>
+          <label className="label">תבנית</label>
+          <select className="input" defaultValue="" onChange={(e) => e.target.value && applyTemplate(e.target.value)}>
+            <option value="">— ללא תבנית (טקסט חופשי) —</option>
+            {templates.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       <div>
         <label className="label">אל</label>
         <input
@@ -626,13 +658,31 @@ function ContactEmailForm({
         <input className="input" value={subject} onChange={(e) => setSubject(e.target.value)} required />
       </div>
       <div>
-        <label className="label">תוכן ההודעה</label>
-        <textarea
-          className="input min-h-[140px]"
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          required
-        />
+        <div className="mb-1 flex items-center justify-between">
+          <label className="label !mb-0">{isHtml ? "תוכן (HTML)" : "תוכן ההודעה"}</label>
+          {isHtml && (
+            <button
+              type="button"
+              className="text-xs font-medium text-brand-600 hover:underline"
+              onClick={() => setShowPreview((v) => !v)}
+            >
+              {showPreview ? "ערוך HTML" : "תצוגה מקדימה"}
+            </button>
+          )}
+        </div>
+        {isHtml && showPreview ? (
+          <div className="card min-h-[140px] overflow-auto bg-white p-4">
+            <div dangerouslySetInnerHTML={{ __html: content }} />
+          </div>
+        ) : (
+          <textarea
+            className={`input min-h-[140px] ${isHtml ? "font-mono text-xs" : ""}`}
+            dir={isHtml ? "ltr" : "rtl"}
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            required
+          />
+        )}
       </div>
       {error && <p className="text-sm text-red-600">{error}</p>}
       <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
@@ -642,7 +692,7 @@ function ContactEmailForm({
         <button
           type="submit"
           className="btn-primary"
-          disabled={sending || !to.trim() || !subject.trim() || !body.trim()}
+          disabled={sending || !to.trim() || !subject.trim() || !content.trim()}
         >
           {sending ? "שולח…" : "✉️ שלח מייל"}
         </button>
