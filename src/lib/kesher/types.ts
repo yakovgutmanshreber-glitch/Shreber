@@ -21,6 +21,8 @@ export interface SendTransactionInput {
   /** amount in shekels (NOT agorot) — the client converts to agorot */
   amount: number;
   currency?: number; // numeric Kesher currency code (1 ILS, 2 USD, 826 GBP, 978 EUR, 124 CAD)
+  /** Kesher project number (פרויקט) to charge under; defaults to the configured project */
+  projectNumber?: string;
   /** our unique id, max 19 chars */
   uniqNum: string;
   /** saved token OR full card details */

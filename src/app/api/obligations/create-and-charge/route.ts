@@ -71,6 +71,7 @@ export const POST = handler(async (req) => {
     res = await kesher.sendTransaction({
       amount: chargeAmount,
       currency: input.currency ?? 1, // charge in the obligation's own currency
+      projectNumber: input.projectNumber || undefined, // Kesher project (פרויקט)
       uniqNum,
       token,
       cardNumber: newCard ? cardNumber : undefined,

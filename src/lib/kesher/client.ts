@@ -417,7 +417,8 @@ export const kesher = {
       ParamJ: "J4", // action type: J4 = actual immediate charge
       ...installmentFields,
       Comment1: input.comment,
-      ProjectNumber: Number(creds.projectNumber) || creds.projectNumber,
+      // Charge under the chosen Kesher project (פרויקט), else the default one.
+      ProjectNumber: input.projectNumber || (Number(creds.projectNumber) || creds.projectNumber),
       UniqNum: input.uniqNum?.slice(0, 19),
       // Customer details (so Kesher shows the payer, not "בעילום שם").
       Id: input.tz, // ת.ז.

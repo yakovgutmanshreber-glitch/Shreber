@@ -76,6 +76,7 @@ export const obligationSchema = z.object({
   branch: optionalString,
   account: optionalString,
   checkNumber: optionalString,
+  projectNumber: optionalString, // Kesher project (פרויקט) to charge under
   comment: optionalString,
   handled: z.boolean().optional(), // מטופל
 });

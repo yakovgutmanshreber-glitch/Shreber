@@ -37,6 +37,7 @@ export interface ObligationData {
   branch?: string | null;
   account?: string | null;
   checkNumber?: string | null;
+  projectNumber?: string | null;
   comment?: string | null;
   handled?: boolean;
   kesherObligationReference?: string | null;
@@ -110,6 +111,8 @@ export function ObligationForm({
 
   // Exchange rates (ISO code -> ₪ per 1 unit) for the live conversion preview.
   const [rates, setRates] = useState<Record<string, number>>({});
+  // Kesher projects (פרויקטים) for the project picker.
+  const [projects, setProjects] = useState<{ projectNumber: string; name: string }[]>([]);
 
   useEffect(() => {
     api<Category[]>("/api/categories").then(setCategories).catch(() => {});
@@ -119,6 +122,9 @@ export function ObligationForm({
         for (const r of rows) m[r.code] = Number(r.rateToIls);
         setRates(m);
       })
+      .catch(() => {});
+    api<{ projectNumber: string; name: string }[]>("/api/kesher/projects")
+      .then(setProjects)
       .catch(() => {});
   }, []);
 
@@ -287,6 +293,27 @@ export function ObligationForm({
             ))}
           </select>
         </div>
+
+        {projects.length > 0 && (
+          <div className="sm:col-span-2">
+            <label className="label">פרויקט בקשר</label>
+            <select
+              className="input"
+              value={form.projectNumber ?? ""}
+              onChange={(e) => set("projectNumber", e.target.value || null)}
+            >
+              <option value="">— פרויקט ברירת מחדל —</option>
+              {projects.map((p) => (
+                <option key={p.projectNumber} value={p.projectNumber}>
+                  {p.name} ({p.projectNumber})
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-gray-400">
+              הפרויקט בקשר שאליו ישויך החיוב. ריק = פרויקט ברירת המחדל.
+            </p>
+          </div>
+        )}
 
         <div className="sm:col-span-2">
           <label className="label">אמצעי תשלום</label>

@@ -209,6 +209,7 @@ model Obligation {
   payerName                 String? // Customer name as Kesher sent it
   payerPhone                String? // Customer phone as Kesher sent it
   projectName               String? // Kesher project / payment-page name (פרויקט)
+  projectNumber             String? // Kesher project number to charge under (ProjectNumber)
   handled                   Boolean      @default(false) // מטופל — flagged as handled/taken care of
   replacesObligationId      Int? // set on a card-change hok; the old hok is cancelled when this activates
   transactions              Transaction[]
@@ -280,6 +281,14 @@ model Task {
 
   @@index([done, notified, dueAt])
   @@index([obligationId])
+}
+
+// Kesher projects (פרויקטים) — derived from the transactions report (no list API
+// exists) and cached here so the obligation form can offer a project picker.
+model KesherProject {
+  projectNumber String   @id // Kesher ProjectNumber (e.g. "38", "00024", "9912")
+  name          String
+  updatedAt     DateTime @updatedAt @default(now())
 }
 
 // Daily currency exchange rates (foreign -> ILS), auto-updated each morning.
