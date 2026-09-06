@@ -316,21 +316,21 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
                   <button
                     type="button"
                     onClick={() => toggleCat(group.category)}
-                    className="flex w-full items-center justify-between bg-gray-50 px-4 py-3 text-right hover:bg-gray-100"
+                    className="flex w-full items-center justify-between bg-gradient-to-l from-[#141a2e] via-[#111629] to-[#0c0f1d] px-4 py-3 text-right transition-colors hover:brightness-125"
                   >
-                    <span className="flex items-center gap-2 font-bold text-gray-800">
-                      <span className="text-gray-400">{collapsed ? "▸" : "▾"}</span>
+                    <span className="flex items-center gap-2 font-bold text-white">
+                      <span className="text-slate-400">{collapsed ? "▸" : "▾"}</span>
                       {group.category}
-                      <span className="text-xs font-normal text-gray-400">
+                      <span className="text-xs font-normal text-slate-400">
                         ({group.obligations.length})
                       </span>
                     </span>
                     <span className="flex flex-wrap items-center justify-end gap-x-4 gap-y-0.5 text-sm font-normal">
-                      <span className="text-green-600">
+                      <span className="text-emerald-400">
                         עברו: ({group.passedCount}) {formatCurrency(group.collected)}
                       </span>
                       {group.failedCount > 0 && (
-                        <span className="text-red-600">
+                        <span className="text-rose-400">
                           לא עבר: ({group.failedCount}) {formatCurrency(group.failedTotal)}
                         </span>
                       )}
