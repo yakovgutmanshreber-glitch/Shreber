@@ -188,9 +188,11 @@ async function requestRest<T = unknown>(
   body?: Record<string, unknown>,
 ): Promise<KesherResult<T>> {
   const creds = await loadCredentials();
-  // The KesherAPI (REST) Bearer token is the API password itself; an explicit
-  // KESHER_API_TOKEN overrides it if ever needed.
-  const bearer = creds.token || creds.password;
+  // The KesherAPI (REST) Bearer token IS the API password. Prefer the password;
+  // fall back to an explicit KESHER_API_TOKEN only if no password is set. (Token
+  // was preferred before, but a STALE KESHER_API_TOKEN then caused HTTP 401 even
+  // with a correct password — password-first avoids that footgun.)
+  const bearer = creds.password || creds.token;
   if (!bearer) {
     throw new KesherConfigError(
       "נדרשים פרטי התחברות לקשר (KESHER_API_PASSWORD) עבור נקודות הקצה החדשות (KesherAPI).",
