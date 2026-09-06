@@ -389,8 +389,16 @@ async function upsertTransaction(body: Record<string, unknown>): Promise<"proces
     transactionType: (toStr(pick(body, "TransactionType")) === "credit" ? "credit" : "debit") as
       | "credit"
       | "debit",
-    chargeOptionType: mapChargeOption(toStr(pick(body, "ChargeOptionType", "ChargeOption", "PaymentMethod"))),
-    statusCode: statusCode !== undefined ? Number(statusCode) : null,
+    // Prefer the obligation's resolved method (cash/check/credit) for consistency.
+    chargeOptionType: obligation?.paymentMethod ?? mapChargeType(body),
+    // Cash/check charges settle with NO Kesher status code — treat a "עבר בהצלחה"
+    // text as a success (code 0) so it counts as paid in the balance/נשאר logic.
+    statusCode:
+      statusCode !== undefined
+        ? Number(statusCode)
+        : /עבר בהצלחה|בוצע/.test(toStr(pick(body, "Status", "StatusText", "ResultMessage")) ?? "")
+          ? 0
+          : null,
     statusText: toStr(pick(body, "Status", "StatusText", "ResultMessage")),
     // `CardMumber` is Kesher's (mis-spelled) field for the card's last 4 digits.
     cardLast4: toStr(pick(body, "CardMumber", "CardLast4", "Last4")),
