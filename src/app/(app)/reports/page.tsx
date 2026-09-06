@@ -5,7 +5,7 @@ import Link from "next/link";
 import { api } from "@/lib/client";
 import { formatMoney, formatCurrency, formatDate } from "@/lib/format";
 import { PAYMENT_METHOD, statusLabel } from "@/lib/constants";
-import { Modal, PageHeader, EmptyState, ConfirmButton, TxStatusBadge } from "@/components/ui";
+import { Modal, PageHeader, EmptyState, ConfirmButton, TxStatusBadge, ObligationStatusBadge } from "@/components/ui";
 import { ObligationDetailModal } from "@/components/ObligationDetailModal";
 import type { ObligationData, SavedCard } from "@/components/ObligationForm";
 import { TransactionForm, type TransactionData } from "@/components/TransactionForm";
@@ -200,7 +200,116 @@ function DebtsReport() {
 
 
 // --- Reports hub -----------------------------------------------------------
-type ReportKey = "debts" | "transactions" | "unlinked";
+// ---------------------------------------------------------------------------
+// Report: obligations with NO category — quick-assign a category inline.
+// ---------------------------------------------------------------------------
+interface UncatObl {
+  id: number;
+  recurringAmount: number;
+  currency: number;
+  amountIls: number | null;
+  numPayments: number;
+  paymentMethod: string;
+  status: string;
+  kesherObligationReference: string | null;
+  contact: { id: number; firstName: string; lastName: string | null } | null;
+}
+interface CatRow {
+  id: number;
+  mainCategory: string;
+  category: string;
+}
+
+function UncategorizedReport() {
+  const [rows, setRows] = useState<UncatObl[]>([]);
+  const [cats, setCats] = useState<CatRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<number | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setRows(await api<UncatObl[]>("/api/obligations?uncategorized=true"));
+    setLoading(false);
+  }, []);
+  useEffect(() => {
+    load();
+    api<CatRow[]>("/api/categories").then(setCats).catch(() => {});
+  }, [load]);
+
+  async function assign(id: number, categoryId: number) {
+    setSaving(id);
+    try {
+      await api(`/api/obligations/${id}`, { method: "PATCH", body: { categoryId } });
+      await load();
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  if (loading) return <div className="card p-8 text-center text-slate-400">טוען…</div>;
+  if (rows.length === 0) return <EmptyState message="כל ההתחייבויות משויכות לקטגוריה 🎉" />;
+
+  return (
+    <div>
+      <p className="mb-3 text-sm text-slate-500">{rows.length} התחייבויות ללא קטגוריה</p>
+      <div className="card overflow-x-auto">
+        <table className="w-full">
+          <thead className="border-b border-slate-200 bg-slate-50/60">
+            <tr>
+              <th className="th">איש קשר</th>
+              <th className="th">אסמכתא</th>
+              <th className="th">סכום</th>
+              <th className="th">תשלומים</th>
+              <th className="th">אמצעי</th>
+              <th className="th">סטטוס</th>
+              <th className="th">שיוך קטגוריה</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {rows.map((o) => (
+              <tr key={o.id} className="hover:bg-slate-50">
+                <td className="td">
+                  {o.contact ? (
+                    <Link href={`/contacts/${o.contact.id}`} className="text-brand-600 hover:underline">
+                      {o.contact.firstName}
+                      {o.contact.lastName ? " " + o.contact.lastName : ""}
+                    </Link>
+                  ) : (
+                    <span className="text-slate-400">— עצמאי —</span>
+                  )}
+                </td>
+                <td className="td num text-slate-500">{o.kesherObligationReference ?? "ידני"}</td>
+                <td className="td num font-medium">{formatMoney(o.recurringAmount, o.currency, o.amountIls)}</td>
+                <td className="td num text-slate-500">{o.numPayments === 9999 ? "ללא הגבלה" : o.numPayments}</td>
+                <td className="td text-slate-500">{statusLabel(PAYMENT_METHOD, o.paymentMethod)}</td>
+                <td className="td">
+                  <ObligationStatusBadge status={o.status} />
+                </td>
+                <td className="td">
+                  <select
+                    className="input max-w-[16rem] !py-1.5 text-xs"
+                    defaultValue=""
+                    disabled={saving === o.id}
+                    onChange={(e) => e.target.value && assign(o.id, Number(e.target.value))}
+                  >
+                    <option value="">{saving === o.id ? "שומר…" : "— בחר קטגוריה —"}</option>
+                    {cats.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.mainCategory} › {c.category}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+type ReportKey = "debts" | "transactions" | "unlinked" | "uncategorized";
 
 const REPORTS: {
   key: ReportKey;
@@ -231,6 +340,18 @@ const REPORTS: {
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M3 3v18h18" />
         <path d="M7 14l3-3 3 3 5-6" />
+      </svg>
+    ),
+  },
+  {
+    key: "uncategorized",
+    title: "התחייבויות ללא קטגוריה",
+    subtitle: "כל ההתחייבויות שלא שויכו לקטגוריה — לשיוך מהיר",
+    tint: "bg-violet-50 text-violet-600",
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L3 13V4a1 1 0 0 1 1-1h9l7.59 7.59a2 2 0 0 1 0 2.82Z" />
+        <path d="M7.5 7.5h.01" />
       </svg>
     ),
   },
@@ -271,6 +392,8 @@ export default function ReportsPage() {
           <DebtsReport />
         ) : active === "transactions" ? (
           <TransactionsReport />
+        ) : active === "uncategorized" ? (
+          <UncategorizedReport />
         ) : (
           <UnlinkedReport />
         )}

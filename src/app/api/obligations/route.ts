@@ -8,11 +8,13 @@ export const GET = handler(async (req) => {
   const kind = searchParams.get("kind"); // 'income' | 'expense'
   const standalone = searchParams.get("standalone"); // 'true' => contactId null
   const contactId = searchParams.get("contactId");
+  const uncategorized = searchParams.get("uncategorized"); // 'true' => categoryId null
 
   const where: Record<string, unknown> = {};
   if (kind) where.kind = kind;
   if (standalone === "true") where.contactId = null;
   if (contactId) where.contactId = Number(contactId);
+  if (uncategorized === "true") where.categoryId = null;
 
   const obligations = await prisma.obligation.findMany({
     where,
