@@ -44,6 +44,11 @@ export const POST = handler(async (req, ctx) => {
       name: card.holderName ?? undefined,
     });
     if (!res.ok) {
+      // Log the full Kesher response for server-side debugging.
+      console.error(
+        "[change-card] ChangeChargeOption failed:",
+        JSON.stringify({ ref: obl.kesherObligationReference, ok: res.ok, code: res.code, message: res.message, raw: res.raw }),
+      );
       // Code 309 = the CompanyDeveloperMail we sent isn't a registered developer
       // user on the Kesher company. This is a configuration issue, not the card.
       if (res.code === 309) {
@@ -52,11 +57,25 @@ export const POST = handler(async (req, ctx) => {
           400,
         );
       }
+      // Code 319 = Kesher doesn't recognize this obligation reference under the
+      // API's company/terminal — the card can't be swapped via the API for it.
+      if (res.code === 319) {
+        throw new ApiError(
+          `קשר לא מזהה את אסמכתת ההוראה (${obl.kesherObligationReference}) תחת פרטי ה-API הנוכחיים — לא ניתן להחליף לה כרטיס דרך המערכת.`,
+          400,
+        );
+      }
       const detail = [res.message, res.code != null ? `קוד ${res.code}` : null]
         .filter(Boolean)
         .join(" · ");
       const raw = res.raw ? ` | ${JSON.stringify(res.raw).slice(0, 300)}` : "";
-      throw new ApiError(`החלפת הכרטיס בקשר נכשלה: ${detail || "שגיאה"}${raw}`, 502);
+      // Empty detail+raw usually means the developer-mail env isn't reaching the
+      // call (Kesher 500s) or the response was blank.
+      const hint =
+        !detail && !raw
+          ? " — ייתכן שחסר KESHER_DEVELOPER_MAIL בהגדרות Vercel (או שלא בוצע Redeploy אחרי ההגדרה)."
+          : "";
+      throw new ApiError(`החלפת הכרטיס בקשר נכשלה: ${detail || "שגיאה"}${raw}${hint}`, 502);
     }
   } catch (e) {
     if (e instanceof KesherConfigError) {
