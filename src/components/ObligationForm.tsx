@@ -125,6 +125,8 @@ export function ObligationForm({
   // Live currency conversion for the selected foreign currency.
   const currencyNum = Number(form.currency ?? 1);
   const rate = currencyNum !== 1 ? rates[currencyIso(currencyNum)] : undefined;
+  const curSymbol =
+    ({ 1: "₪", 2: "$", 826: "£", 978: "€", 124: "C$" } as Record<number, string>)[currencyNum] ?? "₪";
 
   function set<K extends keyof ObligationData>(k: K, v: ObligationData[K]) {
     setForm((f) => ({ ...f, [k]: v }));
@@ -415,7 +417,11 @@ export function ObligationForm({
 
         <div>
           <label className="label">
-            {isOnetime ? "סכום (₪)" : form.chargeType === "installments" ? "סכום כולל (₪)" : "סכום לחיוב חודשי (₪)"}
+            {isOnetime
+              ? `סכום (${curSymbol})`
+              : form.chargeType === "installments"
+                ? `סכום כולל (${curSymbol})`
+                : `סכום לחיוב חודשי (${curSymbol})`}
           </label>
           <input
             type="number"
@@ -424,6 +430,19 @@ export function ObligationForm({
             value={form.recurringAmount ?? 0}
             onChange={(e) => set("recurringAmount", Number(e.target.value))}
           />
+          {/* Shekel estimate next to a foreign-currency amount. */}
+          {currencyNum !== 1 && amount > 0 && (
+            <p className="mt-1 text-xs">
+              {rate ? (
+                <span className="text-slate-500">
+                  ≈ <b className="text-brand-600">{formatCurrency(amount * rate, 1)}</b>{" "}
+                  <span className="text-slate-400">(משוער, בשער היום)</span>
+                </span>
+              ) : (
+                <span className="text-amber-600">אין שער חליפין זמין למטבע זה</span>
+              )}
+            </p>
+          )}
         </div>
         <div>
           <label className="label">מטבע</label>
@@ -442,22 +461,9 @@ export function ObligationForm({
           {isKesherTracked && (
             <p className="mt-1 text-xs text-gray-400">לא ניתן לשנות מטבע לאחר שההוראה נשלחה לקשר</p>
           )}
-          {currencyNum !== 1 && (
+          {currencyNum !== 1 && rate && (
             <p className="mt-1 text-xs text-gray-500">
-              {rate ? (
-                <>
-                  שער: <b>{rate.toFixed(4)}</b> ₪
-                  {amount > 0 && (
-                    <>
-                      {" · "}
-                      {formatCurrency(amount, currencyNum)} ={" "}
-                      <b className="text-brand-600">{formatCurrency(amount * rate, 1)}</b>
-                    </>
-                  )}
-                </>
-              ) : (
-                <span className="text-amber-600">אין שער חליפין זמין למטבע זה</span>
-              )}
+              שער: <b>{rate.toFixed(4)}</b> ₪ ל-1 {curSymbol}
             </p>
           )}
         </div>
