@@ -359,7 +359,13 @@ function DonationForm({
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [contactQuery, setContactQuery] = useState("");
   const set = (k: keyof typeof form, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
+
+  const selectedContact = contacts.find((c) => c.id === form.contactId);
+  const contactHits = contactQuery.trim()
+    ? contacts.filter((c) => fullName(c).includes(contactQuery.trim())).slice(0, 8)
+    : [];
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -400,19 +406,47 @@ function DonationForm({
         </div>
         <div>
           <label className="label">איש קשר *</label>
-          <select
-            className="input"
-            value={form.contactId}
-            onChange={(e) => set("contactId", e.target.value ? Number(e.target.value) : "")}
-            required
-          >
-            <option value="">— בחר איש קשר —</option>
-            {contacts.map((c) => (
-              <option key={c.id} value={c.id}>
-                {fullName(c)}
-              </option>
-            ))}
-          </select>
+          {selectedContact ? (
+            <div className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2">
+              <span className="text-sm">{fullName(selectedContact)}</span>
+              <button
+                type="button"
+                className="text-xs text-red-600 hover:underline"
+                onClick={() => {
+                  set("contactId", "");
+                  setContactQuery("");
+                }}
+              >
+                שנה
+              </button>
+            </div>
+          ) : (
+            <div className="relative">
+              <input
+                className="input"
+                value={contactQuery}
+                onChange={(e) => setContactQuery(e.target.value)}
+                placeholder="חפש איש קשר…"
+              />
+              {contactHits.length > 0 && (
+                <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-slate-200 bg-white shadow-lift">
+                  {contactHits.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      className="block w-full px-3 py-2 text-right text-sm hover:bg-slate-50"
+                      onClick={() => {
+                        set("contactId", c.id);
+                        setContactQuery("");
+                      }}
+                    >
+                      {fullName(c)}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
         <div>
           <label className="label">לרגל</label>
