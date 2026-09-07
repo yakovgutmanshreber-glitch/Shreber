@@ -40,6 +40,7 @@ interface Row {
   donationType: string | null;
   entryDate: string;
   note: string | null;
+  inGilyon: boolean;
   obligationId: number | null;
 }
 
@@ -110,6 +111,15 @@ export default function SpecialDonationsPage() {
     }
   }
 
+  async function toggleInGilyon(r: Row) {
+    try {
+      await api(`/api/special-donations/${r.id}`, { method: "PATCH", body: { inGilyon: !r.inGilyon } });
+      load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "שגיאה");
+    }
+  }
+
   // Group records by גיליון (category), ordered by the gilyonot list (latest first).
   const byCat = new Map<number, Row[]>();
   for (const r of records) {
@@ -120,7 +130,13 @@ export default function SpecialDonationsPage() {
     .filter((g) => byCat.has(g.id))
     .map((g) => {
       const rows = byCat.get(g.id)!;
-      return { id: g.id, name: g.category, rows, total: rows.reduce((s, r) => s + Number(r.amount), 0) };
+      return {
+        id: g.id,
+        name: g.category,
+        rows,
+        total: rows.reduce((s, r) => s + Number(r.amount), 0),
+        inCount: rows.filter((r) => r.inGilyon).length,
+      };
     });
   const shown = filterGilyon ? groups.filter((g) => String(g.id) === filterGilyon) : groups;
   const latestName = gilyonot.find((g) => g.id === latestGilyonId)?.category;
@@ -216,6 +232,9 @@ export default function SpecialDonationsPage() {
                 </span>
                 <div className="flex items-center gap-3">
                   <span className="text-sm text-gray-500">
+                    נכנסו: <b className="text-emerald-700">{g.inCount}</b>/{g.rows.length}
+                  </span>
+                  <span className="text-sm text-gray-500">
                     סך הכל: <b className="text-gray-700">{formatCurrency(g.total)}</b>
                   </span>
                   {filterGilyon !== String(g.id) ? (
@@ -252,6 +271,7 @@ export default function SpecialDonationsPage() {
                       <th className="th">סכום</th>
                       <th className="th">תאריך</th>
                       <th className="th">הערה</th>
+                      <th className="th">נכנס לגיליון</th>
                       <th className="th">התחייב לשלם</th>
                       <th className="th"></th>
                     </tr>
@@ -277,6 +297,20 @@ export default function SpecialDonationsPage() {
                         <td className="td">{formatCurrency(r.amount)}</td>
                         <td className="td">{formatDate(r.entryDate)}</td>
                         <td className="td text-gray-500">{r.note ?? "—"}</td>
+                        <td className="td">
+                          <button
+                            type="button"
+                            onClick={() => toggleInGilyon(r)}
+                            className={`badge cursor-pointer ${
+                              r.inGilyon
+                                ? "bg-emerald-100 text-emerald-700"
+                                : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                            }`}
+                            title="האם נכנס לגיליון"
+                          >
+                            {r.inGilyon ? "✓ נכנס" : "לא נכנס"}
+                          </button>
+                        </td>
                         <td className="td">
                           <label className="flex items-center gap-2" title="יצירת התחייבות לתשלום">
                             <input

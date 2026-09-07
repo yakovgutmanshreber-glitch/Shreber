@@ -128,6 +128,7 @@ model SpecialDonation {
   donationType String? // סוג (dropdown value)
   entryDate    DateTime @default(now()) // the date field
   note         String? // הערה
+  inGilyon     Boolean  @default(false) // נכנס לגיליון — decided later, independent of paying
   obligationId Int?     @unique // set when converted into an Obligation (accepted to pay)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

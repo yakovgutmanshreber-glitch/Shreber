@@ -181,6 +181,7 @@ export const specialDonationSchema = z.object({
   donationType: optionalString, // סוג
   entryDate: z.coerce.date().optional(),
   note: optionalString, // הערה
+  inGilyon: z.boolean().optional(), // נכנס לגיליון
 });
 
 // Editable dropdown list option (לרגל / סוג).
