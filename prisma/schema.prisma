@@ -291,6 +291,13 @@ model KesherProject {
   updatedAt     DateTime @updatedAt @default(now())
 }
 
+// Generic key/value app settings (e.g. the editable שמחות card template).
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt @default(now())
+}
+
 // Saved HTML email templates for the "send email to contact" feature.
 model EmailTemplate {
   id        Int      @id @default(autoincrement())

@@ -18,7 +18,7 @@ import { ObligationForm } from "@/components/ObligationForm";
 import { ObligationDetailModal } from "@/components/ObligationDetailModal";
 import { CreditCardsSection, type CreditCard } from "@/components/CreditCardsSection";
 import { KesherAdoptForm } from "@/components/KesherAdoptForm";
-import { simchaCardHtml, SIMCHA_OCCASIONS, SIMCHA_SUBJECT } from "@/lib/email/simcha";
+import { renderSimcha, DEFAULT_SIMCHA_TEMPLATE, SIMCHA_OCCASIONS, SIMCHA_SUBJECT } from "@/lib/email/simcha";
 
 interface Obligation {
   id: number;
@@ -735,12 +735,19 @@ function SimchaForm({
   const [customOccasion, setCustomOccasion] = useState("");
   const [mode, setMode] = useState<"fields" | "html">("fields"); // edit via fields or raw HTML
   const [editedHtml, setEditedHtml] = useState("");
+  const [template, setTemplate] = useState(DEFAULT_SIMCHA_TEMPLATE); // configurable in Settings
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
 
+  useEffect(() => {
+    api<{ html: string }>("/api/settings/simcha-template")
+      .then((r) => r.html && setTemplate(r.html))
+      .catch(() => {});
+  }, []);
+
   const occasion = occasionSel === "__custom__" ? customOccasion : occasionSel;
-  const generatedHtml = simchaCardHtml({ name: name || "—", occasion: occasion || "—" });
+  const generatedHtml = renderSimcha(template, { name: name || "—", occasion: occasion || "—" });
   const html = mode === "html" ? editedHtml : generatedHtml;
 
   async function send() {
