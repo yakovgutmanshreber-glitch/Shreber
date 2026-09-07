@@ -10,6 +10,7 @@ interface Category {
   mainCategory: string;
   category: string;
   defaultPrice: number;
+  note?: string | null;
 }
 
 export default function CategoriesPage() {
@@ -71,7 +72,10 @@ export default function CategoriesPage() {
                 <tbody className="divide-y divide-gray-100">
                   {items.map((c) => (
                     <tr key={c.id} className="hover:bg-gray-50">
-                      <td className="td font-medium">{c.category}</td>
+                      <td className="td font-medium">
+                        {c.category}
+                        {c.note && <div className="whitespace-pre-wrap text-xs font-normal text-gray-400">{c.note}</div>}
+                      </td>
                       <td className="td text-gray-600">{formatCurrency(c.defaultPrice)}</td>
                       <td className="td text-left">
                         <button
@@ -131,6 +135,7 @@ function CategoryForm({
     mainCategory: category?.mainCategory ?? "",
     category: category?.category ?? "",
     defaultPrice: category?.defaultPrice ?? 0,
+    note: category?.note ?? "",
   });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -181,6 +186,15 @@ function CategoryForm({
           className="input"
           value={form.defaultPrice}
           onChange={(e) => setForm((f) => ({ ...f, defaultPrice: Number(e.target.value) }))}
+        />
+      </div>
+      <div>
+        <label className="label">הערה</label>
+        <textarea
+          className="input min-h-[70px]"
+          value={form.note}
+          onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
+          placeholder="טקסט חופשי…"
         />
       </div>
       {error && <p className="text-sm text-red-600">{error}</p>}

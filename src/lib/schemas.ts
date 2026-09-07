@@ -26,6 +26,7 @@ export const categorySchema = z.object({
   mainCategory: z.string().trim().min(1, "קטגוריה ראשית חובה"),
   category: z.string().trim().min(1, "קטגוריה חובה"),
   defaultPrice: z.coerce.number().min(0).default(0),
+  note: optionalString,
 });
 
 // משימה — reminder task. `dueAt` is an ISO datetime string (UTC) from the form.

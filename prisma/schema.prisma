@@ -165,6 +165,7 @@ model Category {
   mainCategory String // repeats across rows, e.g. "פירות"
   category     String   @unique // unique per row, e.g. "תפוח"
   defaultPrice Decimal  @default(0)
+  note         String? // free-text note/description for the category
   obligations  Obligation[]
   specialDonations SpecialDonation[]
   createdAt    DateTime @default(now())
