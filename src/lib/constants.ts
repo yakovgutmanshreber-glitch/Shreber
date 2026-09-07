@@ -15,6 +15,7 @@ export const OBLIGATION_STATUS = {
   payment_method_cancelled: "אמצעי תשלום בוטל",
   finished: "הסתיים",
   init_error: "שגיאת אתחול",
+  waiting_transfer: "מחכה שהוא יבצע העברה",
 } as const;
 export type ObligationStatus = keyof typeof OBLIGATION_STATUS;
 

@@ -69,6 +69,7 @@ export const obligationSchema = z.object({
       "payment_method_cancelled",
       "finished",
       "init_error",
+      "waiting_transfer",
     ])
     .default("active"),
   paymentMethod: z.enum(["credit", "bank", "cash", "check", "bit"]).default("credit"),

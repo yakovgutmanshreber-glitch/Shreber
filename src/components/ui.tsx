@@ -94,6 +94,7 @@ export function ObligationStatusBadge({ status }: { status: string }) {
     bank_auth_cancelled: "bg-red-100 text-red-700",
     payment_method_cancelled: "bg-red-100 text-red-700",
     init_error: "bg-red-100 text-red-700",
+    waiting_transfer: "bg-amber-100 text-amber-700",
   };
   return (
     <span className={`badge ${colors[status] ?? "bg-gray-100 text-gray-600"}`}>
