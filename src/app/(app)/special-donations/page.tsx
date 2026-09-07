@@ -121,6 +121,49 @@ export default function SpecialDonationsPage() {
     }
   }
 
+  // Print the participants of a gilyon (those marked "נכנס לגיליון").
+  function printGilyon(g: { name: string; rows: Row[] }) {
+    const esc = (s: string) =>
+      String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c] as string));
+    const parts = g.rows.filter((r) => r.inGilyon);
+    if (parts.length === 0) return alert("אין משתתפים שנכנסו לגיליון זה.");
+    const total = parts.reduce((s, r) => s + Number(r.amount), 0);
+    const body = parts
+      .map(
+        (r) =>
+          `<tr><td>${esc(fullName(r.contact))}</td><td>${esc(r.occasion ?? "")}</td><td>${esc(
+            r.donationType ?? "",
+          )}</td><td class="num">${formatCurrency(r.amount)}</td></tr>`,
+      )
+      .join("");
+    const w = window.open("", "_blank", "width=820,height=640");
+    if (!w) return alert("החלון נחסם. אפשר חלונות קופצים כדי להדפיס.");
+    w.document.write(`<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8">
+      <title>גיליון ${esc(g.name)}</title>
+      <style>
+        body{font-family:Arial,sans-serif;color:#1a1a1a;padding:28px;}
+        h1{text-align:center;margin:0 0 4px;}
+        .sub{text-align:center;color:#666;margin:0 0 20px;font-size:14px;}
+        table{width:100%;border-collapse:collapse;}
+        th,td{border:1px solid #d0d0d0;padding:8px 10px;text-align:right;font-size:14px;}
+        th{background:#f2f2f2;}
+        .num{white-space:nowrap;}
+        tfoot td{font-weight:bold;background:#fafafa;}
+        @media print{body{padding:0;}}
+      </style></head><body>
+      <h1>גיליון: ${esc(g.name)}</h1>
+      <p class="sub">${parts.length} משתתפים · סה"כ ${formatCurrency(total)}</p>
+      <table>
+        <thead><tr><th>שם</th><th>לרגל</th><th>סוג</th><th>סכום</th></tr></thead>
+        <tbody>${body}</tbody>
+        <tfoot><tr><td colspan="3">סה"כ</td><td class="num">${formatCurrency(total)}</td></tr></tfoot>
+      </table>
+    </body></html>`);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 250);
+  }
+
   // Group records by גיליון (category), ordered by the gilyonot list (latest first).
   const byCat = new Map<number, Row[]>();
   for (const r of records) {
@@ -249,15 +292,8 @@ export default function SpecialDonationsPage() {
                   <span className="text-sm text-gray-500">
                     סך הכל: <b className="text-gray-700">{formatCurrency(g.total)}</b>
                   </span>
-                  <button
-                    className="btn-primary !py-1.5 text-xs"
-                    onClick={() => {
-                      setEditing(null);
-                      setPreselectGilyon(g.id);
-                      setOpen(true);
-                    }}
-                  >
-                    + הוסף לגיליון
+                  <button className="btn-secondary !py-1.5 text-xs" onClick={() => printGilyon(g)}>
+                    🖨 הדפס משתתפים
                   </button>
                 </div>
               </div>
