@@ -55,6 +55,7 @@ export default function SpecialDonationsPage() {
   const [open, setOpen] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
   const [editing, setEditing] = useState<Row | null>(null);
+  const [preselectGilyon, setPreselectGilyon] = useState<number | null>(null); // gilyon for a new record
   const [filterGilyon, setFilterGilyon] = useState(""); // "" = all
   const [options, setOptions] = useState<ListOption[]>([]);
   const [summaries, setSummaries] = useState<Record<number, ContactSummary>>({});
@@ -164,6 +165,7 @@ export default function SpecialDonationsPage() {
             disabled={gilyonot.length === 0}
             onClick={() => {
               setEditing(null);
+              setPreselectGilyon(null);
               setOpen(true);
             }}
           >
@@ -207,14 +209,38 @@ export default function SpecialDonationsPage() {
         <div className="space-y-4">
           {shown.map((g) => (
             <div key={g.id} className="card overflow-hidden">
-              <div className="flex items-center justify-between bg-gray-50 px-4 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 bg-gray-50 px-4 py-3">
                 <span className="font-bold text-gray-800">
                   {g.name}
                   <span className="mr-2 text-xs font-normal text-gray-400">({g.rows.length})</span>
                 </span>
-                <span className="text-sm text-gray-500">
-                  סך הכל: <b className="text-gray-700">{formatCurrency(g.total)}</b>
-                </span>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-gray-500">
+                    סך הכל: <b className="text-gray-700">{formatCurrency(g.total)}</b>
+                  </span>
+                  {filterGilyon !== String(g.id) ? (
+                    <button
+                      className="text-sm text-brand-600 hover:underline"
+                      onClick={() => setFilterGilyon(String(g.id))}
+                    >
+                      צפה בגיליון
+                    </button>
+                  ) : (
+                    <button className="text-sm text-gray-500 hover:underline" onClick={() => setFilterGilyon("")}>
+                      הצג הכל
+                    </button>
+                  )}
+                  <button
+                    className="btn-primary !py-1.5 text-xs"
+                    onClick={() => {
+                      setEditing(null);
+                      setPreselectGilyon(g.id);
+                      setOpen(true);
+                    }}
+                  >
+                    + הוסף לגיליון
+                  </button>
+                </div>
               </div>
               <div className="overflow-x-auto border-t border-gray-200">
                 <table className="w-full">
@@ -297,7 +323,7 @@ export default function SpecialDonationsPage() {
         <DonationForm
           contacts={contacts}
           gilyonot={gilyonot}
-          defaultGilyonId={latestGilyonId}
+          defaultGilyonId={preselectGilyon ?? latestGilyonId}
           leregelOptions={leregelOptions}
           donationTypeOptions={donationTypeOptions}
           record={editing}
