@@ -58,6 +58,7 @@ export default function SpecialDonationsPage() {
   const [editing, setEditing] = useState<Row | null>(null);
   const [preselectGilyon, setPreselectGilyon] = useState<number | null>(null); // gilyon for a new record
   const [filterGilyon, setFilterGilyon] = useState(""); // "" = all
+  const [onlyInGilyon, setOnlyInGilyon] = useState(false); // show only records that entered the gilyon
   const [options, setOptions] = useState<ListOption[]>([]);
   const [summaries, setSummaries] = useState<Record<number, ContactSummary>>({});
   const [months, setMonths] = useState(3); // שיחות window
@@ -138,7 +139,9 @@ export default function SpecialDonationsPage() {
         inCount: rows.filter((r) => r.inGilyon).length,
       };
     });
-  const shown = filterGilyon ? groups.filter((g) => String(g.id) === filterGilyon) : groups;
+  const shown = (filterGilyon ? groups.filter((g) => String(g.id) === filterGilyon) : groups)
+    .map((g) => (onlyInGilyon ? { ...g, rows: g.rows.filter((r) => r.inGilyon) } : g))
+    .filter((g) => g.rows.length > 0);
   const latestName = gilyonot.find((g) => g.id === latestGilyonId)?.category;
 
   return (
@@ -215,6 +218,15 @@ export default function SpecialDonationsPage() {
             onChange={(e) => setThreshold(e.target.value ? Number(e.target.value) : "")}
           />
         </label>
+        <label className="flex cursor-pointer items-center gap-2">
+          <input
+            type="checkbox"
+            className="h-4 w-4 accent-emerald-600"
+            checked={onlyInGilyon}
+            onChange={(e) => setOnlyInGilyon(e.target.checked)}
+          />
+          <span className="text-gray-600">הצג רק שנכנסו לגיליון</span>
+        </label>
       </div>
 
       {loading ? (
@@ -237,18 +249,6 @@ export default function SpecialDonationsPage() {
                   <span className="text-sm text-gray-500">
                     סך הכל: <b className="text-gray-700">{formatCurrency(g.total)}</b>
                   </span>
-                  {filterGilyon !== String(g.id) ? (
-                    <button
-                      className="text-sm text-brand-600 hover:underline"
-                      onClick={() => setFilterGilyon(String(g.id))}
-                    >
-                      צפה בגיליון
-                    </button>
-                  ) : (
-                    <button className="text-sm text-gray-500 hover:underline" onClick={() => setFilterGilyon("")}>
-                      הצג הכל
-                    </button>
-                  )}
                   <button
                     className="btn-primary !py-1.5 text-xs"
                     onClick={() => {
