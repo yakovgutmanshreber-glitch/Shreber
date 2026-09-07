@@ -18,6 +18,7 @@ import { ObligationForm } from "@/components/ObligationForm";
 import { ObligationDetailModal } from "@/components/ObligationDetailModal";
 import { CreditCardsSection, type CreditCard } from "@/components/CreditCardsSection";
 import { KesherAdoptForm } from "@/components/KesherAdoptForm";
+import { simchaCardHtml, SIMCHA_OCCASIONS, SIMCHA_SUBJECT } from "@/lib/email/simcha";
 
 interface Obligation {
   id: number;
@@ -90,6 +91,7 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
   const [cardsOpen, setCardsOpen] = useState(false);
   const [adoptOpen, setAdoptOpen] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
+  const [simchaOpen, setSimchaOpen] = useState(false);
   const [openOblId, setOpenOblId] = useState<number | null>(null);
   // Collapsed category groups in the obligations table (by category name).
   const [collapsedCats, setCollapsedCats] = useState<Set<string>>(new Set());
@@ -230,6 +232,9 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
           </h1>
         </div>
         <div className="flex gap-2">
+          <button className="btn-secondary" onClick={() => setSimchaOpen(true)}>
+            🎉 שמחות
+          </button>
           <button className="btn-secondary" onClick={() => setEmailOpen(true)}>
             ✉️ שלח מייל
           </button>
@@ -540,6 +545,16 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
           onCancel={() => setEmailOpen(false)}
         />
       </Modal>
+
+      <Modal open={simchaOpen} onClose={() => setSimchaOpen(false)} title="🎉 שליחת ברכת מזל טוב" wide>
+        <SimchaForm
+          contactId={contact.id}
+          email={contact.email ?? ""}
+          defaultName={`${contact.firstName} ${contact.lastName ?? ""}`.trim()}
+          onDone={() => setSimchaOpen(false)}
+          onCancel={() => setSimchaOpen(false)}
+        />
+      </Modal>
     </div>
   );
 }
@@ -698,5 +713,116 @@ function ContactEmailForm({
         </button>
       </div>
     </form>
+  );
+}
+
+function SimchaForm({
+  contactId,
+  email,
+  defaultName,
+  onDone,
+  onCancel,
+}: {
+  contactId: number;
+  email: string;
+  defaultName: string;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
+  const [to, setTo] = useState(email);
+  const [name, setName] = useState(defaultName);
+  const [occasionSel, setOccasionSel] = useState(SIMCHA_OCCASIONS[0]);
+  const [customOccasion, setCustomOccasion] = useState("");
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [sent, setSent] = useState(false);
+
+  const occasion = occasionSel === "__custom__" ? customOccasion : occasionSel;
+  const html = simchaCardHtml({ name: name || "—", occasion: occasion || "—" });
+
+  async function send() {
+    setError(null);
+    setSending(true);
+    try {
+      await api(`/api/contacts/${contactId}/email`, {
+        method: "POST",
+        body: { to, subject: SIMCHA_SUBJECT, html },
+      });
+      setSent(true);
+      setTimeout(onDone, 900);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "שגיאה בשליחת המייל");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  if (sent) {
+    return <div className="py-6 text-center text-emerald-600">✅ הברכה נשלחה ל-{to}</div>;
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+      {/* Form */}
+      <div className="space-y-4">
+        <div>
+          <label className="label">אל</label>
+          <input
+            type="email"
+            className="input"
+            dir="ltr"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            placeholder="name@example.com"
+          />
+        </div>
+        <div>
+          <label className="label">שם הנמען (כפי שיופיע בברכה)</label>
+          <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder='הרה"ח … הי"ו' />
+        </div>
+        <div>
+          <label className="label">האירוע</label>
+          <select className="input" value={occasionSel} onChange={(e) => setOccasionSel(e.target.value)}>
+            {SIMCHA_OCCASIONS.map((o) => (
+              <option key={o} value={o}>
+                {o}
+              </option>
+            ))}
+            <option value="__custom__">אחר (טקסט חופשי)…</option>
+          </select>
+          {occasionSel === "__custom__" && (
+            <input
+              className="input mt-2"
+              value={customOccasion}
+              onChange={(e) => setCustomOccasion(e.target.value)}
+              placeholder="לרגל שמחת…"
+            />
+          )}
+          <p className="mt-1 text-xs text-slate-400">"בשעה טובה ומוצלחת" יתווסף אוטומטית בשורה שנייה.</p>
+        </div>
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
+          <button type="button" className="btn-secondary" onClick={onCancel}>
+            ביטול
+          </button>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={send}
+            disabled={sending || !to.trim() || !name.trim() || !occasion.trim()}
+          >
+            {sending ? "שולח…" : "🎉 שלח ברכה"}
+          </button>
+        </div>
+      </div>
+
+      {/* Live preview */}
+      <div>
+        <label className="label">תצוגה מקדימה</label>
+        <div className="overflow-auto rounded-xl border border-slate-200" style={{ maxHeight: "60vh" }}>
+          <div dangerouslySetInnerHTML={{ __html: html }} />
+        </div>
+      </div>
+    </div>
   );
 }
