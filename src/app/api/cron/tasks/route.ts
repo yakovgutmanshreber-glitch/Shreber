@@ -60,7 +60,7 @@ async function run(req: Request) {
       </div>`;
 
     try {
-      await sendMail({ to, subject: `תזכורת: ${t.title}`, text: lines.join("\n"), html });
+      await sendMail({ to, subject: `תזכורת: ${t.title}`, text: lines.join("\n"), html, kind: "task" });
       await prisma.task.update({
         where: { id: t.id },
         data: { notified: true, notifiedAt: new Date() },

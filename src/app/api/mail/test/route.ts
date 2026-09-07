@@ -5,6 +5,7 @@ import { sendMail, notifyRecipient } from "@/lib/mail";
 export const POST = handler(async () => {
   const to = notifyRecipient();
   await sendMail({
+    kind: "test",
     to,
     subject: "בדיקת מייל — מערכת המשימות",
     text: "זהו מייל בדיקה. אם קיבלת אותו, שליחת התזכורות מוגדרת כראוי. ✅",

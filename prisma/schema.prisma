@@ -293,6 +293,22 @@ model KesherProject {
   updatedAt     DateTime @updatedAt @default(now())
 }
 
+// Log of every email the system sent (for the "מיילים שנשלחו" screen).
+model SentEmail {
+  id        Int      @id @default(autoincrement())
+  to        String
+  subject   String
+  html      String? // the rendered body that was sent
+  contactId Int? // the contact it was sent to (if any)
+  kind      String   @default("email") // 'email' | 'task' | 'test'
+  status    String   @default("sent") // 'sent' | 'failed'
+  error     String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([contactId])
+}
+
 // Generic key/value app settings (e.g. the editable שמחות card template).
 model AppSetting {
   key       String   @id

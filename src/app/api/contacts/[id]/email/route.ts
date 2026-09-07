@@ -30,7 +30,7 @@ export const POST = handler(async (req, ctx) => {
       )}</div>`;
   const text = body ?? rawHtml?.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
   try {
-    await sendMail({ to: recipient, subject, text, html });
+    await sendMail({ to: recipient, subject, text, html, contactId: contact.id, kind: "email" });
   } catch (e) {
     if (e instanceof MailConfigError) throw new ApiError(e.message, 400);
     throw e;
