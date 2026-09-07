@@ -92,6 +92,7 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
   const [adoptOpen, setAdoptOpen] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
   const [simchaOpen, setSimchaOpen] = useState(false);
+  const [statementOpen, setStatementOpen] = useState(false);
   const [openOblId, setOpenOblId] = useState<number | null>(null);
   // Collapsed category groups in the obligations table (by category name).
   const [collapsedCats, setCollapsedCats] = useState<Set<string>>(new Set());
@@ -220,6 +221,32 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
     return { committed, collected, failed, debt, future };
   })();
 
+  // Per-category payment breakdown (for the "דוח תשלומים" email).
+  const statementRows = (() => {
+    const byCat = new Map<string, { category: string; committed: number; paid: number }>();
+    for (const o of contact.obligations) {
+      if (o.status === "cancelled") continue;
+      const cat = o.category?.category ?? "ללא קטגוריה";
+      const amt = Number(o.amountIls ?? o.recurringAmount);
+      const n = o.numPayments;
+      const ongoing = o.chargeType === "recurring" && n === 9999;
+      const numPay = o.chargeType === "onetime" ? 1 : n;
+      const perPayment = o.chargeType === "installments" ? (n > 0 ? amt / n : amt) : amt;
+      const total = ongoing ? null : o.chargeType === "installments" ? amt : perPayment * numPay;
+      const paid = contact.transactions
+        .filter((t) => t.obligationId === o.id && txPassed(t))
+        .reduce((s, t) => s + Number(t.amountIls ?? t.amount), 0);
+      const e = byCat.get(cat) ?? { category: cat, committed: 0, paid: 0 };
+      e.paid += paid;
+      e.committed += total ?? paid; // ongoing hoks: no fixed total → use paid
+      byCat.set(cat, e);
+    }
+    return [...byCat.values()]
+      .map((e) => ({ ...e, remaining: Math.max(0, e.committed - e.paid) }))
+      .filter((e) => e.paid > 0 || e.committed > 0)
+      .sort((a, b) => b.paid - a.paid);
+  })();
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -232,6 +259,9 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
           </h1>
         </div>
         <div className="flex gap-2">
+          <button className="btn-secondary" onClick={() => setStatementOpen(true)}>
+            📄 דוח תשלומים
+          </button>
           <button className="btn-secondary" onClick={() => setSimchaOpen(true)}>
             🎉 שמחות
           </button>
@@ -545,6 +575,17 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
           debt={money.debt}
           onDone={() => setEmailOpen(false)}
           onCancel={() => setEmailOpen(false)}
+        />
+      </Modal>
+
+      <Modal open={statementOpen} onClose={() => setStatementOpen(false)} title="📄 דוח תשלומים" wide>
+        <StatementForm
+          contactId={contact.id}
+          email={contact.email ?? ""}
+          contactName={`${contact.firstName} ${contact.lastName ?? ""}`.trim()}
+          rows={statementRows}
+          onDone={() => setStatementOpen(false)}
+          onCancel={() => setStatementOpen(false)}
         />
       </Modal>
 
@@ -882,6 +923,144 @@ function SimchaForm({
       </div>
 
       {/* Live preview */}
+      <div>
+        <label className="label">תצוגה מקדימה</label>
+        <div className="overflow-auto rounded-xl border border-slate-200" style={{ maxHeight: "60vh" }}>
+          <div dangerouslySetInnerHTML={{ __html: html }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface StatementRow {
+  category: string;
+  committed: number;
+  paid: number;
+  remaining: number;
+}
+
+function statementHtml(name: string, rows: StatementRow[], totalPaid: number, totalRemaining: number): string {
+  const esc = (s: string) =>
+    String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c] as string));
+  const body = rows
+    .map(
+      (r) => `<tr>
+        <td style="border:1px solid #e2e8f0;padding:10px 12px;">${esc(r.category)}</td>
+        <td style="border:1px solid #e2e8f0;padding:10px 12px;text-align:center;color:#059669;font-weight:700;">${formatCurrency(r.paid)}</td>
+        <td style="border:1px solid #e2e8f0;padding:10px 12px;text-align:center;color:#475569;">${formatCurrency(r.committed)}</td>
+        <td style="border:1px solid #e2e8f0;padding:10px 12px;text-align:center;color:${r.remaining > 0 ? "#dc2626" : "#94a3b8"};">${r.remaining > 0 ? formatCurrency(r.remaining) : "✓"}</td>
+      </tr>`,
+    )
+    .join("");
+  return `<div dir="rtl" style="background:#f4f6fb;padding:32px 16px;font-family:Arial,'Segoe UI',sans-serif;">
+  <div style="max-width:640px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 8px 24px rgba(15,23,42,.08);">
+    <div style="background:linear-gradient(135deg,#4f46e5,#6366f1);padding:26px 32px;text-align:center;">
+      <div style="color:#c7d2fe;font-size:13px;letter-spacing:1px;">דברי אלקים חיים</div>
+      <div style="color:#fff;font-size:23px;font-weight:800;margin-top:6px;">דוח תשלומים</div>
+    </div>
+    <div style="padding:28px 32px;">
+      <p style="font-size:16px;color:#1e293b;margin:0 0 18px;">לכבוד <b>${esc(name)}</b> שיחי׳,</p>
+      <p style="font-size:14px;color:#475569;margin:0 0 18px;">להלן פירוט התשלומים לפי קטגוריה:</p>
+      <table style="width:100%;border-collapse:collapse;font-size:14px;">
+        <thead>
+          <tr style="background:#f1f5f9;">
+            <th style="border:1px solid #e2e8f0;padding:10px 12px;text-align:right;">קטגוריה</th>
+            <th style="border:1px solid #e2e8f0;padding:10px 12px;">שולם</th>
+            <th style="border:1px solid #e2e8f0;padding:10px 12px;">התחייבות</th>
+            <th style="border:1px solid #e2e8f0;padding:10px 12px;">נשאר</th>
+          </tr>
+        </thead>
+        <tbody>${body}</tbody>
+        <tfoot>
+          <tr style="background:#f8fafc;font-weight:800;">
+            <td style="border:1px solid #e2e8f0;padding:10px 12px;">סה"כ</td>
+            <td style="border:1px solid #e2e8f0;padding:10px 12px;text-align:center;color:#059669;">${formatCurrency(totalPaid)}</td>
+            <td style="border:1px solid #e2e8f0;padding:10px 12px;"></td>
+            <td style="border:1px solid #e2e8f0;padding:10px 12px;text-align:center;color:${totalRemaining > 0 ? "#dc2626" : "#94a3b8"};">${totalRemaining > 0 ? formatCurrency(totalRemaining) : "✓"}</td>
+          </tr>
+        </tfoot>
+      </table>
+      <p style="font-size:14px;color:#475569;margin:20px 0 0;">תודה על תרומתכם ותמיכתכם.</p>
+      <p style="font-size:15px;color:#1e293b;margin:16px 0 0;">בברכה,<br/><b>ההנהלה</b></p>
+    </div>
+    <div style="background:#f8fafc;border-top:1px solid #eef2f7;padding:14px 32px;text-align:center;color:#94a3b8;font-size:12px;">דברי אלקים חיים</div>
+  </div>
+</div>`;
+}
+
+function StatementForm({
+  contactId,
+  email,
+  contactName,
+  rows,
+  onDone,
+  onCancel,
+}: {
+  contactId: number;
+  email: string;
+  contactName: string;
+  rows: StatementRow[];
+  onDone: () => void;
+  onCancel: () => void;
+}) {
+  const [to, setTo] = useState(email);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [sent, setSent] = useState(false);
+
+  const totalPaid = rows.reduce((s, r) => s + r.paid, 0);
+  const totalRemaining = rows.reduce((s, r) => s + r.remaining, 0);
+  const html = statementHtml(contactName, rows, totalPaid, totalRemaining);
+
+  async function send() {
+    setError(null);
+    setSending(true);
+    try {
+      await api(`/api/contacts/${contactId}/email`, {
+        method: "POST",
+        body: { to, subject: "דוח תשלומים", html },
+      });
+      setSent(true);
+      setTimeout(onDone, 900);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "שגיאה בשליחת המייל");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  if (sent) return <div className="py-6 text-center text-emerald-600">✅ הדוח נשלח ל-{to}</div>;
+  if (rows.length === 0)
+    return <div className="py-6 text-center text-slate-400">אין נתוני תשלומים להצגה לאיש קשר זה.</div>;
+
+  return (
+    <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+      <div className="space-y-4">
+        <div>
+          <label className="label">אל</label>
+          <input
+            type="email"
+            className="input"
+            dir="ltr"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            placeholder="name@example.com"
+          />
+        </div>
+        <p className="text-sm text-slate-500">
+          הדוח מרכז את התשלומים של איש הקשר לפי קטגוריה (שולם / התחייבות / נשאר), ונשלח כמייל מעוצב.
+        </p>
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
+          <button type="button" className="btn-secondary" onClick={onCancel}>
+            ביטול
+          </button>
+          <button type="button" className="btn-primary" onClick={send} disabled={sending || !to.trim()}>
+            {sending ? "שולח…" : "📄 שלח דוח"}
+          </button>
+        </div>
+      </div>
       <div>
         <label className="label">תצוגה מקדימה</label>
         <div className="overflow-auto rounded-xl border border-slate-200" style={{ maxHeight: "60vh" }}>
