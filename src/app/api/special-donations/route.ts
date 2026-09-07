@@ -2,13 +2,14 @@ import { prisma } from "@/lib/prisma";
 import { handler, serialize, ApiError } from "@/lib/api";
 import { specialDonationSchema } from "@/lib/schemas";
 
-const GILYON = "גליון"; // the mainCategory that groups issues (גליונות)
+// The mainCategory that groups issues (גליונות). Accept both spellings.
+const GILYON_NAMES = ["גיליון", "גליון"];
 
 const TX_SUCCESS = new Set([0, 4, 11, 22]);
 const normalize = (s: string) => s.replace(/["'״\s]/g, "");
 const isHokLaGilyon = (name?: string | null) => {
   const n = normalize(name ?? "");
-  return n.includes("הוק") && n.includes("גליון");
+  return n.includes("הוק") && (n.includes("גיליון") || n.includes("גליון"));
 };
 
 export const GET = handler(async () => {
@@ -18,8 +19,8 @@ export const GET = handler(async () => {
       include: { contact: true, category: true },
     }),
     prisma.category.findMany({
-      where: { mainCategory: GILYON },
-      orderBy: { createdAt: "desc" }, // latest גליון first
+      where: { mainCategory: { in: GILYON_NAMES } },
+      orderBy: { createdAt: "desc" }, // latest גיליון first
     }),
   ]);
 
@@ -72,8 +73,8 @@ export const POST = handler(async (req) => {
   const data = specialDonationSchema.parse(body);
   // Guard: the chosen category must actually be a גליון.
   const cat = await prisma.category.findUnique({ where: { id: data.categoryId } });
-  if (!cat || cat.mainCategory !== GILYON) {
-    throw new ApiError("יש לבחור גליון תקין (קטגוריה שהקטגוריה הראשית שלה 'גליון')", 400);
+  if (!cat || !GILYON_NAMES.includes(cat.mainCategory)) {
+    throw new ApiError("יש לבחור גיליון תקין (קטגוריה שהקטגוריה הראשית שלה 'גיליון')", 400);
   }
   const row = await prisma.specialDonation.create({
     data: {

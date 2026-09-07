@@ -109,7 +109,7 @@ export default function SpecialDonationsPage() {
     }
   }
 
-  // Group records by גליון (category), ordered by the gilyonot list (latest first).
+  // Group records by גיליון (category), ordered by the gilyonot list (latest first).
   const byCat = new Map<number, Row[]>();
   for (const r of records) {
     if (!byCat.has(r.categoryId)) byCat.set(r.categoryId, []);
@@ -132,12 +132,12 @@ export default function SpecialDonationsPage() {
           <p className="text-sm text-gray-400">
             {latestName ? (
               <>
-                גליון אחרון:{" "}
+                גיליון אחרון:{" "}
                 <span className="font-semibold text-brand-700">{latestName}</span> — כברירת מחדל
                 רשומה חדשה משויכת אליו
               </>
             ) : (
-              <>אין עדיין גליונות — צור קטגוריה עם קטגוריה ראשית &quot;גליון&quot; בעמוד קטגוריות</>
+              <>אין עדיין גליונות — צור קטגוריה עם קטגוריה ראשית &quot;גיליון&quot; בעמוד קטגוריות</>
             )}
           </p>
         </div>
@@ -365,7 +365,7 @@ function DonationForm({
     e.preventDefault();
     setError(null);
     if (!form.contactId) return setError("יש לבחור איש קשר");
-    if (!form.categoryId) return setError("יש לבחור גליון");
+    if (!form.categoryId) return setError("יש לבחור גיליון");
     setSaving(true);
     try {
       const body = { ...form, contactId: Number(form.contactId), categoryId: Number(form.categoryId) };
@@ -383,14 +383,14 @@ function DonationForm({
     <form onSubmit={submit} className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="label">גליון *</label>
+          <label className="label">גיליון *</label>
           <select
             className="input"
             value={form.categoryId}
             onChange={(e) => set("categoryId", e.target.value ? Number(e.target.value) : "")}
             required
           >
-            <option value="">— בחר גליון —</option>
+            <option value="">— בחר גיליון —</option>
             {gilyonot.map((g) => (
               <option key={g.id} value={g.id}>
                 {g.category}
@@ -501,7 +501,7 @@ function DonorSummary({
       <div className="flex flex-wrap items-center gap-2">
         {summary.hasHok && (
           <span className="rounded bg-brand-100 px-1.5 py-0.5 font-medium text-brand-700">
-            הו״ק לגליון
+            הו״ק לגיליון
           </span>
         )}
         {showObligation && (
