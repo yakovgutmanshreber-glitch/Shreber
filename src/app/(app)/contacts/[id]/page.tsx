@@ -733,12 +733,15 @@ function SimchaForm({
   const [name, setName] = useState(defaultName);
   const [occasionSel, setOccasionSel] = useState(SIMCHA_OCCASIONS[0]);
   const [customOccasion, setCustomOccasion] = useState("");
+  const [mode, setMode] = useState<"fields" | "html">("fields"); // edit via fields or raw HTML
+  const [editedHtml, setEditedHtml] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
 
   const occasion = occasionSel === "__custom__" ? customOccasion : occasionSel;
-  const html = simchaCardHtml({ name: name || "—", occasion: occasion || "—" });
+  const generatedHtml = simchaCardHtml({ name: name || "—", occasion: occasion || "—" });
+  const html = mode === "html" ? editedHtml : generatedHtml;
 
   async function send() {
     setError(null);
@@ -776,30 +779,69 @@ function SimchaForm({
             placeholder="name@example.com"
           />
         </div>
-        <div>
-          <label className="label">שם הנמען (כפי שיופיע בברכה)</label>
-          <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder='הרה"ח … הי"ו' />
-        </div>
-        <div>
-          <label className="label">האירוע</label>
-          <select className="input" value={occasionSel} onChange={(e) => setOccasionSel(e.target.value)}>
-            {SIMCHA_OCCASIONS.map((o) => (
-              <option key={o} value={o}>
-                {o}
-              </option>
-            ))}
-            <option value="__custom__">אחר (טקסט חופשי)…</option>
-          </select>
-          {occasionSel === "__custom__" && (
-            <input
-              className="input mt-2"
-              value={customOccasion}
-              onChange={(e) => setCustomOccasion(e.target.value)}
-              placeholder="לרגל שמחת…"
-            />
+        <div className="flex justify-end">
+          {mode === "fields" ? (
+            <button
+              type="button"
+              className="text-xs font-medium text-brand-600 hover:underline"
+              onClick={() => {
+                setEditedHtml(generatedHtml);
+                setMode("html");
+              }}
+            >
+              ✎ ערוך HTML
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="text-xs font-medium text-brand-600 hover:underline"
+              onClick={() => setMode("fields")}
+            >
+              ← חזרה לשדות
+            </button>
           )}
-          <p className="mt-1 text-xs text-slate-400">"בשעה טובה ומוצלחת" יתווסף אוטומטית בשורה שנייה.</p>
         </div>
+
+        {mode === "fields" ? (
+          <>
+            <div>
+              <label className="label">שם הנמען (כפי שיופיע בברכה)</label>
+              <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder='הרה"ח … הי"ו' />
+            </div>
+            <div>
+              <label className="label">האירוע</label>
+              <select className="input" value={occasionSel} onChange={(e) => setOccasionSel(e.target.value)}>
+                {SIMCHA_OCCASIONS.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+                <option value="__custom__">אחר (טקסט חופשי)…</option>
+              </select>
+              {occasionSel === "__custom__" && (
+                <input
+                  className="input mt-2"
+                  value={customOccasion}
+                  onChange={(e) => setCustomOccasion(e.target.value)}
+                  placeholder="לרגל שמחת…"
+                />
+              )}
+              <p className="mt-1 text-xs text-slate-400">"בשעה טובה ומוצלחת" יתווסף אוטומטית בשורה שנייה.</p>
+            </div>
+          </>
+        ) : (
+          <div>
+            <label className="label">HTML</label>
+            <textarea
+              className="input min-h-[320px] font-mono text-xs"
+              dir="ltr"
+              value={editedHtml}
+              onChange={(e) => setEditedHtml(e.target.value)}
+              spellCheck={false}
+            />
+            <p className="mt-1 text-xs text-slate-400">עריכה ידנית של ה-HTML. "חזרה לשדות" תשחזר מהשדות.</p>
+          </div>
+        )}
         {error && <p className="text-sm text-red-600">{error}</p>}
         <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
           <button type="button" className="btn-secondary" onClick={onCancel}>
@@ -809,7 +851,11 @@ function SimchaForm({
             type="button"
             className="btn-primary"
             onClick={send}
-            disabled={sending || !to.trim() || !name.trim() || !occasion.trim()}
+            disabled={
+              sending ||
+              !to.trim() ||
+              (mode === "fields" ? !name.trim() || !occasion.trim() : !editedHtml.trim())
+            }
           >
             {sending ? "שולח…" : "🎉 שלח ברכה"}
           </button>
