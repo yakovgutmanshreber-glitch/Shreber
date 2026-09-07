@@ -9,7 +9,14 @@ interface Template {
   name: string;
   subject: string;
   html: string;
+  slug: string | null;
 }
+
+// Placeholder hints per system template.
+const PLACEHOLDER_HINT: Record<string, string> = {
+  simcha: "{{name}} = שם הנמען · {{occasion}} = האירוע",
+  statement: "{{name}} = שם הנמען · {{table}} = טבלת התשלומים (נוצרת אוטומטית)",
+};
 
 const STARTER_HTML = `<div dir="rtl" style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1e293b">
   <h2 style="color:#4f46e5">כותרת</h2>
@@ -68,7 +75,10 @@ export default function EmailTemplatesPage() {
               onClick={() => setEditing(t)}
               className="card group p-5 text-right transition-all hover:-translate-y-0.5 hover:shadow-lift"
             >
-              <div className="font-extrabold tracking-tight text-slate-800">{t.name}</div>
+              <div className="flex items-center gap-2">
+                <span className="font-extrabold tracking-tight text-slate-800">{t.name}</span>
+                {t.slug && <span className="badge bg-indigo-100 text-indigo-700">מערכת</span>}
+              </div>
               <div className="mt-0.5 truncate text-sm text-slate-500">{t.subject || "ללא נושא"}</div>
               <div className="mt-3 max-h-24 overflow-hidden rounded-lg border border-slate-100 bg-white p-2 text-[11px] text-slate-400">
                 <div dangerouslySetInnerHTML={{ __html: t.html }} />
@@ -141,6 +151,11 @@ function TemplateEditor({
           </div>
           <div>
             <label className="label">HTML</label>
+            {template?.slug && PLACEHOLDER_HINT[template.slug] && (
+              <p className="mb-1 rounded-lg bg-indigo-50 px-3 py-1.5 text-xs text-indigo-700">
+                שדות דינמיים: {PLACEHOLDER_HINT[template.slug]}
+              </p>
+            )}
             <textarea
               className="input min-h-[340px] font-mono text-xs"
               dir="ltr"
@@ -161,7 +176,7 @@ function TemplateEditor({
       {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
       <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4">
         <div>
-          {template && (
+          {template && !template.slug && (
             <ConfirmButton className="btn-danger" message={`למחוק את התבנית "${template.name}"?`} onConfirm={remove}>
               מחיקה
             </ConfirmButton>

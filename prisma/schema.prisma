@@ -322,6 +322,7 @@ model EmailTemplate {
   name      String
   subject   String   @default("")
   html      String   @default("") // the template body (HTML)
+  slug      String?  @unique // set for built-in system templates ("simcha" | "statement")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

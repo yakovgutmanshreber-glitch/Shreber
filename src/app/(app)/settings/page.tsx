@@ -4,7 +4,6 @@ import { getKesherConfigStatus } from "@/lib/kesher/client";
 import { SettingsForm } from "./SettingsForm";
 import { KesherSyncPanel } from "./KesherSyncPanel";
 import { CurrencyRatesPanel } from "./CurrencyRatesPanel";
-import { SimchaTemplatePanel } from "./SimchaTemplatePanel";
 
 export default async function SettingsPage() {
   const session = await auth();
@@ -66,8 +65,6 @@ export default async function SettingsPage() {
         <CurrencyRatesPanel />
       </div>
 
-      {/* שמחות card template */}
-      <SimchaTemplatePanel />
 
       {/* Webhook URL */}
       <div className="card p-6">

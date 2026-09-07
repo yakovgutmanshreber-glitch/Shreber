@@ -19,6 +19,12 @@ import { ObligationDetailModal } from "@/components/ObligationDetailModal";
 import { CreditCardsSection, type CreditCard } from "@/components/CreditCardsSection";
 import { KesherAdoptForm } from "@/components/KesherAdoptForm";
 import { renderSimcha, DEFAULT_SIMCHA_TEMPLATE, SIMCHA_OCCASIONS, SIMCHA_SUBJECT } from "@/lib/email/simcha";
+import {
+  buildStatementTable,
+  renderStatement,
+  DEFAULT_STATEMENT_TEMPLATE,
+  type StatementRow,
+} from "@/lib/email/statement";
 
 interface Obligation {
   id: number;
@@ -648,13 +654,15 @@ function ContactEmailForm({
   const [content, setContent] = useState("");
   const [isHtml, setIsHtml] = useState(false); // true when a template (HTML) is loaded
   const [showPreview, setShowPreview] = useState(false);
-  const [templates, setTemplates] = useState<{ id: number; name: string; subject: string; html: string }[]>([]);
+  const [templates, setTemplates] = useState<
+    { id: number; name: string; subject: string; html: string; slug: string | null }[]
+  >([]);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
 
   useEffect(() => {
-    api<{ id: number; name: string; subject: string; html: string }[]>("/api/email-templates")
+    api<{ id: number; name: string; subject: string; html: string; slug: string | null }[]>("/api/email-templates")
       .then(setTemplates)
       .catch(() => {});
   }, []);
@@ -701,7 +709,7 @@ function ContactEmailForm({
           <label className="label">תבנית</label>
           <select className="input" defaultValue="" onChange={(e) => e.target.value && applyTemplate(e.target.value)}>
             <option value="">— ללא תבנית (טקסט חופשי) —</option>
-            {templates.map((t) => (
+            {templates.filter((t) => !t.slug).map((t) => (
               <option key={t.id} value={t.id}>
                 {t.name}
               </option>
@@ -788,14 +796,17 @@ function SimchaForm({
   const [customOccasion, setCustomOccasion] = useState("");
   const [mode, setMode] = useState<"fields" | "html">("fields"); // edit via fields or raw HTML
   const [editedHtml, setEditedHtml] = useState("");
-  const [template, setTemplate] = useState(DEFAULT_SIMCHA_TEMPLATE); // configurable in Settings
+  const [template, setTemplate] = useState(DEFAULT_SIMCHA_TEMPLATE); // editable in תבניות מייל
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
 
   useEffect(() => {
-    api<{ html: string }>("/api/settings/simcha-template")
-      .then((r) => r.html && setTemplate(r.html))
+    api<{ html: string; slug: string | null }[]>("/api/email-templates")
+      .then((rows) => {
+        const t = rows.find((x) => x.slug === "simcha");
+        if (t?.html) setTemplate(t.html);
+      })
       .catch(() => {});
   }, []);
 
@@ -933,62 +944,6 @@ function SimchaForm({
   );
 }
 
-interface StatementRow {
-  category: string;
-  committed: number;
-  paid: number;
-  remaining: number;
-}
-
-function statementHtml(name: string, rows: StatementRow[], totalPaid: number, totalRemaining: number): string {
-  const esc = (s: string) =>
-    String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c] as string));
-  const body = rows
-    .map(
-      (r) => `<tr>
-        <td style="border:1px solid #e2e8f0;padding:10px 12px;">${esc(r.category)}</td>
-        <td style="border:1px solid #e2e8f0;padding:10px 12px;text-align:center;color:#059669;font-weight:700;">${formatCurrency(r.paid)}</td>
-        <td style="border:1px solid #e2e8f0;padding:10px 12px;text-align:center;color:#475569;">${formatCurrency(r.committed)}</td>
-        <td style="border:1px solid #e2e8f0;padding:10px 12px;text-align:center;color:${r.remaining > 0 ? "#dc2626" : "#94a3b8"};">${r.remaining > 0 ? formatCurrency(r.remaining) : "✓"}</td>
-      </tr>`,
-    )
-    .join("");
-  return `<div dir="rtl" style="background:#f4f6fb;padding:32px 16px;font-family:Arial,'Segoe UI',sans-serif;">
-  <div style="max-width:640px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 8px 24px rgba(15,23,42,.08);">
-    <div style="background:linear-gradient(135deg,#4f46e5,#6366f1);padding:26px 32px;text-align:center;">
-      <div style="color:#c7d2fe;font-size:13px;letter-spacing:1px;">דברי אלקים חיים</div>
-      <div style="color:#fff;font-size:23px;font-weight:800;margin-top:6px;">דוח תשלומים</div>
-    </div>
-    <div style="padding:28px 32px;">
-      <p style="font-size:16px;color:#1e293b;margin:0 0 18px;">לכבוד <b>${esc(name)}</b> שיחי׳,</p>
-      <p style="font-size:14px;color:#475569;margin:0 0 18px;">להלן פירוט התשלומים לפי קטגוריה:</p>
-      <table style="width:100%;border-collapse:collapse;font-size:14px;">
-        <thead>
-          <tr style="background:#f1f5f9;">
-            <th style="border:1px solid #e2e8f0;padding:10px 12px;text-align:right;">קטגוריה</th>
-            <th style="border:1px solid #e2e8f0;padding:10px 12px;">שולם</th>
-            <th style="border:1px solid #e2e8f0;padding:10px 12px;">התחייבות</th>
-            <th style="border:1px solid #e2e8f0;padding:10px 12px;">נשאר</th>
-          </tr>
-        </thead>
-        <tbody>${body}</tbody>
-        <tfoot>
-          <tr style="background:#f8fafc;font-weight:800;">
-            <td style="border:1px solid #e2e8f0;padding:10px 12px;">סה"כ</td>
-            <td style="border:1px solid #e2e8f0;padding:10px 12px;text-align:center;color:#059669;">${formatCurrency(totalPaid)}</td>
-            <td style="border:1px solid #e2e8f0;padding:10px 12px;"></td>
-            <td style="border:1px solid #e2e8f0;padding:10px 12px;text-align:center;color:${totalRemaining > 0 ? "#dc2626" : "#94a3b8"};">${totalRemaining > 0 ? formatCurrency(totalRemaining) : "✓"}</td>
-          </tr>
-        </tfoot>
-      </table>
-      <p style="font-size:14px;color:#475569;margin:20px 0 0;">תודה על תרומתכם ותמיכתכם.</p>
-      <p style="font-size:15px;color:#1e293b;margin:16px 0 0;">בברכה,<br/><b>ההנהלה</b></p>
-    </div>
-    <div style="background:#f8fafc;border-top:1px solid #eef2f7;padding:14px 32px;text-align:center;color:#94a3b8;font-size:12px;">דברי אלקים חיים</div>
-  </div>
-</div>`;
-}
-
 function StatementForm({
   contactId,
   email,
@@ -1005,13 +960,22 @@ function StatementForm({
   onCancel: () => void;
 }) {
   const [to, setTo] = useState(email);
+  const [template, setTemplate] = useState(DEFAULT_STATEMENT_TEMPLATE); // editable in תבניות מייל
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
 
-  const totalPaid = rows.reduce((s, r) => s + r.paid, 0);
-  const totalRemaining = rows.reduce((s, r) => s + r.remaining, 0);
-  const html = statementHtml(contactName, rows, totalPaid, totalRemaining);
+  useEffect(() => {
+    api<{ html: string; slug: string | null }[]>("/api/email-templates")
+      .then((tmpls) => {
+        const t = tmpls.find((x) => x.slug === "statement");
+        if (t?.html) setTemplate(t.html);
+      })
+      .catch(() => {});
+  }, []);
+
+  const tableHtml = buildStatementTable(rows, (n) => formatCurrency(n));
+  const html = renderStatement(template, { name: contactName, tableHtml });
 
   async function send() {
     setError(null);
