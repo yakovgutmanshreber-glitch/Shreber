@@ -54,13 +54,15 @@ export const DEFAULT_SIMCHA_TEMPLATE = `<div dir="rtl" style="background:#f5f3ef
 /** Fill a template's placeholders (HTML-escaped): {{name}} {{occasion}} {{date}} {{total_paid}}. */
 export function renderSimcha(
   template: string,
-  v: { name: string; occasion: string; date?: string; totalPaid?: string },
+  v: { name: string; occasion: string; date?: string; totalPaid?: string; phone?: string; debt?: string },
 ): string {
   return template
     .replace(/\{\{\s*name\s*\}\}/g, esc(v.name))
     .replace(/\{\{\s*occasion\s*\}\}/g, esc(v.occasion))
     .replace(/\{\{\s*date\s*\}\}/g, esc(v.date ?? ""))
-    .replace(/\{\{\s*total_paid\s*\}\}/g, esc(v.totalPaid ?? ""));
+    .replace(/\{\{\s*total_paid\s*\}\}/g, esc(v.totalPaid ?? ""))
+    .replace(/\{\{\s*phone\s*\}\}/g, esc(v.phone ?? ""))
+    .replace(/\{\{\s*debt\s*\}\}/g, esc(v.debt ?? ""));
 }
 
 /** Render with the built-in default template. */

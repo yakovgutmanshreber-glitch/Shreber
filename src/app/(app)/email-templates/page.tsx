@@ -14,9 +14,10 @@ interface Template {
 
 // Placeholder hints per system template.
 const PLACEHOLDER_HINT: Record<string, string> = {
-  simcha: "{{name}} = שם · {{occasion}} = האירוע · {{date}} = תאריך · {{total_paid}} = סה”כ ששולם",
+  simcha:
+    "{{name}} שם · {{occasion}} אירוע · {{date}} תאריך · {{total_paid}} סה”כ ששולם · {{debt}} חוב · {{phone}} טלפון",
   statement:
-    "{{name}} = שם · {{table}} = טבלת התשלומים · {{date}} = תאריך · {{total_paid}} = סה”כ ששולם",
+    "{{name}} שם · {{table}} טבלת תשלומים · {{date}} תאריך · {{total_paid}} סה”כ ששולם · {{debt}} חוב · {{phone}} טלפון",
 };
 
 const STARTER_HTML = `<div dir="rtl" style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1e293b">

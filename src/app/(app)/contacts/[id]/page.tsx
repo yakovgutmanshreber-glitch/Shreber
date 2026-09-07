@@ -580,6 +580,7 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
           contactName={`${contact.firstName} ${contact.lastName ?? ""}`.trim()}
           debt={money.debt}
           totalPaid={money.collected}
+          phone={contact.phone ?? ""}
           onDone={() => setEmailOpen(false)}
           onCancel={() => setEmailOpen(false)}
         />
@@ -591,6 +592,8 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
           email={contact.email ?? ""}
           contactName={`${contact.firstName} ${contact.lastName ?? ""}`.trim()}
           rows={statementRows}
+          phone={contact.phone ?? ""}
+          debt={money.debt}
           onDone={() => setStatementOpen(false)}
           onCancel={() => setStatementOpen(false)}
         />
@@ -602,6 +605,8 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
           email={contact.email ?? ""}
           defaultName={`${contact.firstName} ${contact.lastName ?? ""}`.trim()}
           totalPaid={money.collected}
+          phone={contact.phone ?? ""}
+          debt={money.debt}
           onDone={() => setSimchaOpen(false)}
           onCancel={() => setSimchaOpen(false)}
         />
@@ -642,6 +647,7 @@ function ContactEmailForm({
   contactName,
   debt,
   totalPaid,
+  phone,
   onDone,
   onCancel,
 }: {
@@ -650,6 +656,7 @@ function ContactEmailForm({
   contactName: string;
   debt: number;
   totalPaid: number;
+  phone: string;
   onDone: () => void;
   onCancel: () => void;
 }) {
@@ -677,6 +684,7 @@ function ContactEmailForm({
       .replace(/\{\{\s*name\s*\}\}/g, contactName)
       .replace(/\{\{\s*(amount|debt)\s*\}\}/g, formatCurrency(debt))
       .replace(/\{\{\s*total_paid\s*\}\}/g, formatCurrency(totalPaid))
+      .replace(/\{\{\s*phone\s*\}\}/g, phone)
       .replace(/\{\{\s*date\s*\}\}/g, formatDate(new Date()));
 
   function applyTemplate(id: string) {
@@ -788,6 +796,8 @@ function SimchaForm({
   email,
   defaultName,
   totalPaid,
+  phone,
+  debt,
   onDone,
   onCancel,
 }: {
@@ -795,6 +805,8 @@ function SimchaForm({
   email: string;
   defaultName: string;
   totalPaid: number;
+  phone: string;
+  debt: number;
   onDone: () => void;
   onCancel: () => void;
 }) {
@@ -824,6 +836,8 @@ function SimchaForm({
     occasion: occasion || "—",
     date: formatDate(new Date()),
     totalPaid: formatCurrency(totalPaid),
+    phone,
+    debt: formatCurrency(debt),
   });
   const html = mode === "html" ? editedHtml : generatedHtml;
 
@@ -962,6 +976,8 @@ function StatementForm({
   email,
   contactName,
   rows,
+  phone,
+  debt,
   onDone,
   onCancel,
 }: {
@@ -969,6 +985,8 @@ function StatementForm({
   email: string;
   contactName: string;
   rows: StatementRow[];
+  phone: string;
+  debt: number;
   onDone: () => void;
   onCancel: () => void;
 }) {
@@ -993,6 +1011,8 @@ function StatementForm({
     tableHtml,
     date: formatDate(new Date()),
     totalPaid: formatCurrency(rows.reduce((s, r) => s + r.paid, 0)),
+    phone,
+    debt: formatCurrency(debt),
   });
 
   async function send() {
