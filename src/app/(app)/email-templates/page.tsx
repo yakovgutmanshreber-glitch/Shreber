@@ -14,8 +14,9 @@ interface Template {
 
 // Placeholder hints per system template.
 const PLACEHOLDER_HINT: Record<string, string> = {
-  simcha: "{{name}} = שם הנמען · {{occasion}} = האירוע",
-  statement: "{{name}} = שם הנמען · {{table}} = טבלת התשלומים (נוצרת אוטומטית)",
+  simcha: "{{name}} = שם · {{occasion}} = האירוע · {{date}} = תאריך · {{total_paid}} = סה”כ ששולם",
+  statement:
+    "{{name}} = שם · {{table}} = טבלת התשלומים · {{date}} = תאריך · {{total_paid}} = סה”כ ששולם",
 };
 
 const STARTER_HTML = `<div dir="rtl" style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1e293b">

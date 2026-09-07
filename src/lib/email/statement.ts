@@ -70,9 +70,14 @@ export function buildStatementTable(rows: StatementRow[], fmt: Fmt): string {
   </table>`;
 }
 
-/** Fill the wrapper template's {{name}} and {{table}} placeholders. */
-export function renderStatement(template: string, v: { name: string; tableHtml: string }): string {
+/** Fill the wrapper template's placeholders: {{name}} {{table}} {{date}} {{total_paid}}. */
+export function renderStatement(
+  template: string,
+  v: { name: string; tableHtml: string; date?: string; totalPaid?: string },
+): string {
   return template
     .replace(/\{\{\s*name\s*\}\}/g, esc(v.name))
-    .replace(/\{\{\s*table\s*\}\}/g, v.tableHtml);
+    .replace(/\{\{\s*table\s*\}\}/g, v.tableHtml)
+    .replace(/\{\{\s*date\s*\}\}/g, esc(v.date ?? ""))
+    .replace(/\{\{\s*total_paid\s*\}\}/g, esc(v.totalPaid ?? ""));
 }

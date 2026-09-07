@@ -579,6 +579,7 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
           email={contact.email ?? ""}
           contactName={`${contact.firstName} ${contact.lastName ?? ""}`.trim()}
           debt={money.debt}
+          totalPaid={money.collected}
           onDone={() => setEmailOpen(false)}
           onCancel={() => setEmailOpen(false)}
         />
@@ -600,6 +601,7 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
           contactId={contact.id}
           email={contact.email ?? ""}
           defaultName={`${contact.firstName} ${contact.lastName ?? ""}`.trim()}
+          totalPaid={money.collected}
           onDone={() => setSimchaOpen(false)}
           onCancel={() => setSimchaOpen(false)}
         />
@@ -639,6 +641,7 @@ function ContactEmailForm({
   email,
   contactName,
   debt,
+  totalPaid,
   onDone,
   onCancel,
 }: {
@@ -646,6 +649,7 @@ function ContactEmailForm({
   email: string;
   contactName: string;
   debt: number;
+  totalPaid: number;
   onDone: () => void;
   onCancel: () => void;
 }) {
@@ -671,7 +675,9 @@ function ContactEmailForm({
   const fill = (s: string) =>
     s
       .replace(/\{\{\s*name\s*\}\}/g, contactName)
-      .replace(/\{\{\s*(amount|debt)\s*\}\}/g, formatCurrency(debt));
+      .replace(/\{\{\s*(amount|debt)\s*\}\}/g, formatCurrency(debt))
+      .replace(/\{\{\s*total_paid\s*\}\}/g, formatCurrency(totalPaid))
+      .replace(/\{\{\s*date\s*\}\}/g, formatDate(new Date()));
 
   function applyTemplate(id: string) {
     const t = templates.find((x) => String(x.id) === id);
@@ -781,12 +787,14 @@ function SimchaForm({
   contactId,
   email,
   defaultName,
+  totalPaid,
   onDone,
   onCancel,
 }: {
   contactId: number;
   email: string;
   defaultName: string;
+  totalPaid: number;
   onDone: () => void;
   onCancel: () => void;
 }) {
@@ -811,7 +819,12 @@ function SimchaForm({
   }, []);
 
   const occasion = occasionSel === "__custom__" ? customOccasion : occasionSel;
-  const generatedHtml = renderSimcha(template, { name: name || "—", occasion: occasion || "—" });
+  const generatedHtml = renderSimcha(template, {
+    name: name || "—",
+    occasion: occasion || "—",
+    date: formatDate(new Date()),
+    totalPaid: formatCurrency(totalPaid),
+  });
   const html = mode === "html" ? editedHtml : generatedHtml;
 
   async function send() {
@@ -975,7 +988,12 @@ function StatementForm({
   }, []);
 
   const tableHtml = buildStatementTable(rows, (n) => formatCurrency(n));
-  const html = renderStatement(template, { name: contactName, tableHtml });
+  const html = renderStatement(template, {
+    name: contactName,
+    tableHtml,
+    date: formatDate(new Date()),
+    totalPaid: formatCurrency(rows.reduce((s, r) => s + r.paid, 0)),
+  });
 
   async function send() {
     setError(null);
