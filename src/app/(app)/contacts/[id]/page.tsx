@@ -541,6 +541,8 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
         <ContactEmailForm
           contactId={contact.id}
           email={contact.email ?? ""}
+          contactName={`${contact.firstName} ${contact.lastName ?? ""}`.trim()}
+          debt={money.debt}
           onDone={() => setEmailOpen(false)}
           onCancel={() => setEmailOpen(false)}
         />
@@ -588,11 +590,15 @@ function Detail({ label, value }: { label: string; value: string | null | undefi
 function ContactEmailForm({
   contactId,
   email,
+  contactName,
+  debt,
   onDone,
   onCancel,
 }: {
   contactId: number;
   email: string;
+  contactName: string;
+  debt: number;
   onDone: () => void;
   onCancel: () => void;
 }) {
@@ -612,11 +618,17 @@ function ContactEmailForm({
       .catch(() => {});
   }, []);
 
+  // Fill {{name}} / {{amount}} / {{debt}} placeholders with this contact's data.
+  const fill = (s: string) =>
+    s
+      .replace(/\{\{\s*name\s*\}\}/g, contactName)
+      .replace(/\{\{\s*(amount|debt)\s*\}\}/g, formatCurrency(debt));
+
   function applyTemplate(id: string) {
     const t = templates.find((x) => String(x.id) === id);
     if (!t) return;
-    setSubject(t.subject);
-    setContent(t.html);
+    setSubject(fill(t.subject));
+    setContent(fill(t.html));
     setIsHtml(true);
     setShowPreview(true);
   }
