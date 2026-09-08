@@ -146,7 +146,6 @@ const NAV: { href: string; label: string; icon: IconName }[] = [
   { href: "/tasks", label: "משימות", icon: "tasks" },
   { href: "/email-templates", label: "תבניות מייל", icon: "mail" },
   { href: "/sent-emails", label: "מיילים שנשלחו", icon: "sent" },
-  { href: "/recordings", label: "הקלטות", icon: "recordings" },
 ];
 
 export function Sidebar({ userName, role }: { userName: string; role: "admin" | "user" }) {

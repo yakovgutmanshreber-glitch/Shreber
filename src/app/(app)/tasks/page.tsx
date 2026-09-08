@@ -5,6 +5,7 @@ import { api } from "@/lib/client";
 import { formatDateTime } from "@/lib/format";
 import { Modal, PageHeader, EmptyState, ConfirmButton } from "@/components/ui";
 import { TaskForm, type Task } from "@/components/TaskForm";
+import { RecordingsTab } from "@/components/RecordingsTab";
 
 function StatusBadge({ task }: { task: Task }) {
   let label = "ממתין";
@@ -29,6 +30,7 @@ export default function TasksPage() {
   const [editing, setEditing] = useState<Task | null>(null);
   const [testMsg, setTestMsg] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
+  const [tab, setTab] = useState<"tasks" | "recordings">("tasks");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -67,59 +69,87 @@ export default function TasksPage() {
     <div>
       <PageHeader
         title="משימות"
-        subtitle="תזכורות שנשלחות אליך במייל בזמן שנקבע"
+        subtitle={tab === "tasks" ? "תזכורות שנשלחות אליך במייל בזמן שנקבע" : "הקלטות שיחות משלוחה 6"}
         action={
-          <>
-            <button className="btn-secondary" onClick={sendTest} disabled={testing}>
-              {testing ? "שולח…" : "שלח מייל בדיקה"}
-            </button>
-            <button
-              className="btn-primary"
-              onClick={() => {
-                setEditing(null);
-                setModalOpen(true);
-              }}
-            >
-              + משימה חדשה
-            </button>
-          </>
+          tab === "tasks" ? (
+            <>
+              <button className="btn-secondary" onClick={sendTest} disabled={testing}>
+                {testing ? "שולח…" : "שלח מייל בדיקה"}
+              </button>
+              <button
+                className="btn-primary"
+                onClick={() => {
+                  setEditing(null);
+                  setModalOpen(true);
+                }}
+              >
+                + משימה חדשה
+              </button>
+            </>
+          ) : undefined
         }
       />
 
-      {testMsg && <p className="mb-4 text-sm text-slate-600">{testMsg}</p>}
+      {/* Tabs: משימות | הקלטות */}
+      <div className="mb-4 flex items-center gap-1 border-b border-slate-200">
+        {([
+          ["tasks", "משימות"],
+          ["recordings", "הקלטות"],
+        ] as const).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={`-mb-px border-b-2 px-4 py-2 text-sm font-semibold transition-colors ${
+              tab === key
+                ? "border-brand-600 text-brand-600"
+                : "border-transparent text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
-      {loading ? (
-        <div className="card p-8 text-center text-slate-400">טוען…</div>
-      ) : tasks.length === 0 ? (
-        <EmptyState message="אין משימות — צור תזכורת ראשונה 🔔" />
+      {tab === "recordings" ? (
+        <RecordingsTab />
       ) : (
-        <div className="space-y-6">
-          {open.length > 0 && (
-            <TaskTable
-              title={`פתוחות (${open.length})`}
-              tasks={open}
-              onEdit={(t) => {
-                setEditing(t);
-                setModalOpen(true);
-              }}
-              onToggle={toggleDone}
-              onRemove={remove}
-            />
+        <>
+          {testMsg && <p className="mb-4 text-sm text-slate-600">{testMsg}</p>}
+
+          {loading ? (
+            <div className="card p-8 text-center text-slate-400">טוען…</div>
+          ) : tasks.length === 0 ? (
+            <EmptyState message="אין משימות — צור תזכורת ראשונה 🔔" />
+          ) : (
+            <div className="space-y-6">
+              {open.length > 0 && (
+                <TaskTable
+                  title={`פתוחות (${open.length})`}
+                  tasks={open}
+                  onEdit={(t) => {
+                    setEditing(t);
+                    setModalOpen(true);
+                  }}
+                  onToggle={toggleDone}
+                  onRemove={remove}
+                />
+              )}
+              {done.length > 0 && (
+                <TaskTable
+                  title={`בוצעו (${done.length})`}
+                  tasks={done}
+                  muted
+                  onEdit={(t) => {
+                    setEditing(t);
+                    setModalOpen(true);
+                  }}
+                  onToggle={toggleDone}
+                  onRemove={remove}
+                />
+              )}
+            </div>
           )}
-          {done.length > 0 && (
-            <TaskTable
-              title={`בוצעו (${done.length})`}
-              tasks={done}
-              muted
-              onEdit={(t) => {
-                setEditing(t);
-                setModalOpen(true);
-              }}
-              onToggle={toggleDone}
-              onRemove={remove}
-            />
-          )}
-        </div>
+        </>
       )}
 
       <Modal
