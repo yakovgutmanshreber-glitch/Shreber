@@ -3,9 +3,8 @@ import { listRecordings, recordingsExt } from "@/lib/yemot/client";
 
 // GET /api/yemot/recordings — live list of recordings in the Yemot extension.
 export const GET = handler(async () => {
-  const ext = recordingsExt();
-  const recordings = await listRecordings(ext);
-  return serialize({ ext, recordings });
+  const recordings = await listRecordings();
+  return serialize({ ext: recordingsExt(), recordings });
 });
 
 export const maxDuration = 60;

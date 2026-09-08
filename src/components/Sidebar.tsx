@@ -14,6 +14,7 @@ type IconName =
   | "tasks"
   | "mail"
   | "sent"
+  | "recordings"
   | "users"
   | "settings"
   | "logout";
@@ -99,6 +100,15 @@ function Icon({ name }: { name: IconName }) {
           <path d="M22 2 15 22l-4-9-9-4Z" />
         </svg>
       );
+    case "recordings":
+      return (
+        <svg {...common}>
+          <rect x="9" y="2" width="6" height="12" rx="3" />
+          <path d="M5 10a7 7 0 0 0 14 0" />
+          <path d="M12 17v4" />
+          <path d="M8 21h8" />
+        </svg>
+      );
     case "users":
       return (
         <svg {...common}>
@@ -136,6 +146,7 @@ const NAV: { href: string; label: string; icon: IconName }[] = [
   { href: "/tasks", label: "משימות", icon: "tasks" },
   { href: "/email-templates", label: "תבניות מייל", icon: "mail" },
   { href: "/sent-emails", label: "מיילים שנשלחו", icon: "sent" },
+  { href: "/recordings", label: "הקלטות", icon: "recordings" },
 ];
 
 export function Sidebar({ userName, role }: { userName: string; role: "admin" | "user" }) {

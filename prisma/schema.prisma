@@ -85,8 +85,29 @@ model Contact {
   creditCards     CreditCard[]
   specialDonations SpecialDonation[]
   tasks           Task[]
+  callRecordings  CallRecording[]
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+// הקלטות — phone recordings pulled from Yemot HaMashiach (call2all).
+// Each row mirrors one recording archived in ivr2:/Trash/Record, matched to a
+// Contact by the caller's phone. Synced live + by cron ("from today onwards").
+model CallRecording {
+  id          Int      @id @default(autoincrement())
+  uniqueId    String   @unique // Yemot uniqueId — dedupe key
+  fileName    String // e.g. "263-5991.wav" (used to stream the audio)
+  phone       String? // caller phone, as Yemot reports it
+  contactId   Int?
+  contact     Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  durationSec Int      @default(0)
+  recordedAt  DateTime
+  handled     Boolean  @default(false) // "טופל" — marked done by staff
+  note        String?
+  createdAt   DateTime @default(now())
+
+  @@index([contactId])
+  @@index([recordedAt])
 }
 
 // שיחות — a log of what was discussed, linked to an Obligation or a Transaction.

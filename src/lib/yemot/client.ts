@@ -15,9 +15,21 @@ function creds() {
   return { username, password };
 }
 
-/** The extension that holds the recordings. */
+/** The recording extension callers dial. */
 export function recordingsExt(): string {
-  return process.env.YEMOT_RECORDINGS_EXT || "68";
+  return process.env.YEMOT_RECORDINGS_EXT || "6";
+}
+
+/**
+ * The ivr2 folder that holds ONLY this system's recordings. Extension 6 is a
+ * single-digit `type=record` line (reachable straight from the main menu, unlike
+ * two-digit ext 66 which the entry flow intercepted) whose `folder_move=6/1`
+ * routes every recording into the dedicated `ivr2:/6/1` folder, as `000.wav,
+ * 001.wav …` carrying the caller `phone`. That folder is exclusive to ext 6, so
+ * everything in it is a real ext-6 recording. Override with YEMOT_RECORDINGS_PATH.
+ */
+export function recordingsPath(): string {
+  return process.env.YEMOT_RECORDINGS_PATH || "6/1";
 }
 
 // Cache the login token in-memory (per server instance).
@@ -65,9 +77,9 @@ export interface YemotRecording {
   caller: string | null; // caller id / source phone if present
 }
 
-/** List the AUDIO recordings in an extension (newest handling done by caller). */
-export async function listRecordings(ext = recordingsExt()): Promise<YemotRecording[]> {
-  const res = await call("GetIVR2Dir", { path: `ivr2:/${ext}` });
+/** List the AUDIO recordings in the recordings folder (ivr2:/<recordingsPath>). */
+export async function listRecordings(path = recordingsPath()): Promise<YemotRecording[]> {
+  const res = await call("GetIVR2Dir", { path: `ivr2:/${path}` });
   if (res.responseStatus !== "OK") throw new Error(res.message ?? "שליפת ההקלטות מימות נכשלה");
   const files = (res.files as Record<string, unknown>[] | undefined) ?? [];
   return files
@@ -82,14 +94,18 @@ export async function listRecordings(ext = recordingsExt()): Promise<YemotRecord
         durationStr: String(f.durationStr ?? ""),
         date: String(f.date ?? f.mtime ?? ""),
         title: meta.title ?? null,
-        caller: (f.callerId as string) ?? (f.phone as string) ?? null,
+        caller:
+          (f.callerId as string) ??
+          (f.phone as string) ??
+          (meta as Record<string, string>).phone ??
+          null,
       };
     });
 }
 
-/** Fetch a recording's audio (streamed) for a given extension + file name. */
-export async function downloadRecording(ext: string, name: string): Promise<Response> {
+/** Fetch a recording's audio (streamed) by file name, from the recordings folder. */
+export async function downloadRecording(name: string, path = recordingsPath()): Promise<Response> {
   const token = await getToken();
-  const url = `${BASE}/DownloadFile?${new URLSearchParams({ token, path: `ivr2:/${ext}/${name}` })}`;
+  const url = `${BASE}/DownloadFile?${new URLSearchParams({ token, path: `ivr2:/${path}/${name}` })}`;
   return fetch(url, { signal: AbortSignal.timeout(60_000) });
 }
