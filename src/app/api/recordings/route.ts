@@ -28,6 +28,7 @@ export const GET = handler(async () => {
       dateText: dateText(r.recordedAt),
       handled: r.handled,
       note: r.note,
+      transcript: r.transcript,
       contactId: r.contactId,
       contactName: r.contact ? `${r.contact.firstName} ${r.contact.lastName ?? ""}`.trim() : null,
     })),

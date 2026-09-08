@@ -104,6 +104,8 @@ model CallRecording {
   recordedAt  DateTime
   handled     Boolean  @default(false) // "טופל" — marked done by staff
   note        String?
+  transcript    String?   // Hebrew speech-to-text (local Whisper), null until transcribed
+  transcribedAt DateTime?
   createdAt   DateTime @default(now())
 
   @@index([contactId])

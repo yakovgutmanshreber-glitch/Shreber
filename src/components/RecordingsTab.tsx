@@ -9,6 +9,7 @@ interface Recording {
   fileName: string;
   durationSec: number;
   dateText: string;
+  transcript: string | null;
 }
 
 function fmtDuration(sec: number): string {
@@ -64,15 +65,24 @@ export function RecordingsTab() {
       ) : (
         <div className="space-y-2">
           {rows.map((r) => (
-            <div key={r.id} className="card flex items-center gap-4 p-3">
-              <div className="w-32 shrink-0 whitespace-nowrap text-sm text-slate-500 num">{r.dateText}</div>
-              <audio
-                controls
-                preload="none"
-                className="h-9 flex-1"
-                src={`/api/yemot/recordings/audio?name=${encodeURIComponent(r.fileName)}`}
-              />
-              <div className="w-14 shrink-0 text-left text-xs text-slate-400 num">{fmtDuration(r.durationSec)}</div>
+            <div key={r.id} className="card p-3">
+              <div className="flex items-center gap-4">
+                <div className="w-32 shrink-0 whitespace-nowrap text-sm text-slate-500 num">{r.dateText}</div>
+                <audio
+                  controls
+                  preload="none"
+                  className="h-9 flex-1"
+                  src={`/api/yemot/recordings/audio?name=${encodeURIComponent(r.fileName)}`}
+                />
+                <div className="w-14 shrink-0 text-left text-xs text-slate-400 num">{fmtDuration(r.durationSec)}</div>
+              </div>
+              {r.transcript ? (
+                <p className="mt-2 whitespace-pre-wrap rounded-lg bg-slate-50 p-2.5 text-sm leading-relaxed text-slate-700">
+                  {r.transcript}
+                </p>
+              ) : (
+                <p className="mt-2 text-xs text-slate-400">התמלול יופיע כאן לאחר עיבוד…</p>
+              )}
             </div>
           ))}
         </div>
