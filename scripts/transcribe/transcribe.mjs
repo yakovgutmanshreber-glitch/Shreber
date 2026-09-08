@@ -38,6 +38,57 @@ async function yemotToken() {
   return j.token;
 }
 
+const normalizePhone = (raw) => {
+  if (!raw) return null;
+  let d = String(raw).replace(/\D/g, "");
+  if (!d) return null;
+  if (d.startsWith("972")) d = "0" + d.slice(3);
+  return d || null;
+};
+
+const parseYemotDate = (s) => {
+  const m = String(s).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?/);
+  if (!m) return new Date();
+  const [, dd, mm, yyyy, hh = "0", mi = "0"] = m;
+  return new Date(Date.UTC(+yyyy, +mm - 1, +dd, +hh, +mi));
+};
+
+// Pull any new recordings from Yemot (ivr2:/6/1) into the DB, matched to a
+// contact by caller phone. Mirrors the app's sync so this task is self-contained.
+async function syncNew(client, token) {
+  const r = await fetch(`${YBASE}/GetIVR2Dir?${new URLSearchParams({ token, path: `ivr2:/${YPATH}` })}`);
+  const j = await r.json();
+  const files = (j.files || []).filter((f) => f.fileType === "AUDIO" || /\.(wav|mp3)$/i.test(String(f.name)));
+  if (files.length === 0) return 0;
+
+  const { rows: exRows } = await client.query(`SELECT "uniqueId" FROM "CallRecording"`);
+  const existing = new Set(exRows.map((r) => r.uniqueId));
+
+  const { rows: contacts } = await client.query(`SELECT id, phone, phone2 FROM "Contact"`);
+  const byPhone = new Map();
+  for (const c of contacts) for (const p of [c.phone, c.phone2]) {
+    const n = normalizePhone(p);
+    if (n && !byPhone.has(n)) byPhone.set(n, c.id);
+  }
+
+  let added = 0;
+  for (const f of files) {
+    const uniqueId = String(f.uniqueId ?? f.name);
+    if (existing.has(uniqueId)) continue;
+    const n = normalizePhone(f.phone);
+    const contactId = n ? byPhone.get(n) ?? null : null;
+    try {
+      await client.query(
+        `INSERT INTO "CallRecording" ("uniqueId","fileName","phone","contactId","durationSec","recordedAt","handled","createdAt")
+         VALUES ($1,$2,$3,$4,$5,$6,false,now()) ON CONFLICT ("uniqueId") DO NOTHING`,
+        [uniqueId, String(f.name), f.phone ?? null, contactId, Math.round(f.duration || 0), parseYemotDate(f.date)],
+      );
+      added++;
+    } catch { /* ignore */ }
+  }
+  return added;
+}
+
 async function downloadWav(token, name) {
   const url = `${YBASE}/DownloadFile?${new URLSearchParams({ token, path: `ivr2:/${YPATH}/${name}` })}`;
   const r = await fetch(url);
@@ -68,6 +119,12 @@ async function main() {
   const client = new pg.Client({ connectionString: DB_URL });
   await client.connect();
 
+  // 1) Pull any new recordings from Yemot into the DB (self-contained automation).
+  const token = await yemotToken();
+  const added = await syncNew(client, token);
+  if (added) console.log(`[transcribe] synced ${added} new recording(s) from Yemot.`);
+
+  // 2) Transcribe everything still missing a transcript.
   const { rows } = await client.query(
     `SELECT id, "fileName" FROM "CallRecording" WHERE transcript IS NULL ORDER BY "recordedAt" ASC`,
   );
@@ -79,7 +136,6 @@ async function main() {
   console.log(`[transcribe] ${rows.length} recording(s) to transcribe. Loading Whisper (first run downloads the model)…`);
 
   const transcriber = await pipeline("automatic-speech-recognition", MODEL);
-  const token = await yemotToken();
 
   let done = 0;
   for (const r of rows) {
