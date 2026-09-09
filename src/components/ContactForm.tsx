@@ -73,7 +73,10 @@ export function ContactForm({
   onSaved: () => void;
   onCancel: () => void;
 }) {
-  const [form, setForm] = useState<ContactData>(contact ?? { firstName: "" });
+  // New contacts default to the common titles (editable); existing keep their own.
+  const [form, setForm] = useState<ContactData>(
+    contact ?? { firstName: "", titleBefore: 'הרה"ח', titleAfter: 'הי"ו' },
+  );
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [opts, setOpts] = useState<{ city: string[]; country: string[] }>({ city: [], country: [] });
