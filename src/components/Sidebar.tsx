@@ -3,6 +3,28 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
+import { useEffect, useState } from "react";
+
+// Today's Hebrew date + this week's parsha (auto), shown under the logo.
+function HebrewDateChip() {
+  const [info, setInfo] = useState<{ date: string; label: string | null } | null>(null);
+  useEffect(() => {
+    fetch("/api/hebrew-date")
+      .then((r) => r.json())
+      .then(setInfo)
+      .catch(() => {});
+  }, []);
+  if (!info) return null;
+  return (
+    <div className="mx-3 mb-2 hidden rounded-xl border border-white/10 bg-gradient-to-l from-white/10 to-white/5 px-3 py-2 lg:block">
+      <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
+        <span>🕎</span> היום
+      </div>
+      <div className="text-sm font-extrabold text-white">{info.date}</div>
+      {info.label && <div className="mt-0.5 text-xs font-semibold text-brand-300">{info.label}</div>}
+    </div>
+  );
+}
 
 type IconName =
   | "contacts"
@@ -170,6 +192,8 @@ export function Sidebar({ userName, role }: { userName: string; role: "admin" | 
           <div className="truncate text-[11px] text-slate-400">דברי אלקים חיים</div>
         </div>
       </div>
+
+      <HebrewDateChip />
 
       {/* Nav */}
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
