@@ -274,6 +274,7 @@ model Transaction {
   authNum             String? // Kesher OKNum
   comment             String?
   receiptDocNumber    String?
+  transferredTo       String? // "עבר ל" — expense payee/destination (manual entry)
   receiptLink         String? // DocumentsDetails.PdfLink
   // Payer/project snapshot from Kesher (used to identify UNLINKED transactions).
   payerName           String? // Customer / ReceiptName as Kesher sent it

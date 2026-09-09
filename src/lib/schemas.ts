@@ -103,6 +103,7 @@ export const transactionSchema = z.object({
   authNum: optionalString,
   comment: optionalString,
   receiptDocNumber: optionalString,
+  transferredTo: optionalString,
   receiptLink: optionalString,
   kind: z.enum(["expense", "income"]),
 });

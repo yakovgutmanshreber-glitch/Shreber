@@ -34,6 +34,7 @@ export interface TransactionData {
   branch?: string | null;
   account?: string | null;
   receiptDocNumber?: string | null;
+  transferredTo?: string | null;
   source?: string;
 }
 
@@ -83,6 +84,7 @@ export function TransactionForm({
     branch: transaction?.branch ?? "",
     account: transaction?.account ?? "",
     receiptDocNumber: transaction?.receiptDocNumber ?? "",
+    transferredTo: transaction?.transferredTo ?? "",
   });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -149,6 +151,7 @@ export function TransactionForm({
 
   const isBank = form.chargeOptionType === "bank";
   const isCredit = form.chargeOptionType === "credit";
+  const isExpense = (fixedKind ?? form.kind) === "expense";
   // Credit on an obligation → charge via Kesher (needs an obligation to attach to).
   const chargesViaKesher = !isEdit && isCredit && fixedObligationId != null;
   const setC = (k: keyof typeof card, v: unknown) => setCard((c) => ({ ...c, [k]: v }));
@@ -249,6 +252,16 @@ export function TransactionForm({
             ))}
           </select>
         </div>
+        {isExpense && (
+          <div>
+            <label className="label">עבר ל</label>
+            <input
+              className="input"
+              value={form.transferredTo ?? ""}
+              onChange={(e) => set("transferredTo", e.target.value)}
+            />
+          </div>
+        )}
       </div>
 
       {isBank && (
