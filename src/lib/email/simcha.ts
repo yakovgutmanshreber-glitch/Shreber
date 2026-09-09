@@ -64,6 +64,7 @@ export function renderSimcha(
     parsha?: string;
     month?: string;
     year?: string;
+    hok?: string;
   },
 ): string {
   return template
@@ -75,7 +76,15 @@ export function renderSimcha(
     .replace(/\{\{\s*debt\s*\}\}/g, esc(v.debt ?? ""))
     .replace(/\{\{\s*parsha\s*\}\}/g, esc(v.parsha ?? ""))
     .replace(/\{\{\s*hebrew_month\s*\}\}/g, esc(v.month ?? ""))
-    .replace(/\{\{\s*hebrew_year\s*\}\}/g, esc(v.year ?? ""));
+    .replace(/\{\{\s*hebrew_year\s*\}\}/g, esc(v.year ?? ""))
+    // {{hok}} → the contact's הו"ק category, as its own styled line — or nothing
+    // when the contact has none (so no empty gap appears).
+    .replace(
+      /\{\{\s*hok\s*\}\}/g,
+      v.hok
+        ? `<div style="color:#781c1c;font-weight:700;font-size:16px;margin:4px 0 2px;font-family:'Frank Ruhl Libre',Georgia,serif;">${esc(v.hok)}</div>`
+        : "",
+    );
 }
 
 /** Render with the built-in default template. */

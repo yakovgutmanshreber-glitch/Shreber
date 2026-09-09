@@ -645,6 +645,7 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
           contactId={contact.id}
           email={contact.email ?? ""}
           defaultName={fullName(contact)}
+          hok={hokSubs.join(" · ")}
           totalPaid={money.collected}
           phone={contact.phone ?? ""}
           debt={money.debt}
@@ -839,6 +840,7 @@ function SimchaForm({
   totalPaid,
   phone,
   debt,
+  hok,
   onDone,
   onCancel,
 }: {
@@ -848,6 +850,7 @@ function SimchaForm({
   totalPaid: number;
   phone: string;
   debt: number;
+  hok: string;
   onDone: () => void;
   onCancel: () => void;
 }) {
@@ -887,6 +890,7 @@ function SimchaForm({
     parsha: heb?.parsha ?? "",
     month: heb?.month ?? "",
     year: heb?.year ?? "",
+    hok,
   });
   const html = mode === "html" ? editedHtml : generatedHtml;
 
