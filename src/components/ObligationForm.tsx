@@ -10,6 +10,7 @@ interface Category {
   mainCategory: string;
   category: string;
   defaultPrice: number;
+  scopes?: string[];
 }
 
 export interface SavedCard {
@@ -58,6 +59,7 @@ export function ObligationForm({
   obligation,
   fixedContactId,
   fixedKind,
+  categoryScope,
   contactCards = [],
   onSaved,
   onCancel,
@@ -65,6 +67,7 @@ export function ObligationForm({
   obligation?: ObligationData;
   fixedContactId?: number | null;
   fixedKind?: "income" | "expense";
+  categoryScope?: string; // when set, only categories with this scope are shown
   contactCards?: SavedCard[];
   onSaved: () => void;
   onCancel: () => void;
@@ -286,11 +289,13 @@ export function ObligationForm({
             }}
           >
             <option value="">— ללא —</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.mainCategory} › {c.category}
-              </option>
-            ))}
+            {categories
+              .filter((c) => !categoryScope || (c.scopes?.includes(categoryScope) ?? true))
+              .map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.mainCategory} › {c.category}
+                </option>
+              ))}
           </select>
         </div>
 

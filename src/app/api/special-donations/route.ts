@@ -19,7 +19,7 @@ export const GET = handler(async () => {
       include: { contact: true, category: true },
     }),
     prisma.category.findMany({
-      where: { mainCategory: { in: GILYON_NAMES } },
+      where: { mainCategory: { in: GILYON_NAMES }, scopes: { has: "donations" } },
       orderBy: { createdAt: "desc" }, // latest גיליון first
     }),
   ]);

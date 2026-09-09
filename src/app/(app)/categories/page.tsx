@@ -11,7 +11,18 @@ interface Category {
   category: string;
   defaultPrice: number;
   note?: string | null;
+  scopes?: string[];
 }
+
+// Where a category may be selected. Order = display order in the form.
+const SCOPE_OPTIONS: { value: string; label: string }[] = [
+  { value: "income", label: "הכנסות" },
+  { value: "expense", label: "הוצאות" },
+  { value: "contact", label: "דף איש קשר" },
+  { value: "donations", label: "תרומות מיוחדות" },
+];
+const ALL_SCOPES = SCOPE_OPTIONS.map((s) => s.value);
+const scopeLabel = (v: string) => SCOPE_OPTIONS.find((s) => s.value === v)?.label ?? v;
 
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -75,6 +86,15 @@ export default function CategoriesPage() {
                       <td className="td font-medium">
                         {c.category}
                         {c.note && <div className="whitespace-pre-wrap text-xs font-normal text-gray-400">{c.note}</div>}
+                        {c.scopes && c.scopes.length < ALL_SCOPES.length && (
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {c.scopes.map((s) => (
+                              <span key={s} className="rounded bg-brand-50 px-1.5 py-0.5 text-[10px] font-medium text-brand-600">
+                                {scopeLabel(s)}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </td>
                       <td className="td text-gray-600">{formatCurrency(c.defaultPrice)}</td>
                       <td className="td text-left">
@@ -136,7 +156,14 @@ function CategoryForm({
     category: category?.category ?? "",
     defaultPrice: category?.defaultPrice ?? 0,
     note: category?.note ?? "",
+    scopes: category?.scopes ?? ALL_SCOPES,
   });
+
+  const toggleScope = (v: string) =>
+    setForm((f) => ({
+      ...f,
+      scopes: f.scopes.includes(v) ? f.scopes.filter((s) => s !== v) : [...f.scopes, v],
+    }));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -187,6 +214,30 @@ function CategoryForm({
           value={form.defaultPrice}
           onChange={(e) => setForm((f) => ({ ...f, defaultPrice: Number(e.target.value) }))}
         />
+      </div>
+      <div>
+        <label className="label">שיוך — היכן הקטגוריה תופיע</label>
+        <div className="flex flex-wrap gap-2">
+          {SCOPE_OPTIONS.map((s) => {
+            const on = form.scopes.includes(s.value);
+            return (
+              <button
+                type="button"
+                key={s.value}
+                onClick={() => toggleScope(s.value)}
+                className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
+                  on
+                    ? "border-brand-500 bg-brand-50 text-brand-700"
+                    : "border-gray-200 bg-white text-gray-400 hover:border-gray-300"
+                }`}
+              >
+                {on ? "✓ " : ""}
+                {s.label}
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-1 text-xs text-gray-400">הקטגוריה תופיע רק במסכים שסומנו.</p>
       </div>
       <div>
         <label className="label">הערה</label>

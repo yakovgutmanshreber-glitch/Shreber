@@ -377,6 +377,7 @@ export function ObligationDetailModal({
           obligation={obligation}
           fixedContactId={contactId ?? undefined}
           fixedKind={(obligation.kind as "income" | "expense") ?? "income"}
+          categoryScope={contactId != null ? "contact" : ((obligation.kind as string) === "expense" ? "expense" : "income")}
           contactCards={contactCards}
           onSaved={onChanged}
           onCancel={onClose}

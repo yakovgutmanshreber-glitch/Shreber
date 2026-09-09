@@ -16,6 +16,7 @@ interface CategoryOption {
   id: number;
   mainCategory: string;
   category: string;
+  scopes?: string[];
 }
 
 export interface TransactionData {
@@ -152,6 +153,8 @@ export function TransactionForm({
   const isBank = form.chargeOptionType === "bank";
   const isCredit = form.chargeOptionType === "credit";
   const isExpense = (fixedKind ?? form.kind) === "expense";
+  const categoryScope = isExpense ? "expense" : "income";
+  const visibleCategories = categories.filter((c) => c.scopes?.includes(categoryScope) ?? true);
   // Credit on an obligation → charge via Kesher (needs an obligation to attach to).
   const chargesViaKesher = !isEdit && isCredit && fixedObligationId != null;
   const setC = (k: keyof typeof card, v: unknown) => setCard((c) => ({ ...c, [k]: v }));
@@ -196,7 +199,7 @@ export function TransactionForm({
               onChange={(e) => set("categoryId", e.target.value)}
             >
               <option value="">— ללא —</option>
-              {categories.map((c) => (
+              {visibleCategories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.category}
                 </option>

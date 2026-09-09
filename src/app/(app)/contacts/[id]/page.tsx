@@ -524,6 +524,7 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
         <ObligationForm
           fixedContactId={contact.id}
           fixedKind="income"
+          categoryScope="contact"
           contactCards={contact.creditCards}
           onSaved={() => {
             setOblOpen(false);

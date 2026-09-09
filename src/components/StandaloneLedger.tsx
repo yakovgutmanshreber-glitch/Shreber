@@ -191,6 +191,7 @@ export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
         <ObligationForm
           fixedKind={kind}
           fixedContactId={null}
+          categoryScope={kind}
           onSaved={() => {
             setOblOpen(false);
             load();

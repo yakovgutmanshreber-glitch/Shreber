@@ -190,6 +190,9 @@ model Category {
   category     String   @unique // unique per row, e.g. "תפוח"
   defaultPrice Decimal  @default(0)
   note         String? // free-text note/description for the category
+  // Where this category may be selected: "income" | "expense" | "contact" | "donations".
+  // Defaults to all so existing categories stay visible everywhere.
+  scopes       String[] @default(["income", "expense", "contact", "donations"])
   obligations  Obligation[]
   transactions Transaction[]
   specialDonations SpecialDonation[]
