@@ -77,6 +77,19 @@ const TX_FAILED_CODES = new Set([5, 6, 7, 9, 14, 15, 16, 23]);
 function txPassed(t: Transaction): boolean {
   return t.statusCode != null && KESHER_SUCCESS_CODES.has(t.statusCode);
 }
+
+// Full display name including the before/after titles (תואר לפני / תואר אחרי).
+function fullName(c: {
+  titleBefore?: string | null;
+  firstName?: string;
+  lastName?: string | null;
+  titleAfter?: string | null;
+}): string {
+  return [c.titleBefore, c.firstName, c.lastName, c.titleAfter]
+    .map((s) => s?.trim())
+    .filter(Boolean)
+    .join(" ");
+}
 function txFailed(t: Transaction): boolean {
   if (txPassed(t)) return false;
   const st = t.statusText ?? "";
@@ -260,9 +273,7 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
           <Link href="/contacts" className="text-sm text-brand-600 hover:underline">
             ← חזרה לאנשי קשר
           </Link>
-          <h1 className="mt-1 text-2xl font-bold text-gray-900">
-            {contact.firstName} {contact.lastName ?? ""}
-          </h1>
+          <h1 className="mt-1 text-2xl font-bold text-gray-900">{fullName(contact)}</h1>
         </div>
         <div className="flex gap-2">
           <button className="btn-secondary" onClick={() => setStatementOpen(true)}>
@@ -578,7 +589,7 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
         <ContactEmailForm
           contactId={contact.id}
           email={contact.email ?? ""}
-          contactName={`${contact.firstName} ${contact.lastName ?? ""}`.trim()}
+          contactName={fullName(contact)}
           debt={money.debt}
           totalPaid={money.collected}
           phone={contact.phone ?? ""}
@@ -591,7 +602,7 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
         <StatementForm
           contactId={contact.id}
           email={contact.email ?? ""}
-          contactName={`${contact.firstName} ${contact.lastName ?? ""}`.trim()}
+          contactName={fullName(contact)}
           rows={statementRows}
           phone={contact.phone ?? ""}
           debt={money.debt}
@@ -604,7 +615,7 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
         <SimchaForm
           contactId={contact.id}
           email={contact.email ?? ""}
-          defaultName={`${contact.firstName} ${contact.lastName ?? ""}`.trim()}
+          defaultName={fullName(contact)}
           totalPaid={money.collected}
           phone={contact.phone ?? ""}
           debt={money.debt}
