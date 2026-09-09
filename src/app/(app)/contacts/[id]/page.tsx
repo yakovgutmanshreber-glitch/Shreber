@@ -314,6 +314,8 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
       <div className="card p-6">
         <h2 className="mb-4 text-lg font-bold">פרטי קשר</h2>
         <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
+          <Detail label="תואר לפני" value={contact.titleBefore} />
+          <Detail label="תואר אחרי" value={contact.titleAfter} />
           <Detail label="טלפון" value={contact.phone} />
           <Detail label="טלפון נוסף" value={contact.phone2} />
           <Detail label="אימייל" value={contact.email} />
