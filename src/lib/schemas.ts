@@ -86,6 +86,7 @@ export const obligationSchema = z.object({
 export const transactionSchema = z.object({
   obligationId: z.coerce.number().int().positive().optional().nullable(),
   contactId: z.coerce.number().int().positive().optional().nullable(),
+  categoryId: z.coerce.number().int().positive().optional().nullable(),
   source: z.enum(["api", "manual"]).default("manual"),
   amount: z.coerce.number(),
   currency: z.coerce.number().int().default(1),

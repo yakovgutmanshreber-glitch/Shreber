@@ -191,6 +191,7 @@ model Category {
   defaultPrice Decimal  @default(0)
   note         String? // free-text note/description for the category
   obligations  Obligation[]
+  transactions Transaction[]
   specialDonations SpecialDonation[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -250,6 +251,8 @@ model Transaction {
   obligation          Obligation? @relation(fields: [obligationId], references: [id], onDelete: SetNull)
   contactId           Int? // denormalized link for standalone/manual convenience
   contact             Contact?    @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  categoryId          Int? // direct category link for manual transactions (no obligation)
+  category            Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   source              String // 'api' | 'manual'
   kesherNumTransaction String?    @unique // Kesher NumTransaction
   kesherObligationReference String? // Kesher ObligationReference (אסמכתא) the charge belongs to
@@ -283,6 +286,7 @@ model Transaction {
 
   @@index([obligationId])
   @@index([contactId])
+  @@index([categoryId])
 }
 
 // משימות — a reminder task that emails the operator when its due date/time

@@ -96,9 +96,11 @@ export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
                 🔗 ייבוא מרוכז מקשר (Excel)
               </button>
             )}
-            <button className="btn-secondary" onClick={() => setOblOpen(true)}>
-              + התחייבות
-            </button>
+            {kind !== "income" && (
+              <button className="btn-secondary" onClick={() => setOblOpen(true)}>
+                + התחייבות
+              </button>
+            )}
             <button className="btn-primary" onClick={() => setTxOpen(true)}>
               + עסקה ידנית
             </button>

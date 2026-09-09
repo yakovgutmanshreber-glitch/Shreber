@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "@/lib/client";
-import { PAYMENT_METHOD, TRANSACTION_TYPE, CURRENCY, OBLIGATION_KIND } from "@/lib/constants";
+import { PAYMENT_METHOD, CURRENCY, OBLIGATION_KIND } from "@/lib/constants";
 import type { SavedCard } from "@/components/ObligationForm";
 
 interface ObligationOption {
@@ -12,10 +12,17 @@ interface ObligationOption {
   recurringAmount?: number;
 }
 
+interface CategoryOption {
+  id: number;
+  mainCategory: string;
+  category: string;
+}
+
 export interface TransactionData {
   id?: number;
   kind?: string;
   obligationId?: number | null;
+  categoryId?: number | null;
   amount?: number;
   currency?: number;
   amountIls?: number | null;
@@ -35,7 +42,6 @@ export function TransactionForm({
   fixedContactId,
   fixedKind,
   fixedObligationId,
-  obligations = [],
   contactCards = [],
   onSaved,
   onCancel,
@@ -57,6 +63,7 @@ export function TransactionForm({
     contactCards.find((c) => c.isDefault)?.id ?? contactCards[0]?.id ?? "",
   );
   const [card, setCard] = useState({ cardNumber: "", cardExpiry: "", cvv: "", cardHolder: "", cardBrand: "", saveCard: true });
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [form, setForm] = useState({
     kind: transaction?.kind ?? fixedKind ?? "income",
     obligationId:
@@ -65,6 +72,7 @@ export function TransactionForm({
         : transaction?.obligationId != null
           ? String(transaction.obligationId)
           : "",
+    categoryId: transaction?.categoryId != null ? String(transaction.categoryId) : "",
     amount: transaction?.amount ?? 0,
     currency: transaction?.currency ?? 1,
     transactionDate: (transaction?.transactionDate ?? new Date().toISOString()).slice(0, 10),
@@ -83,6 +91,12 @@ export function TransactionForm({
     setForm((f) => ({ ...f, [k]: v }));
   }
 
+  // Load categories for the "שייך לקטגוריה" picker (only shown for standalone/manual entries).
+  useEffect(() => {
+    if (fixedObligationId != null) return;
+    api<CategoryOption[]>("/api/categories").then(setCategories).catch(() => {});
+  }, [fixedObligationId]);
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -97,6 +111,7 @@ export function TransactionForm({
             : form.obligationId
               ? Number(form.obligationId)
               : null,
+        categoryId: form.categoryId ? Number(form.categoryId) : null,
         kind: fixedKind ?? form.kind,
       };
       if (isEdit) {
@@ -137,7 +152,7 @@ export function TransactionForm({
   // Credit on an obligation → charge via Kesher (needs an obligation to attach to).
   const chargesViaKesher = !isEdit && isCredit && fixedObligationId != null;
   const setC = (k: keyof typeof card, v: unknown) => setCard((c) => ({ ...c, [k]: v }));
-  const showObligationSelect = fixedObligationId == null && obligations.length > 0;
+  const showCategorySelect = fixedObligationId == null;
 
   return (
     <form onSubmit={submit} className="space-y-4">
@@ -169,18 +184,18 @@ export function TransactionForm({
             </select>
           </div>
         )}
-        {showObligationSelect && (
+        {showCategorySelect && (
           <div>
-            <label className="label">שייך להתחייבות</label>
+            <label className="label">שייך לקטגוריה</label>
             <select
               className="input"
-              value={form.obligationId}
-              onChange={(e) => set("obligationId", e.target.value)}
+              value={form.categoryId}
+              onChange={(e) => set("categoryId", e.target.value)}
             >
               <option value="">— ללא —</option>
-              {obligations.map((o) => (
-                <option key={o.id} value={o.id}>
-                  #{o.id} {o.category?.category ?? ""}
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.category}
                 </option>
               ))}
             </select>
@@ -221,20 +236,6 @@ export function TransactionForm({
           />
         </div>
         <div>
-          <label className="label">סוג תנועה</label>
-          <select
-            className="input"
-            value={form.transactionType}
-            onChange={(e) => set("transactionType", e.target.value)}
-          >
-            {Object.entries(TRANSACTION_TYPE).map(([v, l]) => (
-              <option key={v} value={v}>
-                {l}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
           <label className="label">אמצעי תשלום</label>
           <select
             className="input"
@@ -247,14 +248,6 @@ export function TransactionForm({
               </option>
             ))}
           </select>
-        </div>
-        <div>
-          <label className="label">מס׳ קבלה</label>
-          <input
-            className="input"
-            value={form.receiptDocNumber ?? ""}
-            onChange={(e) => set("receiptDocNumber", e.target.value)}
-          />
         </div>
       </div>
 
