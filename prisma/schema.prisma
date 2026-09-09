@@ -63,8 +63,10 @@ model Session {
 
 model Contact {
   id              Int      @id @default(autoincrement())
+  titleBefore     String? // תואר לפני (e.g. הרב, מר)
   firstName       String
   lastName        String?
+  titleAfter      String? // תואר אחרי (e.g. שליט"א)
   phone           String?
   phone2          String?
   email           String?

@@ -3,8 +3,10 @@ import { z } from "zod";
 const optionalString = z.string().trim().optional().nullable().transform((v) => v || null);
 
 export const contactSchema = z.object({
+  titleBefore: optionalString, // תואר לפני
   firstName: z.string().trim().min(1, "שם פרטי חובה"),
   lastName: optionalString,
+  titleAfter: optionalString, // תואר אחרי
   phone: optionalString,
   phone2: optionalString,
   email: z.string().trim().email("אימייל לא תקין").optional().nullable().or(z.literal("")).transform((v) => v || null),

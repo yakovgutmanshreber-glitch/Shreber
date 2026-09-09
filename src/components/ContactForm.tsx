@@ -5,8 +5,10 @@ import { api } from "@/lib/client";
 
 export interface ContactData {
   id?: number;
+  titleBefore?: string | null;
   firstName?: string;
   lastName?: string | null;
+  titleAfter?: string | null;
   phone?: string | null;
   phone2?: string | null;
   email?: string | null;
@@ -32,8 +34,10 @@ const FIELDS: {
   list?: "city" | "country";
   showIf?: (form: ContactData) => boolean;
 }[] = [
+  { name: "titleBefore", label: "תואר לפני" },
   { name: "firstName", label: "שם פרטי *" },
   { name: "lastName", label: "שם משפחה" },
+  { name: "titleAfter", label: "תואר אחרי" },
   { name: "phone", label: "טלפון" },
   { name: "phone2", label: "טלפון נוסף" },
   { name: "email", label: "אימייל", type: "email" },
