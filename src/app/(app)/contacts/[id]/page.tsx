@@ -42,7 +42,7 @@ interface Obligation {
   comment: string | null;
   creditCardId?: number | null;
   kesherObligationReference?: string | null;
-  category: { category: string } | null;
+  category: { category: string; mainCategory: string } | null;
 }
 interface Transaction {
   id: number;
@@ -266,6 +266,17 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
       .sort((a, b) => b.paid - a.paid);
   })();
 
+  // Sub-categories under the "הו"ק" main category this contact holds (shown as
+  // badges next to the name). Quote-insensitive match (״ vs ").
+  const isHok = (m?: string | null) => !!m && m.replace(/["'״׳]/g, "").trim() === "הוק";
+  const hokSubs = [
+    ...new Set(
+      contact.obligations
+        .filter((o) => isHok(o.category?.mainCategory))
+        .map((o) => o.category!.category),
+    ),
+  ];
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -274,6 +285,18 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
             ← חזרה לאנשי קשר
           </Link>
           <h1 className="mt-1 text-2xl font-bold text-gray-900">{fullName(contact)}</h1>
+          {hokSubs.length > 0 && (
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {hokSubs.map((s) => (
+                <span
+                  key={s}
+                  className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 shadow-sm"
+                >
+                  🔁 הו״ק: {s}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
         <div className="flex gap-2">
           <button className="btn-secondary" onClick={() => setStatementOpen(true)}>
