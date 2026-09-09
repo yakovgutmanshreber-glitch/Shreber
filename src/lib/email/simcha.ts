@@ -54,7 +54,17 @@ export const DEFAULT_SIMCHA_TEMPLATE = `<div dir="rtl" style="background:#f5f3ef
 /** Fill a template's placeholders (HTML-escaped): {{name}} {{occasion}} {{date}} {{total_paid}}. */
 export function renderSimcha(
   template: string,
-  v: { name: string; occasion: string; date?: string; totalPaid?: string; phone?: string; debt?: string },
+  v: {
+    name: string;
+    occasion: string;
+    date?: string;
+    totalPaid?: string;
+    phone?: string;
+    debt?: string;
+    parsha?: string;
+    month?: string;
+    year?: string;
+  },
 ): string {
   return template
     .replace(/\{\{\s*name\s*\}\}/g, esc(v.name))
@@ -62,7 +72,10 @@ export function renderSimcha(
     .replace(/\{\{\s*date\s*\}\}/g, esc(v.date ?? ""))
     .replace(/\{\{\s*total_paid\s*\}\}/g, esc(v.totalPaid ?? ""))
     .replace(/\{\{\s*phone\s*\}\}/g, esc(v.phone ?? ""))
-    .replace(/\{\{\s*debt\s*\}\}/g, esc(v.debt ?? ""));
+    .replace(/\{\{\s*debt\s*\}\}/g, esc(v.debt ?? ""))
+    .replace(/\{\{\s*parsha\s*\}\}/g, esc(v.parsha ?? ""))
+    .replace(/\{\{\s*hebrew_month\s*\}\}/g, esc(v.month ?? ""))
+    .replace(/\{\{\s*hebrew_year\s*\}\}/g, esc(v.year ?? ""));
 }
 
 /** Render with the built-in default template. */

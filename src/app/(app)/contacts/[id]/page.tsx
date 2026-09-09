@@ -861,6 +861,7 @@ function SimchaForm({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  const [heb, setHeb] = useState<{ parsha: string | null; month: string; year: string } | null>(null);
 
   useEffect(() => {
     api<{ html: string; slug: string | null }[]>("/api/email-templates")
@@ -868,6 +869,10 @@ function SimchaForm({
         const t = rows.find((x) => x.slug === "simcha");
         if (t?.html) setTemplate(t.html);
       })
+      .catch(() => {});
+    // Auto Hebrew date/parsha for the {{parsha}} {{hebrew_month}} {{hebrew_year}} placeholders.
+    api<{ parsha: string | null; month: string; year: string }>("/api/hebrew-date")
+      .then(setHeb)
       .catch(() => {});
   }, []);
 
@@ -879,6 +884,9 @@ function SimchaForm({
     totalPaid: formatCurrency(totalPaid),
     phone,
     debt: formatCurrency(debt),
+    parsha: heb?.parsha ?? "",
+    month: heb?.month ?? "",
+    year: heb?.year ?? "",
   });
   const html = mode === "html" ? editedHtml : generatedHtml;
 
