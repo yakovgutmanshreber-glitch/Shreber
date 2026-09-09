@@ -106,6 +106,8 @@ export function ObligationForm({
 
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // When editing a Kesher-tracked hok, ask whether to also push the change to Kesher.
+  const [askKesher, setAskKesher] = useState(false);
   // Non-credit obligations: optionally record the received payment (transaction)
   // on the same form. (Credit goes through Kesher, which reports transactions.)
   const [recordTx, setRecordTx] = useState(true);
@@ -176,8 +178,18 @@ export function ObligationForm({
     setForm((f) => ({ ...f, chargeType: t, numPayments: t === "onetime" ? 1 : f.numPayments }));
   }
 
-  async function submit(e: React.FormEvent) {
+  function submit(e: React.FormEvent) {
     e.preventDefault();
+    // Editing a Kesher-tracked hok → ask first whether to also update Kesher.
+    if (isKesherTracked) {
+      setAskKesher(true);
+      return;
+    }
+    doSave(false);
+  }
+
+  async function doSave(localOnly: boolean) {
+    setAskKesher(false);
     setError(null);
     setSaving(true);
     try {
@@ -190,7 +202,7 @@ export function ObligationForm({
       };
 
       if (isEdit) {
-        await api(`/api/obligations/${obligation!.id}`, { method: "PATCH", body: base });
+        await api(`/api/obligations/${obligation!.id}`, { method: "PATCH", body: { ...base, localOnly } });
       } else if (isCredit) {
         // Path A — create the obligation AND set it up in Kesher. For הוראת קבע
         // (CreditType 10) Kesher creates the recurring hok and charges it monthly;
@@ -780,24 +792,44 @@ export function ObligationForm({
       )}
 
       {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-      <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
-        <button type="button" className="btn-secondary !px-6" onClick={onCancel}>
-          ביטול
-        </button>
-        <button
-          type="submit"
-          className={`!px-6 ${chargesViaKesher ? "btn-danger" : "btn-primary"}`}
-          disabled={saving}
-        >
-          {saving
-            ? "מעבד…"
-            : isRecurringCredit
-              ? "הקם הוראת קבע בקשר"
-              : chargesViaKesher
-                ? "צור וחייב בקשר"
-                : "שמירה"}
-        </button>
-      </div>
+      {askKesher ? (
+        <div className="rounded-xl border border-brand-200 bg-brand-50/60 p-4">
+          <p className="mb-1 text-sm font-bold text-slate-800">ההתחייבות מקושרת לקשר — היכן לשמור את השינוי?</p>
+          <p className="mb-3 text-xs text-slate-500">
+            "רק במערכת" — השינוי יישמר אצלך בלבד ולא יישלח לקשר. "גם בקשר" — יעודכן גם בהוראת הקבע בקשר.
+          </p>
+          <div className="flex flex-wrap justify-end gap-2">
+            <button type="button" className="btn-secondary !px-4" onClick={() => setAskKesher(false)} disabled={saving}>
+              חזרה
+            </button>
+            <button type="button" className="btn-secondary !px-5" onClick={() => doSave(true)} disabled={saving}>
+              {saving ? "שומר…" : "רק במערכת"}
+            </button>
+            <button type="button" className="btn-primary !px-5" onClick={() => doSave(false)} disabled={saving}>
+              {saving ? "שומר…" : "גם בקשר"}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
+          <button type="button" className="btn-secondary !px-6" onClick={onCancel}>
+            ביטול
+          </button>
+          <button
+            type="submit"
+            className={`!px-6 ${chargesViaKesher ? "btn-danger" : "btn-primary"}`}
+            disabled={saving}
+          >
+            {saving
+              ? "מעבד…"
+              : isRecurringCredit
+                ? "הקם הוראת קבע בקשר"
+                : chargesViaKesher
+                  ? "צור וחייב בקשר"
+                  : "שמירה"}
+          </button>
+        </div>
+      )}
     </form>
   );
 }

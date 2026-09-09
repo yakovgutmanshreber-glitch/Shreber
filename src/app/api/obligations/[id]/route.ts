@@ -32,6 +32,8 @@ export const PATCH = handler(async (req, ctx) => {
   const id = await getId(ctx);
   const body = await req.json();
   const data = obligationSchema.partial().parse(body);
+  // localOnly:true → save the change in the system only, do NOT touch Kesher.
+  const localOnly = body.localOnly === true;
 
   const existing = await prisma.obligation.findUnique({
     where: { id },
@@ -40,7 +42,7 @@ export const PATCH = handler(async (req, ctx) => {
   if (!existing) throw new ApiError("התחייבות לא נמצאה", 404);
 
   const ref = existing.kesherObligationReference;
-  if (ref) {
+  if (ref && !localOnly) {
     // --- detect which Kesher-relevant fields changed ----------------------
     const targetStatus = data.status ?? existing.status;
     const statusChanged = data.status !== undefined && data.status !== existing.status;
