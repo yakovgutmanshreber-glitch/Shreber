@@ -16,7 +16,7 @@ function HebrewDateChip() {
   }, []);
   if (!info) return null;
   return (
-    <div className="mx-3 mb-2 hidden rounded-xl border border-white/10 bg-gradient-to-l from-white/10 to-white/5 px-3 py-2 lg:block">
+    <div className="hidden rounded-xl border border-white/10 bg-gradient-to-l from-white/10 to-white/5 px-3 py-2 lg:block">
       <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
         <span>🕎</span> היום
       </div>
@@ -193,8 +193,6 @@ export function Sidebar({ userName, role }: { userName: string; role: "admin" | 
         </div>
       </div>
 
-      <HebrewDateChip />
-
       {/* Nav */}
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
         {items.map((item) => {
@@ -220,8 +218,9 @@ export function Sidebar({ userName, role }: { userName: string; role: "admin" | 
         })}
       </nav>
 
-      {/* Bottom: user chip + logout */}
+      {/* Bottom: Hebrew date + user chip + logout */}
       <div className="space-y-2 p-3">
+        <HebrewDateChip />
         <div className="flex items-center gap-3 rounded-xl bg-white/5 p-2.5">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-400 to-brand-600 text-sm font-bold text-white ring-2 ring-white/10">
             {userName.charAt(0).toUpperCase()}
