@@ -286,13 +286,17 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
           </Link>
           <h1 className="mt-1 text-2xl font-bold text-gray-900">{fullName(contact)}</h1>
           {hokSubs.length > 0 && (
-            <div className="mt-1.5 flex flex-wrap gap-1.5">
+            <div className="mt-2 flex flex-wrap gap-2">
               {hokSubs.map((s) => (
                 <span
                   key={s}
-                  className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 shadow-sm"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-l from-emerald-500 via-green-500 to-teal-500 px-3 py-1 text-xs font-bold text-white shadow-[0_2px_10px_-2px_rgba(16,185,129,0.6)] ring-1 ring-white/30"
                 >
-                  🔁 הו״ק: {s}
+                  <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white/25 text-[10px]">
+                    ⭐
+                  </span>
+                  <span className="opacity-90">הו״ק</span>
+                  <span className="font-extrabold">{s}</span>
                 </span>
               ))}
             </div>
