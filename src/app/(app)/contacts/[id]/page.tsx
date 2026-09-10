@@ -622,6 +622,7 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
           debt={money.debt}
           totalPaid={money.collected}
           phone={contact.phone ?? ""}
+          rows={statementRows}
           onDone={() => setEmailOpen(false)}
           onCancel={() => setEmailOpen(false)}
         />
@@ -690,6 +691,7 @@ function ContactEmailForm({
   debt,
   totalPaid,
   phone,
+  rows,
   onDone,
   onCancel,
 }: {
@@ -699,6 +701,7 @@ function ContactEmailForm({
   debt: number;
   totalPaid: number;
   phone: string;
+  rows: StatementRow[];
   onDone: () => void;
   onCancel: () => void;
 }) {
@@ -720,14 +723,16 @@ function ContactEmailForm({
       .catch(() => {});
   }, []);
 
-  // Fill {{name}} / {{amount}} / {{debt}} placeholders with this contact's data.
+  // Fill {{name}} / {{amount}} / {{debt}} / {{table}} placeholders with this contact's data.
   const fill = (s: string) =>
     s
       .replace(/\{\{\s*name\s*\}\}/g, contactName)
       .replace(/\{\{\s*(amount|debt)\s*\}\}/g, formatCurrency(debt))
       .replace(/\{\{\s*total_paid\s*\}\}/g, formatCurrency(totalPaid))
       .replace(/\{\{\s*phone\s*\}\}/g, phone)
-      .replace(/\{\{\s*date\s*\}\}/g, formatDate(new Date()));
+      .replace(/\{\{\s*date\s*\}\}/g, formatDate(new Date()))
+      // {{table}} → full per-category breakdown (committed / paid / debt), like the statement.
+      .replace(/\{\{\s*table\s*\}\}/g, buildStatementTable(rows, (n) => formatCurrency(n)));
 
   function applyTemplate(id: string) {
     const t = templates.find((x) => String(x.id) === id);
