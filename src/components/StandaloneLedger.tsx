@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { api } from "@/lib/client";
 import { formatCurrency, formatMoney, formatDate } from "@/lib/format";
 import { PAYMENT_METHOD, statusLabel } from "@/lib/constants";
-import { Modal, PageHeader, ObligationStatusBadge, EmptyState } from "@/components/ui";
+import { Modal, PageHeader, ObligationStatusBadge, EmptyState, ConfirmButton } from "@/components/ui";
 import { ObligationForm, type ObligationData } from "@/components/ObligationForm";
 import { TransactionForm, type TransactionData } from "@/components/TransactionForm";
 import { ObligationDetailModal } from "@/components/ObligationDetailModal";
@@ -28,9 +28,14 @@ interface Transaction {
   currency: number;
   amountIls: number | null;
   transactionDate: string;
+  transactionType: string;
   transferredTo: string | null;
   comment: string | null;
   chargeOptionType: string;
+  categoryId: number | null;
+  bank: string | null;
+  branch: string | null;
+  account: string | null;
   category: { category: string } | null;
   obligation: { category: { category: string } | null } | null;
 }
@@ -50,8 +55,14 @@ export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
   const [txOpen, setTxOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [catFilter, setCatFilter] = useState("");
+  const [editTx, setEditTx] = useState<Transaction | null>(null);
   // The obligation whose transactions are being viewed (fetched on click).
   const [detail, setDetail] = useState<ObligationDetail | null>(null);
+
+  async function removeTx(id: number) {
+    await api(`/api/transactions/${id}`, { method: "DELETE" });
+    load();
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -204,6 +215,7 @@ export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
                   <th className="th">עבר ל</th>
                   <th className="th">אמצעי</th>
                   <th className="th">הערה</th>
+                  <th className="th"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -215,6 +227,18 @@ export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
                     <td className="td text-gray-600">{t.transferredTo || "—"}</td>
                     <td className="td text-gray-500">{statusLabel(PAYMENT_METHOD, t.chargeOptionType)}</td>
                     <td className="td text-gray-500">{t.comment || ""}</td>
+                    <td className="td whitespace-nowrap text-left">
+                      <button className="text-sm text-brand-600 hover:underline" onClick={() => setEditTx(t)}>
+                        עריכה
+                      </button>
+                      <ConfirmButton
+                        className="mr-3 text-sm text-red-600 hover:underline"
+                        message="למחוק את העסקה?"
+                        onConfirm={() => removeTx(t.id)}
+                      >
+                        מחיקה
+                      </ConfirmButton>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -251,6 +275,21 @@ export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
           }}
           onCancel={() => setTxOpen(false)}
         />
+      </Modal>
+
+      <Modal open={!!editTx} onClose={() => setEditTx(null)} title={`עריכת עסקת ${title}`} wide>
+        {editTx && (
+          <TransactionForm
+            transaction={editTx}
+            fixedKind={kind}
+            fixedContactId={null}
+            onSaved={() => {
+              setEditTx(null);
+              load();
+            }}
+            onCancel={() => setEditTx(null)}
+          />
+        )}
       </Modal>
 
       <Modal
