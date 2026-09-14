@@ -25,8 +25,16 @@ interface Obligation {
 interface Transaction {
   id: number;
   amount: number;
+  currency: number;
+  amountIls: number | null;
+  transactionDate: string;
+  transferredTo: string | null;
+  comment: string | null;
+  chargeOptionType: string;
+  category: { category: string } | null;
   obligation: { category: { category: string } | null } | null;
 }
+const txCategory = (t: Transaction) => t.category?.category ?? t.obligation?.category?.category ?? null;
 type ObligationDetail = ObligationData & {
   id: number;
   category?: { category: string } | null;
@@ -71,13 +79,14 @@ export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
     setDetail({ ...data, transactions: data.transactions ?? [] });
   }, [detail]);
 
-  const categories = [...new Set(obligations.map((o) => o.category?.category).filter(Boolean))].sort(
-    (a, b) => String(a).localeCompare(String(b), "he"),
-  ) as string[];
+  const categories = [
+    ...new Set([
+      ...obligations.map((o) => o.category?.category),
+      ...transactions.map((t) => txCategory(t)),
+    ].filter(Boolean)),
+  ].sort((a, b) => String(a).localeCompare(String(b), "he")) as string[];
   const shown = catFilter ? obligations.filter((o) => o.category?.category === catFilter) : obligations;
-  const shownTx = catFilter
-    ? transactions.filter((t) => t.obligation?.category?.category === catFilter)
-    : transactions;
+  const shownTx = catFilter ? transactions.filter((t) => txCategory(t) === catFilter) : transactions;
 
   const totalObl = shown
     .filter((o) => o.status === "active")
@@ -179,6 +188,38 @@ export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {!loading && shownTx.length > 0 && (
+        <div className="mt-6">
+          <h3 className="mb-2 text-sm font-semibold text-gray-500">עסקאות ({shownTx.length})</h3>
+          <div className="card overflow-x-auto">
+            <table className="w-full">
+              <thead className="border-b border-gray-200 bg-gray-50">
+                <tr>
+                  <th className="th">תאריך</th>
+                  <th className="th">קטגוריה</th>
+                  <th className="th">סכום</th>
+                  <th className="th">עבר ל</th>
+                  <th className="th">אמצעי</th>
+                  <th className="th">הערה</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {shownTx.map((t) => (
+                  <tr key={t.id} className="hover:bg-gray-50">
+                    <td className="td num whitespace-nowrap text-gray-500">{formatDate(t.transactionDate)}</td>
+                    <td className="td font-medium">{txCategory(t) ?? "—"}</td>
+                    <td className="td">{formatMoney(t.amount, t.currency, t.amountIls)}</td>
+                    <td className="td text-gray-600">{t.transferredTo || "—"}</td>
+                    <td className="td text-gray-500">{statusLabel(PAYMENT_METHOD, t.chargeOptionType)}</td>
+                    <td className="td text-gray-500">{t.comment || ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
