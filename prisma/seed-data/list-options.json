@@ -1,0 +1,194 @@
+[
+  {
+    "listKey": "city",
+    "value": "אלעד"
+  },
+  {
+    "listKey": "city",
+    "value": "אנטוורפן"
+  },
+  {
+    "listKey": "city",
+    "value": "אשדוד"
+  },
+  {
+    "listKey": "city",
+    "value": "אשקלון"
+  },
+  {
+    "listKey": "city",
+    "value": "בורו פארק"
+  },
+  {
+    "listKey": "city",
+    "value": "בית שמש"
+  },
+  {
+    "listKey": "city",
+    "value": "ביתר עילית"
+  },
+  {
+    "listKey": "city",
+    "value": "בני ברק"
+  },
+  {
+    "listKey": "city",
+    "value": "ג'קסון"
+  },
+  {
+    "listKey": "city",
+    "value": "גבעת שמואל"
+  },
+  {
+    "listKey": "city",
+    "value": "ויליאמסבורג"
+  },
+  {
+    "listKey": "city",
+    "value": "וימאומה"
+  },
+  {
+    "listKey": "city",
+    "value": "וינה"
+  },
+  {
+    "listKey": "city",
+    "value": "חיפה"
+  },
+  {
+    "listKey": "city",
+    "value": "חשמונאים"
+  },
+  {
+    "listKey": "city",
+    "value": "טומס ריבר"
+  },
+  {
+    "listKey": "city",
+    "value": "ירושלים"
+  },
+  {
+    "listKey": "city",
+    "value": "לונדון"
+  },
+  {
+    "listKey": "city",
+    "value": "לייקווד"
+  },
+  {
+    "listKey": "city",
+    "value": "מונטריאול"
+  },
+  {
+    "listKey": "city",
+    "value": "מונסי"
+  },
+  {
+    "listKey": "city",
+    "value": "מנצ'סטר"
+  },
+  {
+    "listKey": "city",
+    "value": "נתניה"
+  },
+  {
+    "listKey": "city",
+    "value": "סטטן איילנד"
+  },
+  {
+    "listKey": "city",
+    "value": "סיגייט"
+  },
+  {
+    "listKey": "city",
+    "value": "פומונה"
+  },
+  {
+    "listKey": "city",
+    "value": "פלטבוש"
+  },
+  {
+    "listKey": "city",
+    "value": "פתח תקווה"
+  },
+  {
+    "listKey": "city",
+    "value": "קווינס"
+  },
+  {
+    "listKey": "city",
+    "value": "קרית אתא"
+  },
+  {
+    "listKey": "city",
+    "value": "קרית גת"
+  },
+  {
+    "listKey": "city",
+    "value": "רמת גן"
+  },
+  {
+    "listKey": "city",
+    "value": "שוהם"
+  },
+  {
+    "listKey": "city",
+    "value": "שיקגו"
+  },
+  {
+    "listKey": "city",
+    "value": "תל אביב-יפו"
+  },
+  {
+    "listKey": "city",
+    "value": "תל ציון"
+  },
+  {
+    "listKey": "country",
+    "value": "אירופה"
+  },
+  {
+    "listKey": "country",
+    "value": "ארה\"ב"
+  },
+  {
+    "listKey": "country",
+    "value": "ישראל"
+  },
+  {
+    "listKey": "country",
+    "value": "קנדה"
+  },
+  {
+    "listKey": "donationType",
+    "value": "ברכה גדול"
+  },
+  {
+    "listKey": "donationType",
+    "value": "גדול"
+  },
+  {
+    "listKey": "donationType",
+    "value": "פרנס"
+  },
+  {
+    "listKey": "donationType",
+    "value": "רגיל"
+  },
+  {
+    "listKey": "leregel",
+    "value": "יא\"צ"
+  },
+  {
+    "listKey": "leregel",
+    "value": "מחתן"
+  },
+  {
+    "listKey": "leregel",
+    "value": "שלום זכר"
+  },
+  {
+    "listKey": "leregel",
+    "value": "שמחה"
+  }
+]
