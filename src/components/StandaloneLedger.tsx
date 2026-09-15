@@ -141,7 +141,11 @@ export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
       </div>
 
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <span className="text-sm text-gray-400">לחיצה על התחייבות מציגה את כל העסקאות שלה</span>
+        {shown.length > 0 ? (
+          <span className="text-sm text-gray-400">לחיצה על התחייבות מציגה את כל העסקאות שלה</span>
+        ) : (
+          <span />
+        )}
         <div className="flex items-center gap-2">
           <label className="text-sm text-gray-500">קטגוריה</label>
           <select
