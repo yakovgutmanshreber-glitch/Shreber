@@ -17,6 +17,7 @@ interface ContactLite {
   id: number;
   firstName: string;
   lastName: string | null;
+  phone?: string | null;
 }
 interface ContactSummary {
   obligationTotal: number;
@@ -459,8 +460,16 @@ function DonationForm({
   const set = (k: keyof typeof form, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
 
   const selectedContact = contacts.find((c) => c.id === form.contactId);
-  const contactHits = contactQuery.trim()
-    ? contacts.filter((c) => fullName(c).includes(contactQuery.trim())).slice(0, 8)
+  // Word-based search: every typed word must appear somewhere in the name/phone,
+  // in any order — so "ישראל פינקלשטיין" still finds "ישראל משה פינקלשטיין".
+  const contactWords = contactQuery.trim().split(/\s+/).filter(Boolean);
+  const contactHits = contactWords.length
+    ? contacts
+        .filter((c) => {
+          const hay = `${fullName(c)} ${c.phone ?? ""}`;
+          return contactWords.every((w) => hay.includes(w));
+        })
+        .slice(0, 30)
     : [];
 
   async function submit(e: React.FormEvent) {
