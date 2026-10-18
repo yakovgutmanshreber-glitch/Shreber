@@ -362,23 +362,35 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-5">
         {/* Details — sticky, right column (RTL) — 2/5 width */}
         <div className="lg:order-1 lg:col-span-2 lg:sticky lg:top-4">
-          <div className="card p-5">
-            <h2 className="mb-4 text-lg font-bold">פרטי קשר</h2>
-            <div className="space-y-3 text-sm">
-              <Detail icon="title" label="תואר לפני" value={contact.titleBefore} />
-              <Detail icon="title" label="תואר אחרי" value={contact.titleAfter} />
-              <Detail icon="phone" label="טלפון" value={contact.phone} />
-              <Detail icon="phone" label="טלפון נוסף" value={contact.phone2} />
-              <Detail icon="email" label="אימייל" value={contact.email} />
-              <Detail icon="id" label="ת.ז." value={contact.tz} />
-              <Detail icon="location" label="מדינה" value={contact.country} />
-              <Detail icon="person" label="אביו" value={contact.fatherName} />
-              <Detail icon="person" label="חותנו" value={contact.fatherInLawName} />
+          <div className="card p-6">
+            <div className="mb-5 flex items-center gap-4">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-100 to-brand-200 text-2xl font-extrabold text-brand-700">
+                {(contact.firstName ?? "?").trim().charAt(0) || "?"}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-lg font-extrabold text-slate-800">{fullName(contact)}</div>
+                {contact.city && <div className="text-sm text-slate-500">{contact.city}</div>}
+              </div>
+              <button
+                className="shrink-0 rounded-full border border-brand-200 px-3 py-1.5 text-xs font-semibold text-brand-700 transition-colors hover:bg-brand-50"
+                onClick={() => setEditOpen(true)}
+              >
+                עריכה
+              </button>
+            </div>
+            <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
+              <DetailTile icon="phone" label="טלפון" value={contact.phone} />
+              <DetailTile icon="mobile" label="טלפון נוסף" value={contact.phone2} />
+              <DetailTile icon="id" label="ת.ז." value={contact.tz} />
+              <DetailTile icon="email" label="אימייל" value={contact.email} />
+              <DetailTile icon="country" label="מדינה" value={contact.country} />
+              <DetailTile icon="city" label="עיר" value={contact.city} />
+              <DetailTile icon="address" label="כתובת" value={contact.address} />
+              <DetailTile icon="father" label="אביו" value={contact.fatherName} />
+              <DetailTile icon="fatherInLaw" label="חותנו" value={contact.fatherInLawName} />
               {((contact.country && contact.country !== "ישראל") || contact.addressZip) && (
-                <Detail icon="home" label="כתובת ומיקוד" value={contact.addressZip} />
+                <DetailTile icon="zip" label="כתובת ומיקוד" value={contact.addressZip} />
               )}
-              <Detail icon="location" label="עיר" value={contact.city} />
-              <Detail icon="home" label="כתובת" value={contact.address} />
             </div>
           </div>
         </div>
@@ -724,21 +736,34 @@ function FieldIcon({ name }: { name: string }) {
       return <svg {...c}><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 12 0v1"/></svg>;
     case "title":
       return <svg {...c}><path d="m12 3 2.3 4.6 5.1.7-3.7 3.6.9 5.1-4.6-2.4-4.6 2.4.9-5.1L4.6 8.3l5.1-.7Z"/></svg>;
+    case "mobile":
+      return <svg {...c}><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>;
+    case "father":
+      return <svg {...c}><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 12 0v1"/></svg>;
+    case "fatherInLaw":
+      return <svg {...c}><circle cx="9" cy="8" r="3.2"/><path d="M2 21v-1a5 5 0 0 1 10 0v1"/><path d="M16 11a3 3 0 1 0-2-5.24"/><path d="M15 21v-1a5 5 0 0 1 7-4.58"/></svg>;
+    case "city":
+      return <svg {...c}><path d="M3 21h18M5 21V7l7-4 7 4v14"/><path d="M9 21v-4h6v4M9 11h.01M15 11h.01"/></svg>;
+    case "address":
+      return <svg {...c}><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>;
+    case "zip":
+      return <svg {...c}><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 9h6M6 13h8"/></svg>;
+    case "country":
+      return <svg {...c}><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/></svg>;
     default:
       return <svg {...c}><circle cx="12" cy="12" r="9"/></svg>;
   }
 }
 
-function Detail({ icon, label, value }: { icon: string; label: string; value: string | null | undefined }) {
-  if (!value) return null; // keep the details list clean — hide empty fields
+function DetailTile({ icon, label, value }: { icon: string; label: string; value: string | null | undefined }) {
   return (
-    <div className="flex items-start gap-2.5">
-      <span className="mt-0.5 shrink-0 text-brand-500">
+    <div className="flex items-center gap-3">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center text-brand-600">
         <FieldIcon name={icon} />
       </span>
       <div className="min-w-0">
-        <div className="text-[11px] text-gray-400">{label}</div>
-        <div className="break-words font-medium text-gray-800">{value}</div>
+        <div className="text-xs font-semibold text-gray-400">{label}</div>
+        <div className="truncate font-semibold text-gray-800">{value || "—"}</div>
       </div>
     </div>
   );
