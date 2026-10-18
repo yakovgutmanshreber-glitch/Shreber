@@ -36,6 +36,9 @@ export function ObligationDetailModal({
   );
   const [chargeBusy, setChargeBusy] = useState(false);
   const [chargeError, setChargeError] = useState<string | null>(null);
+  // Charge-the-balance card: pick a saved card OR enter a new one (tokenized).
+  const [chargeMode, setChargeMode] = useState<"existing" | "new">(contactCards.length > 0 ? "existing" : "new");
+  const [chargeCard, setChargeCard] = useState({ cardNumber: "", cardExpiry: "", cvv: "", cardHolder: "", cardBrand: "", saveCard: true });
 
   async function deleteTransaction(id: number) {
     await api(`/api/transactions/${id}`, { method: "DELETE" });
@@ -126,16 +129,30 @@ export function ObligationDetailModal({
   const isPaidUp = remaining != null && remaining <= 0;
 
   async function chargeBalance() {
-    if (!chargeCardId) {
+    setChargeError(null);
+    if (chargeMode === "existing" && !chargeCardId) {
       setChargeError("יש לבחור כרטיס");
       return;
     }
-    setChargeError(null);
+    if (chargeMode === "new" && !chargeCard.cardNumber.trim()) {
+      setChargeError("יש להזין מספר כרטיס");
+      return;
+    }
     setChargeBusy(true);
     try {
       await api(`/api/obligations/${obligation.id}/charge-balance`, {
         method: "POST",
-        body: { cardId: chargeCardId },
+        body:
+          chargeMode === "existing"
+            ? { cardId: chargeCardId }
+            : {
+                cardNumber: chargeCard.cardNumber,
+                cardExpiry: chargeCard.cardExpiry,
+                cvv: chargeCard.cvv,
+                cardHolder: chargeCard.cardHolder,
+                cardBrand: chargeCard.cardBrand,
+                saveCard: chargeCard.saveCard,
+              },
       });
       setChargeOpen(false);
       onChanged();
@@ -360,7 +377,7 @@ export function ObligationDetailModal({
               )}
             </span>
             <div className="flex gap-2">
-              {balance > 0 && contactCards.length > 0 && (
+              {balance > 0 && (
                 <button
                   className="btn-secondary !py-1.5 text-xs"
                   onClick={() => setChargeOpen((v) => !v)}
@@ -379,23 +396,88 @@ export function ObligationDetailModal({
               <div className="mb-2 text-sm text-gray-600">
                 חיוב יתרה של <b>{formatCurrency(balance, oblCurrency)}</b> בכרטיס:
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <select
-                  className="input max-w-[16rem]"
-                  value={chargeCardId}
-                  onChange={(e) => setChargeCardId(e.target.value ? Number(e.target.value) : "")}
-                >
-                  {contactCards.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.brand ?? "כרטיס"} •••• {c.last4 ?? "????"}
-                      {c.isDefault ? " (ברירת מחדל)" : ""}
-                    </option>
-                  ))}
-                </select>
-                <button className="btn-danger !py-1.5 text-xs" onClick={chargeBalance} disabled={chargeBusy}>
-                  {chargeBusy ? "מחייב…" : `חייב ${formatCurrency(balance, oblCurrency)}`}
-                </button>
-              </div>
+              {contactCards.length > 0 && (
+                <div className="mb-2 flex gap-2">
+                  <button
+                    type="button"
+                    className={chargeMode === "existing" ? "btn-primary flex-1 !py-1.5 text-xs" : "btn-secondary flex-1 !py-1.5 text-xs"}
+                    onClick={() => setChargeMode("existing")}
+                  >
+                    כרטיס שמור
+                  </button>
+                  <button
+                    type="button"
+                    className={chargeMode === "new" ? "btn-primary flex-1 !py-1.5 text-xs" : "btn-secondary flex-1 !py-1.5 text-xs"}
+                    onClick={() => setChargeMode("new")}
+                  >
+                    כרטיס חדש
+                  </button>
+                </div>
+              )}
+              {chargeMode === "existing" && contactCards.length > 0 ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    className="input max-w-[16rem]"
+                    value={chargeCardId}
+                    onChange={(e) => setChargeCardId(e.target.value ? Number(e.target.value) : "")}
+                  >
+                    {contactCards.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.brand ?? "כרטיס"} •••• {c.last4 ?? "????"}
+                        {c.isDefault ? " (ברירת מחדל)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <button className="btn-danger !py-1.5 text-xs" onClick={chargeBalance} disabled={chargeBusy}>
+                    {chargeBusy ? "מחייב…" : `חייב ${formatCurrency(balance, oblCurrency)}`}
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      className="input col-span-2"
+                      inputMode="numeric"
+                      placeholder="מספר כרטיס"
+                      value={chargeCard.cardNumber}
+                      onChange={(e) => setChargeCard((c) => ({ ...c, cardNumber: e.target.value }))}
+                    />
+                    <input
+                      className="input"
+                      placeholder="תוקף MMYY"
+                      maxLength={4}
+                      value={chargeCard.cardExpiry}
+                      onChange={(e) => setChargeCard((c) => ({ ...c, cardExpiry: e.target.value.replace(/\D/g, "").slice(0, 4) }))}
+                    />
+                    <input
+                      className="input"
+                      inputMode="numeric"
+                      maxLength={4}
+                      placeholder="CVV"
+                      value={chargeCard.cvv}
+                      onChange={(e) => setChargeCard((c) => ({ ...c, cvv: e.target.value.replace(/\D/g, "").slice(0, 4) }))}
+                    />
+                    <input
+                      className="input col-span-2"
+                      placeholder="שם בעל הכרטיס"
+                      value={chargeCard.cardHolder}
+                      onChange={(e) => setChargeCard((c) => ({ ...c, cardHolder: e.target.value }))}
+                    />
+                  </div>
+                  <label className="flex items-center gap-2 text-xs text-gray-600">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 accent-brand-600"
+                      checked={chargeCard.saveCard}
+                      onChange={(e) => setChargeCard((c) => ({ ...c, saveCard: e.target.checked }))}
+                    />
+                    שמור כרטיס לאיש הקשר לשימוש הבא
+                  </label>
+                  <button className="btn-danger !py-1.5 text-xs" onClick={chargeBalance} disabled={chargeBusy}>
+                    {chargeBusy ? "מחייב…" : `חייב ${formatCurrency(balance, oblCurrency)}`}
+                  </button>
+                </div>
+              )}
               {chargeError && <p className="mt-2 text-xs text-red-600">{chargeError}</p>}
               <p className="mt-1 text-xs text-gray-400">חיוב בפועל בקשר; העסקה תירשם אוטומטית.</p>
             </div>
