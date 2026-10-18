@@ -81,6 +81,7 @@ export const CURRENCY = {
   826: "£ לירה שטרלינג",
   978: "€ אירו",
   124: "$ דולר קנדי",
+  756: "₣ פרנק שוויצרי",
 } as const;
 
 // ISO numeric currency code -> 3-letter code (for FX rates).
@@ -90,6 +91,7 @@ export const CURRENCY_CODE: Record<number, string> = {
   826: "GBP",
   978: "EUR",
   124: "CAD",
+  756: "CHF",
 };
 
 // Kesher internal status codes (also seeded into the KesherStatus table).

@@ -825,7 +825,7 @@ export function ObligationForm({
               : isRecurringCredit
                 ? "הקם הוראת קבע בקשר"
                 : chargesViaKesher
-                  ? "צור וחייב בקשר"
+                  ? "בצע עסקה"
                   : "שמירה"}
           </button>
         </div>
