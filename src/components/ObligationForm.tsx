@@ -104,6 +104,8 @@ export function ObligationForm({
     cardBrand: "",
     saveCard: true,
   });
+  // Converting an existing (non-Kesher) obligation to credit → charge the card now?
+  const [chargeNow, setChargeNow] = useState(true);
 
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -158,6 +160,9 @@ export function ObligationForm({
   // that syncs (amount/day/date/payments/status) will be rejected.
   const CLOSED_STATUSES = ["finished", "cancelled", "bank_auth_cancelled", "payment_method_cancelled"];
   const isClosedInKesher = isKesherTracked && CLOSED_STATUSES.includes(String(form.status));
+  // Editing a non-Kesher obligation that is (now) credit — e.g. was מזומן, switched
+  // to כרטיס אשראי. Offer a card and charge the balance on save (one-time, via Kesher).
+  const editCreditCharge = isEdit && isCredit && !isKesherTracked;
   // Kesher field-lock (brief §8): סכום/תשלומים/תאריך/מטבע are "admin-only, local-only"
   // on a Kesher-owned hok — disabled for regular users, editable (locally) for an admin.
   const { data: session } = useSession();
@@ -213,6 +218,29 @@ export function ObligationForm({
 
       if (isEdit) {
         await api(`/api/obligations/${obligation!.id}`, { method: "PATCH", body: { ...base, localOnly } });
+        // Converted to credit (non-Kesher) and asked to charge now → charge the balance.
+        if (editCreditCharge && chargeNow) {
+          if (cardMode === "existing" && !selectedCardId && contactCards.length > 0) {
+            throw new Error("יש לבחור כרטיס לחיוב");
+          }
+          if ((cardMode === "new" || contactCards.length === 0) && !card.cardNumber.trim()) {
+            throw new Error("יש להזין מספר כרטיס לחיוב");
+          }
+          await api(`/api/obligations/${obligation!.id}/charge-balance`, {
+            method: "POST",
+            body:
+              cardMode === "existing" && selectedCardId
+                ? { cardId: selectedCardId }
+                : {
+                    cardNumber: card.cardNumber,
+                    cardExpiry: card.cardExpiry,
+                    cvv: card.cvv,
+                    cardHolder: card.cardHolder,
+                    cardBrand: card.cardBrand,
+                    saveCard: card.saveCard,
+                  },
+          });
+        }
       } else if (isCredit) {
         // Path A — create the obligation AND set it up in Kesher. For הוראת קבע
         // (CreditType 10) Kesher creates the recurring hok and charges it monthly;
@@ -640,11 +668,26 @@ export function ObligationForm({
         </div>
       )}
 
-      {/* Credit-card selection — for all credit obligations (הוראת קבע / תשלומים / חד פעמי) */}
-      {chargesViaKesher && (
+      {/* Credit-card selection — for new credit obligations AND for an existing
+          obligation switched to credit (charge the balance now). */}
+      {(chargesViaKesher || editCreditCharge) && (
         <div className="rounded-xl border border-brand-100 bg-brand-50/40 p-4">
           <div className="mb-2 text-sm font-semibold text-gray-700">כרטיס לחיוב</div>
 
+          {editCreditCharge && (
+            <div className="mb-3">
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input type="checkbox" checked={chargeNow} onChange={(e) => setChargeNow(e.target.checked)} />
+                חייב את הכרטיס עכשיו בסכום היתרה
+              </label>
+              <p className="mt-1 text-xs text-gray-400">
+                חיוב חד-פעמי בקשר; ההתחייבות תעודכן לאמצעי "כרטיס אשראי". (להקמת הוראת קבע קבועה — צור התחייבות אשראי חדשה.)
+              </p>
+            </div>
+          )}
+
+          {editCreditCharge && !chargeNow ? null : (
+          <>
           {contactCards.length > 0 && (
             <div className="mb-3 flex gap-2">
               <button
@@ -690,7 +733,7 @@ export function ObligationForm({
                     inputMode="numeric"
                     value={card.cardNumber}
                     onChange={(e) => setC("cardNumber", e.target.value)}
-                    required
+                    required={chargesViaKesher || chargeNow}
                   />
                 </div>
                 <div>
@@ -701,7 +744,7 @@ export function ObligationForm({
                     maxLength={4}
                     value={card.cardExpiry}
                     onChange={(e) => setC("cardExpiry", e.target.value.replace(/\D/g, "").slice(0, 4))}
-                    required
+                    required={chargesViaKesher || chargeNow}
                   />
                 </div>
                 <div>
@@ -737,6 +780,8 @@ export function ObligationForm({
                 </label>
               )}
             </div>
+          )}
+          </>
           )}
         </div>
       )}
@@ -839,7 +884,7 @@ export function ObligationForm({
           </button>
           <button
             type="submit"
-            className={`!px-6 ${chargesViaKesher ? "btn-danger" : "btn-primary"}`}
+            className={`!px-6 ${chargesViaKesher || (editCreditCharge && chargeNow) ? "btn-danger" : "btn-primary"}`}
             disabled={saving}
           >
             {saving
@@ -848,7 +893,9 @@ export function ObligationForm({
                 ? "הקם הוראת קבע בקשר"
                 : chargesViaKesher
                   ? "בצע עסקה"
-                  : "שמירה"}
+                  : editCreditCharge && chargeNow
+                    ? "שמור וחייב בכרטיס"
+                    : "שמירה"}
           </button>
         </div>
       )}
