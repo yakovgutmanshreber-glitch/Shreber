@@ -125,7 +125,7 @@ export function TxStatusBadge({
     (code !== null && code !== undefined ? KESHER_STATUS[code] : undefined) ||
     text ||
     `קוד ${code}`;
-  return <span className={`badge ${cls}`}>{label}</span>;
+  return <span className={`badge whitespace-nowrap ${cls}`}>{label}</span>;
 }
 
 export function EmptyState({ message }: { message: string }) {
