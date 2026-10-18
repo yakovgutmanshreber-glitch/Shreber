@@ -290,63 +290,47 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
 
   return (
     <div className="space-y-6">
-      <div>
-        <Link href="/contacts" className="text-sm text-brand-600 hover:underline">
-          ← חזרה לאנשי קשר
-        </Link>
-        {/* Hero banner */}
-        <div className="mt-2 overflow-hidden rounded-3xl bg-gradient-to-l from-brand-700 via-brand-600 to-brand-500 p-6 text-white shadow-lift">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="min-w-0">
-              <h1 className="text-2xl font-extrabold tracking-tight">{fullName(contact)}</h1>
-              <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm text-white/85">
-                {contact.phone && <span>📞 {contact.phone}</span>}
-                {contact.city && <span>📍 {contact.city}</span>}
-                {contact.email && <span className="truncate">✉️ {contact.email}</span>}
-              </div>
-              {hokSubs.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {hokSubs.map((s) => (
-                    <span
-                      key={s}
-                      className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-xs font-bold text-white ring-1 ring-white/30"
-                    >
-                      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white/25 text-[10px]">⭐</span>
-                      <span className="opacity-90">הו״ק</span>
-                      <span className="font-extrabold">{s}</span>
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {[
-                { label: "📄 דוח תשלומים", on: () => setStatementOpen(true) },
-                { label: "🎉 שמחות", on: () => setSimchaOpen(true) },
-                { label: "✉️ שלח מייל", on: () => setEmailOpen(true) },
-                {
-                  label: `💳 כרטיסי אשראי${contact.creditCards.length > 0 ? ` (${contact.creditCards.length})` : ""}`,
-                  on: () => setCardsOpen(true),
-                },
-                { label: "✏️ עריכה", on: () => setEditOpen(true) },
-              ].map((b) => (
-                <button
-                  key={b.label}
-                  onClick={b.on}
-                  className="rounded-full bg-white/15 px-3 py-1.5 text-sm font-medium text-white backdrop-blur transition-colors hover:bg-white/25"
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <Link href="/contacts" className="text-sm text-brand-600 hover:underline">
+            ← חזרה לאנשי קשר
+          </Link>
+          <h1 className="mt-1 text-2xl font-bold text-gray-900">{fullName(contact)}</h1>
+          {hokSubs.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {hokSubs.map((s) => (
+                <span
+                  key={s}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-l from-emerald-500 via-green-500 to-teal-500 px-3 py-1 text-xs font-bold text-white shadow-[0_2px_10px_-2px_rgba(16,185,129,0.6)] ring-1 ring-white/30"
                 >
-                  {b.label}
-                </button>
+                  <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white/25 text-[10px]">⭐</span>
+                  <span className="opacity-90">הו״ק</span>
+                  <span className="font-extrabold">{s}</span>
+                </span>
               ))}
-              <ConfirmButton
-                className="rounded-full bg-red-500/90 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-red-500"
-                message="למחוק את איש הקשר? פעולה זו אינה הפיכה."
-                onConfirm={deleteContact}
-              >
-                מחיקה
-              </ConfirmButton>
             </div>
-          </div>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button className="btn-secondary" onClick={() => setStatementOpen(true)}>
+            📄 דוח תשלומים
+          </button>
+          <button className="btn-secondary" onClick={() => setSimchaOpen(true)}>
+            🎉 שמחות
+          </button>
+          <button className="btn-secondary" onClick={() => setEmailOpen(true)}>
+            ✉️ שלח מייל
+          </button>
+          <button className="btn-secondary" onClick={() => setCardsOpen(true)}>
+            💳 כרטיסי אשראי{contact.creditCards.length > 0 ? ` (${contact.creditCards.length})` : ""}
+          </button>
+          <ConfirmButton
+            className="btn-danger"
+            message="למחוק את איש הקשר? פעולה זו אינה הפיכה."
+            onConfirm={deleteContact}
+          >
+            מחיקה
+          </ConfirmButton>
         </div>
       </div>
 
