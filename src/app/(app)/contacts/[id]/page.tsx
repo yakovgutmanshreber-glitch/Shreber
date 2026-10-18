@@ -371,12 +371,17 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
                 <div className="truncate text-lg font-extrabold text-slate-800">{fullName(contact)}</div>
                 {contact.city && <div className="text-sm text-slate-500">{contact.city}</div>}
               </div>
-              <button
-                className="shrink-0 rounded-full border border-brand-200 px-3 py-1.5 text-xs font-semibold text-brand-700 transition-colors hover:bg-brand-50"
-                onClick={() => setEditOpen(true)}
-              >
-                עריכה
-              </button>
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  className="rounded-full border border-brand-200 px-3 py-1.5 text-xs font-semibold text-brand-700 transition-colors hover:bg-brand-50"
+                  onClick={() => setEditOpen(true)}
+                >
+                  עריכה
+                </button>
+                <span className="rounded-full border border-brand-100 bg-brand-50 px-3 py-1.5 text-sm font-bold text-brand-700">
+                  מס' {contact.id}
+                </span>
+              </div>
             </div>
             <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
               <DetailTile icon="phone" label="טלפון" value={contact.phone} />
