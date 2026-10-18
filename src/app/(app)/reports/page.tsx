@@ -309,7 +309,7 @@ function UncategorizedReport() {
   );
 }
 
-type ReportKey = "debts" | "transactions" | "unlinked" | "uncategorized";
+type ReportKey = "debts" | "transactions" | "categories" | "unlinked" | "uncategorized";
 
 const REPORTS: {
   key: ReportKey;
@@ -340,6 +340,19 @@ const REPORTS: {
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M3 3v18h18" />
         <path d="M7 14l3-3 3 3 5-6" />
+      </svg>
+    ),
+  },
+  {
+    key: "categories",
+    title: "הכנסות מול הוצאות לפי קטגוריה",
+    subtitle: "לכל קטגוריה — סך ההכנסות מול ההוצאות בטווח תאריכים, עם הדפסה / שמירה כ-PDF",
+    tint: "bg-emerald-50 text-emerald-600",
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 3v18h18" />
+        <rect x="7" y="10" width="3" height="7" />
+        <rect x="14" y="6" width="3" height="11" />
       </svg>
     ),
   },
@@ -392,6 +405,8 @@ export default function ReportsPage() {
           <DebtsReport />
         ) : active === "transactions" ? (
           <TransactionsReport />
+        ) : active === "categories" ? (
+          <CategoriesReport />
         ) : active === "uncategorized" ? (
           <UncategorizedReport />
         ) : (
@@ -904,6 +919,282 @@ function ContactPicker({ onPick }: { onPick: (contactId: number) => void }) {
             </li>
           ))}
         </ul>
+      )}
+    </div>
+  );
+}
+
+// --- דוח קופה: הכנסות מול הוצאות לפי קטגוריה ---------------------------------
+interface CatOpt {
+  id: number;
+  category: string;
+  mainCategory: string;
+}
+interface StmtSection {
+  count: number;
+  committed: number;
+  paid: number;
+  payments: number;
+  future: number;
+  failed: number;
+  passedCount: number;
+  failedCount: number;
+  debt: number;
+  debtDue: number;
+  byCurrency: { currency: number; label: string; paid: number; paidIls: number }[];
+  byMethod: { method: string; label: string; amount: number }[];
+}
+interface Statement {
+  category: string;
+  income: StmtSection;
+  expense: StmtSection;
+}
+
+function yearsAgoISO(n: number) {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - n);
+  return d.toISOString().slice(0, 10);
+}
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// ---- Printable קופה statement (opens the browser print dialog → Save as PDF) ----
+function esc(s: unknown): string {
+  return String(s ?? "").replace(/[&<>"]/g, (c) =>
+    c === "&" ? "&amp;" : c === "<" ? "&lt;" : c === ">" ? "&gt;" : "&quot;",
+  );
+}
+
+function printSectionHtml(title: string, cls: string, s: StmtSection, debtLabel: string): string {
+  const curRows = s.byCurrency.length
+    ? s.byCurrency
+        .map(
+          (c) =>
+            `<tr><td>${esc(c.label)}</td><td class="l">${esc(formatCurrency(c.paid, c.currency))}</td><td class="l">${esc(formatCurrency(c.paidIls))}</td></tr>`,
+        )
+        .join("")
+    : `<tr><td colspan="3" class="muted">—</td></tr>`;
+  const methRows = s.byMethod.length
+    ? s.byMethod
+        .map((m) => `<tr><td>${esc(m.label)}</td><td class="l b">${esc(formatCurrency(m.amount))}</td></tr>`)
+        .join("")
+    : `<tr><td class="muted">—</td></tr>`;
+  const row = (l: string, v: string, cls2 = "") => `<div class="tr ${cls2}"><span class="muted">${l}</span><span>${v}</span></div>`;
+  const debtCls = s.debt > 0 ? "neg" : "pos";
+  const dueCls = s.debtDue > 0 ? "neg" : "pos";
+  return `
+  <div class="section">
+    <div class="sec-head ${cls}">${esc(title)}</div>
+    <div class="sec-body">
+      <div><div class="lbl">לפי מטבע</div><table><thead><tr><th>מטבע</th><th class="l">שולם</th><th class="l">בשקלים</th></tr></thead><tbody>${curRows}</tbody></table></div>
+      <div><div class="lbl">לפי אמצעי תשלום</div><table><tbody>${methRows}</tbody></table></div>
+      <div class="totals">
+        ${row("מספר התחייבויות", esc(s.count.toLocaleString("he-IL")))}
+        ${row("סך התחייבויות", `<b>${esc(formatCurrency(s.committed))}</b>`)}
+        ${row("סך תשלומים (פעיל)", esc(formatCurrency(s.payments)), "sep")}
+        ${row("↳ עתידי (נותר לחיוב)", `<span class="muted">${esc(formatCurrency(s.future))}</span>`)}
+        ${row(`✓ עברו בהצלחה${s.passedCount ? ` · ${s.passedCount}` : ""}`, `<span class="pos b">${esc(formatCurrency(s.paid))}</span>`, "sep")}
+        ${row(`✗ לא עברו${s.failedCount ? ` · ${s.failedCount}` : ""}`, `<span class="neg b">${esc(formatCurrency(s.failed))}</span>`)}
+        ${row(`${s.debt < 0 ? "יתרת זכות" : debtLabel} (התחייבויות − שולם)`, `<span class="${debtCls} big">${esc(formatCurrency(Math.abs(s.debt)))}</span>`, "sep")}
+        ${row(`${debtLabel} לגבייה (ללא עתידיים)`, `<span class="${dueCls} big">${esc(formatCurrency(Math.abs(s.debtDue)))}</span>`)}
+      </div>
+    </div>
+  </div>`;
+}
+
+// Shared statement styles — scoped under .stmt-root so the SAME markup renders
+// identically on-screen and in the printed PDF (single source of truth).
+const STATEMENT_STYLES = `
+  @page { size: A4; margin: 14mm; }
+  .stmt-root, .stmt-root * { box-sizing: border-box; }
+  .stmt-root { font-family: "Segoe UI", Arial, "Noto Sans Hebrew", sans-serif; color: #1f2937; direction: rtl; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .stmt-root .head { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #6366f1; padding-bottom: 12px; margin-bottom: 22px; }
+  .stmt-root .head-right { display: flex; align-items: center; gap: 14px; }
+  .stmt-root .logo { height: 58px; width: 58px; object-fit: contain; }
+  .stmt-root .title { font-size: 22px; font-weight: 800; color: #4338ca; }
+  .stmt-root .sub { color: #6b7280; font-size: 12.5px; margin-top: 4px; }
+  .stmt-root .org { text-align: left; color: #6366f1; font-weight: 800; font-size: 14px; }
+  .stmt-root .org small { display: block; font-weight: 400; color: #9ca3af; margin-top: 3px; }
+  .stmt-root .section { margin-bottom: 20px; border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden; break-inside: avoid; }
+  .stmt-root .sec-head { padding: 8px 14px; color: #fff; font-weight: 800; font-size: 15px; }
+  .stmt-root .sec-head.income { background: #059669; }
+  .stmt-root .sec-head.expense { background: #e11d48; }
+  .stmt-root .sec-body { display: grid; grid-template-columns: 1fr 1fr 1.15fr; gap: 18px; padding: 14px; }
+  .stmt-root table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .stmt-root th { text-align: right; color: #9ca3af; font-weight: 700; font-size: 10.5px; border-bottom: 1px solid #eee; padding: 4px 0; }
+  .stmt-root td { padding: 4px 0; border-bottom: 1px solid #f3f4f6; }
+  .stmt-root .l { text-align: left; }
+  .stmt-root .b { font-weight: 600; }
+  .stmt-root .muted { color: #9ca3af; }
+  .stmt-root .lbl { color: #9ca3af; font-size: 10.5px; font-weight: 700; margin-bottom: 7px; letter-spacing: .02em; }
+  .stmt-root .totals { background: #f5f3ff; border: 1px solid #e0e7ff; border-radius: 8px; padding: 10px 12px; }
+  .stmt-root .tr { display: flex; justify-content: space-between; padding: 3px 0; font-size: 12.5px; }
+  .stmt-root .tr.sep { border-top: 1px solid #e0e7ff; margin-top: 4px; padding-top: 7px; }
+  .stmt-root .pos { color: #059669; }
+  .stmt-root .neg { color: #e11d48; }
+  .stmt-root .big { font-weight: 800; font-size: 13.5px; }
+  .stmt-root .net { display: flex; gap: 14px; margin-top: 4px; }
+  .stmt-root .net .box { flex: 1; text-align: center; border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; }
+  .stmt-root .net .k { font-size: 11px; color: #9ca3af; font-weight: 700; margin-top: 4px; }
+  .stmt-root .net .v { font-size: 20px; font-weight: 800; }
+  .stmt-root .foot { margin-top: 18px; text-align: center; color: #a5b4fc; font-size: 10px; }
+`;
+
+function statementInnerHtml(data: Statement, from: string, to: string, logoSrc: string): string {
+  const net = data.income.paid - data.expense.paid;
+  return `
+  <div class="head">
+    <div class="head-right">
+      ${logoSrc ? `<img class="logo" src="${esc(logoSrc)}" alt="לוגו">` : ""}
+      <div><div class="title">דוח קופה — ${esc(data.category)}</div><div class="sub">טווח תאריכים: ${esc(formatDate(from))} — ${esc(formatDate(to))}</div></div>
+    </div>
+    <div class="org">דברי אלקים חיים<small>הופק: ${esc(formatDate(todayISO()))}</small></div>
+  </div>
+  ${printSectionHtml("הכנסות", "income", data.income, "חוב")}
+  ${printSectionHtml("הוצאות", "expense", data.expense, "יתרה")}
+  <div class="net">
+    <div class="box"><div class="v pos">${esc(formatCurrency(data.income.paid))}</div><div class="k">סך הכנסות (שולם)</div></div>
+    <div class="box"><div class="v neg">${esc(formatCurrency(data.expense.paid))}</div><div class="k">סך הוצאות (שולם)</div></div>
+    <div class="box"><div class="v" style="color:#6366f1">${esc(formatCurrency(net))}</div><div class="k">נטו</div></div>
+  </div>
+  <div class="foot">הופק ממערכת ניהול כספים · דברי אלקים חיים</div>`;
+}
+
+function statementDocHtml(data: Statement, from: string, to: string, logoSrc: string): string {
+  return `<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8"><title>דוח קופה — ${esc(data.category)}</title>
+<style>body{margin:0}${STATEMENT_STYLES}</style></head><body><div class="stmt-root" style="padding:2px">${statementInnerHtml(data, from, to, logoSrc)}</div></body></html>`;
+}
+
+function printStatement(data: Statement, from: string, to: string) {
+  const logoSrc = `${window.location.origin}/logo.png`;
+  const html = statementDocHtml(data, from, to, logoSrc);
+  const iframe = document.createElement("iframe");
+  iframe.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;";
+  document.body.appendChild(iframe);
+  const doc = iframe.contentWindow?.document;
+  if (!doc) return;
+  doc.open();
+  doc.write(html);
+  doc.close();
+  const go = () => {
+    iframe.contentWindow?.focus();
+    iframe.contentWindow?.print();
+    setTimeout(() => iframe.remove(), 1500);
+  };
+  // Wait for the logo so it's included in the PDF (with a fallback timeout).
+  const img = doc.querySelector("img");
+  if (img && !img.complete) {
+    img.addEventListener("load", go, { once: true });
+    img.addEventListener("error", go, { once: true });
+    setTimeout(go, 2500);
+  } else {
+    setTimeout(go, 400);
+  }
+}
+
+function CategoriesReport() {
+  const [cats, setCats] = useState<CatOpt[]>([]);
+  const [categoryId, setCategoryId] = useState<number | "">("");
+  const [from, setFrom] = useState(yearsAgoISO(3));
+  const [to, setTo] = useState(todayISO());
+  const [data, setData] = useState<Statement | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    api<CatOpt[]>("/api/categories")
+      .then(setCats)
+      .catch(() => {});
+  }, []);
+  useEffect(() => {
+    if (!categoryId) {
+      setData(null);
+      return;
+    }
+    // Latest-wins guard: when the filters change quickly, make sure a slow earlier
+    // request can't resolve after and overwrite the current one's result.
+    let cancelled = false;
+    setLoading(true);
+    api<Statement>(`/api/reports/category-statement?categoryId=${categoryId}&from=${from}&to=${to}`)
+      .then((d) => {
+        if (!cancelled) setData(d);
+      })
+      .catch(() => {
+        if (!cancelled) setData(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [categoryId, from, to]);
+
+  return (
+    <div className="space-y-4">
+      {/* Controls */}
+      <div className="card flex flex-wrap items-end gap-4 p-4">
+        <div>
+          <label className="label">קופה / קטגוריה</label>
+          <select
+            className="input !w-auto min-w-[14rem]"
+            value={categoryId}
+            onChange={(e) => setCategoryId(e.target.value ? Number(e.target.value) : "")}
+          >
+            <option value="">— בחר קטגוריה —</option>
+            {cats.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.mainCategory} › {c.category}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="label">מתאריך</label>
+          <input type="date" className="input !w-auto" value={from} onChange={(e) => setFrom(e.target.value)} />
+        </div>
+        <div>
+          <label className="label">עד תאריך</label>
+          <input type="date" className="input !w-auto" value={to} onChange={(e) => setTo(e.target.value)} />
+        </div>
+      </div>
+
+      {!categoryId ? (
+        <div className="card p-10 text-center text-slate-400">בחר קטגוריה כדי לצפות בדוח</div>
+      ) : loading || !data ? (
+        <div className="card p-10 text-center text-slate-400">טוען…</div>
+      ) : (
+        <>
+          {/* Toolbar (not part of the printed page) */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-slate-400">תצוגה מקדימה — זהה למה שיודפס</p>
+            <button
+              className="btn-primary flex items-center gap-2 !py-2"
+              onClick={() => printStatement(data, from, to)}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="6 9 6 2 18 2 18 9" />
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                <rect x="6" y="14" width="12" height="8" />
+              </svg>
+              הדפסה / שמירה כ-PDF
+            </button>
+          </div>
+
+          {/* The report — same markup as the PDF (single source of truth) */}
+          <div className="overflow-x-auto">
+            <div
+              className="mx-auto max-w-[900px] rounded-xl bg-white p-7 shadow-sm ring-1 ring-slate-200"
+              style={{ minWidth: 700 }}
+            >
+              <style dangerouslySetInnerHTML={{ __html: STATEMENT_STYLES }} />
+              <div
+                className="stmt-root"
+                dangerouslySetInnerHTML={{ __html: statementInnerHtml(data, from, to, "/logo.png") }}
+              />
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
