@@ -431,7 +431,9 @@ export function ObligationDetailModal({
                       <td className="td text-left">
                         {t.source === "api" ? (
                           // Kesher-sourced transactions are read-only (§8.3).
-                          <span className="text-xs text-gray-400">קשר — לקריאה בלבד</span>
+                          <span className="whitespace-nowrap text-xs text-gray-400" title="עסקת קשר — לקריאה בלבד">
+                            🔒 קשר
+                          </span>
                         ) : (
                           <>
                             <button

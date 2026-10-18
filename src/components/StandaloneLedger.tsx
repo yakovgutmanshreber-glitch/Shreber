@@ -234,7 +234,9 @@ export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
                     <td className="td text-gray-500">{t.comment || ""}</td>
                     <td className="td whitespace-nowrap text-left">
                       {t.source === "api" ? (
-                        <span className="text-xs text-gray-400">קשר — לקריאה בלבד</span>
+                        <span className="whitespace-nowrap text-xs text-gray-400" title="עסקת קשר — לקריאה בלבד">
+                          🔒 קשר
+                        </span>
                       ) : (
                         <>
                           <button className="text-sm text-brand-600 hover:underline" onClick={() => setEditTx(t)}>
