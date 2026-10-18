@@ -264,13 +264,20 @@ export function ObligationForm({
 
   return (
     <form onSubmit={submit} className="space-y-5">
+      {isKesherTracked && (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+          🔒 הוראה זו מנוהלת בקשר — לקריאה בלבד. כדי לשנות פרטים, ערכו אותה ישירות בקשר.
+        </div>
+      )}
       {isClosedInKesher && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
           ⚠️ הוראה זו סגורה בקשר ({OBLIGATION_STATUS[form.status as keyof typeof OBLIGATION_STATUS] ?? form.status}).
           קשר לא מאפשר לשנות סכום, תשלומים, תאריך או סטטוס בהוראה שהסתיימה/בוטלה, ולכן שינויים כאלה יידחו ולא יישמרו.
-          לחיוב נוסף יש ליצור התחייבות חדשה. (ניתן לערוך הערה בלבד.)
+          לחיוב נוסף יש ליצור התחייבות חדשה.
         </div>
       )}
+      {/* When Kesher owns the hok, lock the whole form — it's managed in Kesher. */}
+      <fieldset disabled={isKesherTracked} className="m-0 min-w-0 space-y-5 border-0 p-0">
       <div className="grid grid-cols-1 gap-x-4 gap-y-5 sm:grid-cols-2">
         {!fixedKind && (
           <div>
@@ -790,6 +797,7 @@ export function ObligationForm({
             : "⚠️ שמירה תבצע חיוב בפועל בקשר (או חיוב הדמיה במצב Mock) ותרשום את העסקה הראשונה."}
         </p>
       )}
+      </fieldset>
 
       {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
       {askKesher ? (
@@ -813,21 +821,23 @@ export function ObligationForm({
       ) : (
         <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
           <button type="button" className="btn-secondary !px-6" onClick={onCancel}>
-            ביטול
+            {isKesherTracked ? "סגירה" : "ביטול"}
           </button>
-          <button
-            type="submit"
-            className={`!px-6 ${chargesViaKesher ? "btn-danger" : "btn-primary"}`}
-            disabled={saving}
-          >
-            {saving
-              ? "מעבד…"
-              : isRecurringCredit
-                ? "הקם הוראת קבע בקשר"
-                : chargesViaKesher
-                  ? "בצע עסקה"
-                  : "שמירה"}
-          </button>
+          {!isKesherTracked && (
+            <button
+              type="submit"
+              className={`!px-6 ${chargesViaKesher ? "btn-danger" : "btn-primary"}`}
+              disabled={saving}
+            >
+              {saving
+                ? "מעבד…"
+                : isRecurringCredit
+                  ? "הקם הוראת קבע בקשר"
+                  : chargesViaKesher
+                    ? "בצע עסקה"
+                    : "שמירה"}
+            </button>
+          )}
         </div>
       )}
     </form>
