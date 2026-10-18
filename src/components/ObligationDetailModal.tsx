@@ -353,7 +353,7 @@ export function ObligationDetailModal({
       )}
 
       {/* Tabs */}
-      <div className="mb-4 flex gap-1 border-b border-gray-200">
+      <div className="mb-4 flex flex-wrap gap-2">
         <TabBtn active={tab === "details"} onClick={() => setTab("details")}>
           פרטי התחייבות
         </TabBtn>
@@ -529,10 +529,10 @@ function TabBtn({
   return (
     <button
       onClick={onClick}
-      className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium ${
+      className={`rounded-full px-4 py-1.5 text-sm font-semibold transition-colors ${
         active
-          ? "border-brand-600 text-brand-700"
-          : "border-transparent text-gray-500 hover:text-gray-700"
+          ? "bg-brand-700 text-white shadow-sm"
+          : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
       }`}
     >
       {children}
