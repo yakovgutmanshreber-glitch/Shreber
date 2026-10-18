@@ -374,8 +374,15 @@ async function upsertTransaction(body: Record<string, unknown>): Promise<"proces
     ours?.contactId ??
     (await contactIdByPhone(pick(body, "Phone", "phone"), pick(body, "Phone2", "phone2")));
 
-  // KesherStatus is the internal status code (matches our KesherStatus table).
-  const statusCode = pick(body, "KesherStatus", "StatusCode", "status_code");
+  // KesherStatus is the internal status code. Kesher sends it as EITHER a plain
+  // number OR a nested object { Status: N } — unwrap the object (Number(object)
+  // was NaN → status silently lost, so a paid charge looked "pending").
+  let rawStatus: unknown = pick(body, "KesherStatus", "StatusCode", "status_code");
+  if (rawStatus && typeof rawStatus === "object") rawStatus = (rawStatus as Record<string, unknown>).Status;
+  const parsedStatus =
+    rawStatus !== undefined && rawStatus !== null && rawStatus !== "" && Number.isFinite(Number(rawStatus))
+      ? Number(rawStatus)
+      : null;
   // DocumentsDetails may be an object { PdfLink, PdfLinkCopy, DocNumber }.
   const docs = pick(body, "DocumentsDetails") as Record<string, unknown> | undefined;
   const data = {
@@ -398,8 +405,8 @@ async function upsertTransaction(body: Record<string, unknown>): Promise<"proces
     // Cash/check charges settle with NO Kesher status code — treat a "עבר בהצלחה"
     // text as a success (code 0) so it counts as paid in the balance/נשאר logic.
     statusCode:
-      statusCode !== undefined
-        ? Number(statusCode)
+      parsedStatus !== null
+        ? parsedStatus
         : /עבר בהצלחה|בוצע/.test(toStr(pick(body, "Status", "StatusText", "ResultMessage")) ?? "")
           ? 0
           : null,
