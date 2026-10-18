@@ -301,7 +301,7 @@ export function ObligationForm({
   }
 
   return (
-    <form onSubmit={submit} className="space-y-5">
+    <form onSubmit={submit} className="k-form space-y-5">
       {isClosedInKesher && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
           ⚠️ הוראה זו סגורה בקשר ({OBLIGATION_STATUS[form.status as keyof typeof OBLIGATION_STATUS] ?? form.status}).

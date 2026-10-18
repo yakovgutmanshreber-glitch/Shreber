@@ -82,6 +82,21 @@ body {
   .label {
     @apply mb-1 block text-xs font-semibold text-slate-600;
   }
+  /* Kesher-style outlined fields: the label is notched into the top border of
+     the input. Only applies inside .k-form, and only to a wrapper that directly
+     holds both a .label and an .input (so group labels are left alone). */
+  .k-form div:has(> label.label):has(> .input) {
+    @apply relative;
+  }
+  .k-form div:has(> label.label):has(> .input) > label.label {
+    @apply absolute -top-2 right-3 z-10 m-0 rounded bg-white px-1.5 text-[11px] font-semibold text-brand-600;
+  }
+  .k-form div:has(> label.label):has(> .input) > .input {
+    @apply border-brand-300 bg-white;
+  }
+  .k-form .input:focus {
+    @apply border-brand-500;
+  }
   .badge {
     @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold;
   }
