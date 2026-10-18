@@ -610,6 +610,7 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
             onClose={() => setOpenOblId(null)}
             title={`התחייבות · ${obl.category?.category ?? (obl.kind === "income" ? "הכנסה" : "הוצאה")}`}
             wide
+            xwide
           >
             <ObligationDetailModal
               obligation={obl}

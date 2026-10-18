@@ -355,10 +355,7 @@ export function ObligationDetailModal({
       {/* Tabs */}
       <div className="mb-4 flex flex-wrap gap-2">
         <TabBtn active={tab === "details"} onClick={() => setTab("details")}>
-          פרטי התחייבות
-        </TabBtn>
-        <TabBtn active={tab === "transactions"} onClick={() => setTab("transactions")}>
-          עסקאות ({transactions.length})
+          פרטים ועסקאות ({transactions.length})
         </TabBtn>
         <TabBtn active={tab === "communications"} onClick={() => setTab("communications")}>
           שיחות
@@ -372,17 +369,19 @@ export function ObligationDetailModal({
         <ObligationTasksPanel obligationId={obligation.id} />
       ) : tab === "communications" ? (
         <CommunicationsSection obligationId={obligation.id} />
-      ) : tab === "details" ? (
-        <ObligationForm
-          obligation={obligation}
-          fixedContactId={contactId ?? undefined}
-          fixedKind={(obligation.kind as "income" | "expense") ?? "income"}
-          categoryScope={contactId != null ? "contact" : ((obligation.kind as string) === "expense" ? "expense" : "income")}
-          contactCards={contactCards}
-          onSaved={onChanged}
-          onCancel={onClose}
-        />
-      ) : txEditing ? (
+      ) : (
+        <div className="grid gap-6 lg:grid-cols-2">
+          <ObligationForm
+            obligation={obligation}
+            fixedContactId={contactId ?? undefined}
+            fixedKind={(obligation.kind as "income" | "expense") ?? "income"}
+            categoryScope={contactId != null ? "contact" : ((obligation.kind as string) === "expense" ? "expense" : "income")}
+            contactCards={contactCards}
+            onSaved={onChanged}
+            onCancel={onClose}
+          />
+          <div className="border-t border-gray-200 pt-5 lg:border-t-0 lg:border-r lg:pr-6 lg:pt-0">
+          {txEditing ? (
         <div>
           <button
             className="mb-3 text-sm text-brand-600 hover:underline"
@@ -511,6 +510,9 @@ export function ObligationDetailModal({
               </table>
             </div>
           )}
+        </div>
+          )}
+          </div>
         </div>
       )}
     </div>

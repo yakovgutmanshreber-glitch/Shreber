@@ -14,12 +14,14 @@ export function Modal({
   title,
   children,
   wide,
+  xwide,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   children: React.ReactNode;
   wide?: boolean;
+  xwide?: boolean;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -37,7 +39,7 @@ export function Modal({
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-2 pt-4 backdrop-blur-sm animate-fade-in sm:p-4 sm:pt-16">
       <div
         className={`w-full rounded-3xl border border-slate-200/70 bg-white p-5 shadow-lift animate-pop-in sm:p-6 ${
-          wide ? "max-w-2xl" : "max-w-lg"
+          xwide ? "max-w-5xl" : wide ? "max-w-2xl" : "max-w-lg"
         }`}
       >
         <div className="mb-5 flex items-start justify-between gap-4">
