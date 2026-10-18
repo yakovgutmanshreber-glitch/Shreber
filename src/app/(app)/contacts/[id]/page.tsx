@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, use } from "react";
+import { useEffect, useState, useCallback, useRef, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/client";
@@ -137,6 +137,17 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
   useEffect(() => {
     load();
   }, [load]);
+
+  // Collapse all obligation category-groups by default (once, on first load), so
+  // the first view is clean — the user expands what they want.
+  const didInitCollapse = useRef(false);
+  useEffect(() => {
+    if (didInitCollapse.current || !contact) return;
+    didInitCollapse.current = true;
+    const cats = new Set<string>();
+    for (const o of contact.obligations) cats.add(o.category?.category ?? "ללא קטגוריה");
+    setCollapsedCats(cats);
+  }, [contact]);
 
   useEffect(() => {
     api<{ code: string; rateToIls: number }[]>("/api/currency-rates")
