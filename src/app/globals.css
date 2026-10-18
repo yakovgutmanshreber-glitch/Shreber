@@ -86,7 +86,7 @@ body {
      the input. Only applies inside .k-form, and only to a wrapper that directly
      holds both a .label and an .input (so group labels are left alone). */
   .k-form div:has(> label.label):has(> .input) {
-    @apply relative;
+    position: relative;
   }
   .k-form div:has(> label.label):has(> .input) > label.label {
     @apply absolute -top-2 right-3 z-10 m-0 rounded bg-white px-1.5 text-[11px] font-semibold text-brand-600;
@@ -96,6 +96,18 @@ body {
   }
   .k-form .input:focus {
     @apply border-brand-500;
+  }
+  /* Amount field: its input is wrapped in a .relative div (to hold the ₪/$
+     symbol inside the box), so the label isn't a sibling of a direct .input.
+     Float the label off that wrapper too, so it matches the other fields. */
+  .k-form div:has(> label.label):has(> .relative > .input) {
+    position: relative;
+  }
+  .k-form div:has(> label.label):has(> .relative > .input) > label.label {
+    @apply absolute -top-2 right-3 z-10 m-0 rounded bg-white px-1.5 text-[11px] font-semibold text-brand-600;
+  }
+  .k-form div:has(> label.label):has(> .relative > .input) > .relative > .input {
+    @apply border-brand-300 bg-white;
   }
   .badge {
     @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold;
