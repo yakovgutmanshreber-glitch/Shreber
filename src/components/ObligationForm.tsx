@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { api } from "@/lib/client";
 import { formatCurrency, currencyIso } from "@/lib/format";
 import { OBLIGATION_STATUS, PAYMENT_METHOD, OBLIGATION_KIND, CURRENCY } from "@/lib/constants";
@@ -157,6 +158,15 @@ export function ObligationForm({
   // that syncs (amount/day/date/payments/status) will be rejected.
   const CLOSED_STATUSES = ["finished", "cancelled", "bank_auth_cancelled", "payment_method_cancelled"];
   const isClosedInKesher = isKesherTracked && CLOSED_STATUSES.includes(String(form.status));
+  // Kesher field-lock (brief §8): סכום/תשלומים/תאריך/מטבע are "admin-only, local-only"
+  // on a Kesher-owned hok — disabled for regular users, editable (locally) for an admin.
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.role === "admin";
+  const C_LABEL: Record<string, string> = { recurringAmount: "סכום", numPayments: "תשלומים", startDate: "תאריך", currency: "מטבע" };
+  const lockC = (field: keyof typeof C_LABEL): { disabled: boolean; note: string | null } =>
+    !isKesherTracked
+      ? { disabled: false, note: null }
+      : { disabled: !isAdmin, note: `קשר לא מאפשר לשנות ${C_LABEL[field]} — ישתנה במערכת בלבד${isAdmin ? "" : " (מנהל בלבד)"}.` };
   // Non-credit payments (מזומן/צ׳ק/העברה/ביט) are always one-time: no charge-type
   // toggle, no installments, no monthly charge day.
   const isOnetime = form.chargeType === "onetime" || !isCredit;
@@ -474,11 +484,15 @@ export function ObligationForm({
             <input
               type="number"
               step="0.01"
-              className="input !pl-8 text-base font-semibold"
+              className="input !pl-8 text-base font-semibold disabled:bg-gray-50 disabled:text-gray-500"
               value={form.recurringAmount ?? 0}
+              disabled={lockC("recurringAmount").disabled}
               onChange={(e) => set("recurringAmount", Number(e.target.value))}
             />
           </div>
+          {lockC("recurringAmount").note && (
+            <p className="mt-1 text-xs text-amber-600">⚠ {lockC("recurringAmount").note}</p>
+          )}
           {/* Shekel estimate next to a foreign-currency amount. */}
           {currencyNum !== 1 && amount > 0 && (
             <p className="mt-1 text-xs">
@@ -498,7 +512,7 @@ export function ObligationForm({
           <select
             className="input disabled:bg-gray-50 disabled:text-gray-500"
             value={form.currency ?? 1}
-            disabled={isKesherTracked}
+            disabled={lockC("currency").disabled}
             onChange={(e) => set("currency", Number(e.target.value))}
           >
             {Object.entries(CURRENCY).map(([v, l]) => (
@@ -507,8 +521,8 @@ export function ObligationForm({
               </option>
             ))}
           </select>
-          {isKesherTracked && (
-            <p className="mt-1 text-xs text-gray-400">לא ניתן לשנות מטבע לאחר שההוראה נשלחה לקשר</p>
+          {lockC("currency").note && (
+            <p className="mt-1 text-xs text-amber-600">⚠ {lockC("currency").note}</p>
           )}
           {currencyNum !== 1 && rate && (
             <p className="mt-1 text-xs text-gray-500">
@@ -520,8 +534,9 @@ export function ObligationForm({
           <div>
             <label className="label">מספר תשלומים</label>
             <select
-              className="input"
+              className="input disabled:bg-gray-50 disabled:text-gray-500"
               value={form.numPayments ?? 9999}
+              disabled={lockC("numPayments").disabled}
               onChange={(e) => set("numPayments", Number(e.target.value))}
             >
               <option value={9999}>ללא הגבלה</option>
@@ -537,6 +552,9 @@ export function ObligationForm({
                   <option value={form.numPayments}>{form.numPayments}</option>
                 )}
             </select>
+            {lockC("numPayments").note && (
+              <p className="mt-1 text-xs text-amber-600">⚠ {lockC("numPayments").note}</p>
+            )}
           </div>
         )}
         {chargeHint && (
@@ -562,11 +580,15 @@ export function ObligationForm({
           <label className="label">{isOnetime ? "תאריך החיוב" : "תאריך התחלה"}</label>
           <input
             type="date"
-            className="input"
+            className="input disabled:bg-gray-50 disabled:text-gray-500"
             value={form.startDate?.slice(0, 10) ?? ""}
+            disabled={lockC("startDate").disabled}
             onChange={(e) => set("startDate", e.target.value)}
             required
           />
+          {lockC("startDate").note && (
+            <p className="mt-1 text-xs text-amber-600">⚠ {lockC("startDate").note}</p>
+          )}
         </div>
         {/* Change the card on a Kesher-owned hok → syncs via ChangeChargeOption. */}
         {isKesherTracked && isCredit && (

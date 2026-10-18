@@ -29,6 +29,7 @@ interface Transaction {
   amountIls: number | null;
   transactionDate: string;
   transactionType: string;
+  source: string;
   transferredTo: string | null;
   comment: string | null;
   chargeOptionType: string;
@@ -232,16 +233,22 @@ export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
                     <td className="td text-gray-500">{statusLabel(PAYMENT_METHOD, t.chargeOptionType)}</td>
                     <td className="td text-gray-500">{t.comment || ""}</td>
                     <td className="td whitespace-nowrap text-left">
-                      <button className="text-sm text-brand-600 hover:underline" onClick={() => setEditTx(t)}>
-                        עריכה
-                      </button>
-                      <ConfirmButton
-                        className="mr-3 text-sm text-red-600 hover:underline"
-                        message="למחוק את העסקה?"
-                        onConfirm={() => removeTx(t.id)}
-                      >
-                        מחיקה
-                      </ConfirmButton>
+                      {t.source === "api" ? (
+                        <span className="text-xs text-gray-400">קשר — לקריאה בלבד</span>
+                      ) : (
+                        <>
+                          <button className="text-sm text-brand-600 hover:underline" onClick={() => setEditTx(t)}>
+                            עריכה
+                          </button>
+                          <ConfirmButton
+                            className="mr-3 text-sm text-red-600 hover:underline"
+                            message="למחוק את העסקה?"
+                            onConfirm={() => removeTx(t.id)}
+                          >
+                            מחיקה
+                          </ConfirmButton>
+                        </>
+                      )}
                     </td>
                   </tr>
                 ))}
