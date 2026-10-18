@@ -359,9 +359,9 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
         <SummaryCard label="תשלומים עתידיים" value={formatCurrency(money.future)} tone="blue" />
       </div>
 
-      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-3">
-        {/* Details — sticky, left column (RTL) */}
-        <div className="lg:col-span-1 lg:col-start-3 lg:sticky lg:top-6">
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-5">
+        {/* Details — sticky, right column (RTL) — 2/5 width */}
+        <div className="lg:order-1 lg:col-span-2 lg:sticky lg:top-4">
           <div className="card p-5">
             <h2 className="mb-4 text-lg font-bold">פרטי קשר</h2>
             <div className="space-y-3 text-sm">
@@ -383,8 +383,8 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
           </div>
         </div>
 
-        {/* Obligations + their transactions — wide, right column (RTL) */}
-        <div className="lg:col-span-2 lg:col-start-1">
+        {/* Obligations + their transactions — wide, left column (RTL) — 3/5 width */}
+        <div className="lg:order-2 lg:col-span-3">
           <div className="card p-6">
         <div className="mb-4 flex items-center justify-between">
           <div>

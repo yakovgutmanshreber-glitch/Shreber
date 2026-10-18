@@ -14,7 +14,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         role={session.user.role}
       />
       <main className="mr-[76px] min-h-screen lg:mr-[264px]">
-        <div className="mx-auto max-w-[1152px] px-5 py-8 sm:px-8">{children}</div>
+        <div className="mx-auto w-full max-w-[1800px] px-5 py-8 sm:px-8 lg:px-10">{children}</div>
       </main>
       <TodayTasksPopup />
     </div>
