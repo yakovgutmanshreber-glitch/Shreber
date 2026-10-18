@@ -279,52 +279,63 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <Link href="/contacts" className="text-sm text-brand-600 hover:underline">
-            ← חזרה לאנשי קשר
-          </Link>
-          <h1 className="mt-1 text-2xl font-bold text-gray-900">{fullName(contact)}</h1>
-          {hokSubs.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-2">
-              {hokSubs.map((s) => (
-                <span
-                  key={s}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-l from-emerald-500 via-green-500 to-teal-500 px-3 py-1 text-xs font-bold text-white shadow-[0_2px_10px_-2px_rgba(16,185,129,0.6)] ring-1 ring-white/30"
-                >
-                  <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white/25 text-[10px]">
-                    ⭐
-                  </span>
-                  <span className="opacity-90">הו״ק</span>
-                  <span className="font-extrabold">{s}</span>
-                </span>
-              ))}
+      <div>
+        <Link href="/contacts" className="text-sm text-brand-600 hover:underline">
+          ← חזרה לאנשי קשר
+        </Link>
+        {/* Hero banner */}
+        <div className="mt-2 overflow-hidden rounded-3xl bg-gradient-to-l from-brand-700 via-brand-600 to-brand-500 p-6 text-white shadow-lift">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h1 className="text-2xl font-extrabold tracking-tight">{fullName(contact)}</h1>
+              <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm text-white/85">
+                {contact.phone && <span>📞 {contact.phone}</span>}
+                {contact.city && <span>📍 {contact.city}</span>}
+                {contact.email && <span className="truncate">✉️ {contact.email}</span>}
+              </div>
+              {hokSubs.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {hokSubs.map((s) => (
+                    <span
+                      key={s}
+                      className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-xs font-bold text-white ring-1 ring-white/30"
+                    >
+                      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white/25 text-[10px]">⭐</span>
+                      <span className="opacity-90">הו״ק</span>
+                      <span className="font-extrabold">{s}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
-        </div>
-        <div className="flex gap-2">
-          <button className="btn-secondary" onClick={() => setStatementOpen(true)}>
-            📄 דוח תשלומים
-          </button>
-          <button className="btn-secondary" onClick={() => setSimchaOpen(true)}>
-            🎉 שמחות
-          </button>
-          <button className="btn-secondary" onClick={() => setEmailOpen(true)}>
-            ✉️ שלח מייל
-          </button>
-          <button className="btn-secondary" onClick={() => setCardsOpen(true)}>
-            💳 כרטיסי אשראי{contact.creditCards.length > 0 ? ` (${contact.creditCards.length})` : ""}
-          </button>
-          <button className="btn-secondary" onClick={() => setEditOpen(true)}>
-            עריכה
-          </button>
-          <ConfirmButton
-            className="btn-danger"
-            message="למחוק את איש הקשר? פעולה זו אינה הפיכה."
-            onConfirm={deleteContact}
-          >
-            מחיקה
-          </ConfirmButton>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { label: "📄 דוח תשלומים", on: () => setStatementOpen(true) },
+                { label: "🎉 שמחות", on: () => setSimchaOpen(true) },
+                { label: "✉️ שלח מייל", on: () => setEmailOpen(true) },
+                {
+                  label: `💳 כרטיסי אשראי${contact.creditCards.length > 0 ? ` (${contact.creditCards.length})` : ""}`,
+                  on: () => setCardsOpen(true),
+                },
+                { label: "✏️ עריכה", on: () => setEditOpen(true) },
+              ].map((b) => (
+                <button
+                  key={b.label}
+                  onClick={b.on}
+                  className="rounded-full bg-white/15 px-3 py-1.5 text-sm font-medium text-white backdrop-blur transition-colors hover:bg-white/25"
+                >
+                  {b.label}
+                </button>
+              ))}
+              <ConfirmButton
+                className="rounded-full bg-red-500/90 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-red-500"
+                message="למחוק את איש הקשר? פעולה זו אינה הפיכה."
+                onConfirm={deleteContact}
+              >
+                מחיקה
+              </ConfirmButton>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -337,30 +348,33 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
         <SummaryCard label="תשלומים עתידיים" value={formatCurrency(money.future)} tone="blue" />
       </div>
 
-      {/* Details */}
-      <div className="card p-6">
-        <h2 className="mb-4 text-lg font-bold">פרטי קשר</h2>
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
-          <Detail label="תואר לפני" value={contact.titleBefore} />
-          <Detail label="תואר אחרי" value={contact.titleAfter} />
-          <Detail label="טלפון" value={contact.phone} />
-          <Detail label="טלפון נוסף" value={contact.phone2} />
-          <Detail label="אימייל" value={contact.email} />
-          <Detail label="ת.ז." value={contact.tz} />
-          <Detail label="מדינה" value={contact.country} />
-          <Detail label="אביו" value={contact.fatherName} />
-          <Detail label="חותנו" value={contact.fatherInLawName} />
-          {((contact.country && contact.country !== "ישראל") || contact.addressZip) && (
-            <Detail label="כתובת ומיקוד" value={contact.addressZip} />
-          )}
-          <Detail label="עיר" value={contact.city} />
-          <Detail label="כתובת" value={contact.address} />
-          <Detail label="מזהה בקשר" value={contact.kesherClientRef} />
-        </dl>
-      </div>
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-3">
+        {/* Details — sticky, left column (RTL) */}
+        <div className="lg:col-span-1 lg:col-start-3 lg:sticky lg:top-6">
+          <div className="card p-5">
+            <h2 className="mb-4 text-lg font-bold">פרטי קשר</h2>
+            <div className="space-y-3 text-sm">
+              <Detail icon="title" label="תואר לפני" value={contact.titleBefore} />
+              <Detail icon="title" label="תואר אחרי" value={contact.titleAfter} />
+              <Detail icon="phone" label="טלפון" value={contact.phone} />
+              <Detail icon="phone" label="טלפון נוסף" value={contact.phone2} />
+              <Detail icon="email" label="אימייל" value={contact.email} />
+              <Detail icon="id" label="ת.ז." value={contact.tz} />
+              <Detail icon="location" label="מדינה" value={contact.country} />
+              <Detail icon="person" label="אביו" value={contact.fatherName} />
+              <Detail icon="person" label="חותנו" value={contact.fatherInLawName} />
+              {((contact.country && contact.country !== "ישראל") || contact.addressZip) && (
+                <Detail icon="home" label="כתובת ומיקוד" value={contact.addressZip} />
+              )}
+              <Detail icon="location" label="עיר" value={contact.city} />
+              <Detail icon="home" label="כתובת" value={contact.address} />
+            </div>
+          </div>
+        </div>
 
-      {/* Obligations + their transactions (unified) */}
-      <div className="card p-6">
+        {/* Obligations + their transactions — wide, right column (RTL) */}
+        <div className="lg:col-span-2 lg:col-start-1">
+          <div className="card p-6">
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h2 className="text-lg font-bold">התחייבויות ועסקאות</h2>
@@ -548,6 +562,8 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
             </div>
           </div>
         )}
+          </div>
+        </div>
       </div>
 
       <Modal open={editOpen} onClose={() => setEditOpen(false)} title="עריכת איש קשר" wide>
@@ -675,11 +691,43 @@ function SummaryCard({ label, value, tone }: { label: string; value: string; ton
   );
 }
 
-function Detail({ label, value }: { label: string; value: string | null | undefined }) {
+// Clean outline icons for the contact-detail fields (sidebar icon style).
+function FieldIcon({ name }: { name: string }) {
+  const c = {
+    width: 16, height: 16, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor",
+    strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const,
+  };
+  switch (name) {
+    case "phone":
+      return <svg {...c}><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2 4.2 2 2 0 0 1 4 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7A2 2 0 0 1 22 16.9Z"/></svg>;
+    case "email":
+      return <svg {...c}><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/></svg>;
+    case "id":
+      return <svg {...c}><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M15 8h3M15 12h3M7 16h10"/></svg>;
+    case "location":
+      return <svg {...c}><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>;
+    case "home":
+      return <svg {...c}><path d="m3 10 9-7 9 7"/><path d="M5 9v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9"/></svg>;
+    case "person":
+      return <svg {...c}><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 12 0v1"/></svg>;
+    case "title":
+      return <svg {...c}><path d="m12 3 2.3 4.6 5.1.7-3.7 3.6.9 5.1-4.6-2.4-4.6 2.4.9-5.1L4.6 8.3l5.1-.7Z"/></svg>;
+    default:
+      return <svg {...c}><circle cx="12" cy="12" r="9"/></svg>;
+  }
+}
+
+function Detail({ icon, label, value }: { icon: string; label: string; value: string | null | undefined }) {
+  if (!value) return null; // keep the details list clean — hide empty fields
   return (
-    <div>
-      <dt className="text-gray-400">{label}</dt>
-      <dd className="font-medium text-gray-800">{value || "—"}</dd>
+    <div className="flex items-start gap-2.5">
+      <span className="mt-0.5 shrink-0 text-brand-500">
+        <FieldIcon name={icon} />
+      </span>
+      <div className="min-w-0">
+        <div className="text-[11px] text-gray-400">{label}</div>
+        <div className="break-words font-medium text-gray-800">{value}</div>
+      </div>
     </div>
   );
 }
