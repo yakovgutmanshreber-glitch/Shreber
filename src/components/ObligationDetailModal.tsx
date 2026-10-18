@@ -39,6 +39,8 @@ export function ObligationDetailModal({
   // Charge-the-balance card: pick a saved card OR enter a new one (tokenized).
   const [chargeMode, setChargeMode] = useState<"existing" | "new">(contactCards.length > 0 ? "existing" : "new");
   const [chargeCard, setChargeCard] = useState({ cardNumber: "", cardExpiry: "", cvv: "", cardHolder: "", cardBrand: "", saveCard: true });
+  // Amount to charge (defaults to the balance when the panel opens; editable).
+  const [chargeAmount, setChargeAmount] = useState("");
 
   async function deleteTransaction(id: number) {
     await api(`/api/transactions/${id}`, { method: "DELETE" });
@@ -130,6 +132,11 @@ export function ObligationDetailModal({
 
   async function chargeBalance() {
     setChargeError(null);
+    const amt = Number(chargeAmount);
+    if (!amt || amt <= 0) {
+      setChargeError("יש להזין סכום לחיוב");
+      return;
+    }
     if (chargeMode === "existing" && !chargeCardId) {
       setChargeError("יש לבחור כרטיס");
       return;
@@ -144,8 +151,9 @@ export function ObligationDetailModal({
         method: "POST",
         body:
           chargeMode === "existing"
-            ? { cardId: chargeCardId }
+            ? { cardId: chargeCardId, amount: amt }
             : {
+                amount: amt,
                 cardNumber: chargeCard.cardNumber,
                 cardExpiry: chargeCard.cardExpiry,
                 cvv: chargeCard.cvv,
@@ -377,24 +385,47 @@ export function ObligationDetailModal({
               )}
             </span>
             <div className="flex gap-2">
-              {balance > 0 && (
-                <button
-                  className="btn-secondary !py-1.5 text-xs"
-                  onClick={() => setChargeOpen((v) => !v)}
-                >
-                  💳 חייב יתרה בכרטיס
-                </button>
-              )}
+              <button
+                className="btn-secondary !py-1.5 text-xs"
+                onClick={() =>
+                  setChargeOpen((v) => {
+                    const next = !v;
+                    if (next) setChargeAmount(balance > 0 ? String(balance) : "");
+                    return next;
+                  })
+                }
+              >
+                💳 חייב בכרטיס
+              </button>
               <button className="btn-secondary !py-1.5 text-xs" onClick={() => setTxEditing("new")}>
                 + עסקה
               </button>
             </div>
           </div>
 
-          {chargeOpen && balance > 0 && (
+          {chargeOpen && (
             <div className="mb-3 rounded-xl border border-brand-100 bg-brand-50/40 p-3">
-              <div className="mb-2 text-sm text-gray-600">
-                חיוב יתרה של <b>{formatCurrency(balance, oblCurrency)}</b> בכרטיס:
+              <div className="mb-2">
+                <label className="label">סכום לחיוב</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    className="input max-w-[12rem]"
+                    inputMode="decimal"
+                    dir="ltr"
+                    placeholder="0"
+                    value={chargeAmount}
+                    onChange={(e) => setChargeAmount(e.target.value.replace(/[^\d.]/g, ""))}
+                  />
+                  {balance > 0 && (
+                    <button
+                      type="button"
+                      className="text-xs text-brand-600 hover:underline"
+                      onClick={() => setChargeAmount(String(balance))}
+                    >
+                      יתרה: {formatCurrency(balance, oblCurrency)}
+                    </button>
+                  )}
+                </div>
               </div>
               {contactCards.length > 0 && (
                 <div className="mb-2 flex gap-2">
@@ -429,7 +460,7 @@ export function ObligationDetailModal({
                     ))}
                   </select>
                   <button className="btn-danger !py-1.5 text-xs" onClick={chargeBalance} disabled={chargeBusy}>
-                    {chargeBusy ? "מחייב…" : `חייב ${formatCurrency(balance, oblCurrency)}`}
+                    {chargeBusy ? "מחייב…" : `חייב ${formatCurrency(Number(chargeAmount) || 0, oblCurrency)}`}
                   </button>
                 </div>
               ) : (
@@ -474,7 +505,7 @@ export function ObligationDetailModal({
                     שמור כרטיס לאיש הקשר לשימוש הבא
                   </label>
                   <button className="btn-danger !py-1.5 text-xs" onClick={chargeBalance} disabled={chargeBusy}>
-                    {chargeBusy ? "מחייב…" : `חייב ${formatCurrency(balance, oblCurrency)}`}
+                    {chargeBusy ? "מחייב…" : `חייב ${formatCurrency(Number(chargeAmount) || 0, oblCurrency)}`}
                   </button>
                 </div>
               )}
