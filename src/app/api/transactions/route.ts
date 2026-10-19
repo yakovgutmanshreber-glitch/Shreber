@@ -10,8 +10,13 @@ export const GET = handler(async (req) => {
   const contactId = searchParams.get("contactId");
   const obligationId = searchParams.get("obligationId");
 
+  // "loose" = income/expense entries NOT tied to an obligation (the הכנסות/הוצאות
+  // ledger), with or without a linked customer. "standalone" = strictly no contact.
+  const loose = searchParams.get("loose");
+
   const where: Record<string, unknown> = {};
   if (kind) where.kind = kind;
+  if (loose === "true") where.obligationId = null;
   if (standalone === "true") where.contactId = null;
   if (contactId) where.contactId = Number(contactId);
   if (obligationId) where.obligationId = Number(obligationId);

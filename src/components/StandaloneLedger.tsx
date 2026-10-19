@@ -37,6 +37,8 @@ interface Transaction {
   bank: string | null;
   branch: string | null;
   account: string | null;
+  contactId: number | null;
+  contact: { firstName: string; lastName: string | null } | null;
   category: { category: string } | null;
   obligation: { category: { category: string } | null } | null;
 }
@@ -69,7 +71,8 @@ export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
     setLoading(true);
     const [obl, tx] = await Promise.all([
       api<Obligation[]>(`/api/obligations?standalone=true&kind=${kind}`),
-      api<Transaction[]>(`/api/transactions?standalone=true&kind=${kind}`),
+      // Loose entries (not tied to an obligation) — may be linked to a customer (שייך).
+      api<Transaction[]>(`/api/transactions?loose=true&kind=${kind}`),
     ]);
     setObligations(obl);
     setTransactions(tx);
@@ -215,6 +218,7 @@ export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
               <thead className="border-b border-gray-200 bg-gray-50">
                 <tr>
                   <th className="th">תאריך</th>
+                  <th className="th">לקוח</th>
                   <th className="th">קטגוריה</th>
                   <th className="th">סכום</th>
                   <th className="th">עבר ל</th>
@@ -227,6 +231,9 @@ export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
                 {shownTx.map((t) => (
                   <tr key={t.id} className="hover:bg-gray-50">
                     <td className="td num whitespace-nowrap text-gray-500">{formatDate(t.transactionDate)}</td>
+                    <td className="td">
+                      {t.contact ? `${t.contact.firstName} ${t.contact.lastName ?? ""}`.trim() : "—"}
+                    </td>
                     <td className="td font-medium">{txCategory(t) ?? "—"}</td>
                     <td className="td">{formatMoney(t.amount, t.currency, t.amountIls)}</td>
                     <td className="td text-gray-600">{t.transferredTo || "—"}</td>

@@ -19,9 +19,17 @@ interface CategoryOption {
   scopes?: string[];
 }
 
+interface ContactOption {
+  id: number;
+  firstName: string;
+  lastName: string | null;
+  phone: string | null;
+}
+
 export interface TransactionData {
   id?: number;
   kind?: string;
+  contactId?: number | null;
   obligationId?: number | null;
   categoryId?: number | null;
   amount?: number;
@@ -66,6 +74,11 @@ export function TransactionForm({
   );
   const [card, setCard] = useState({ cardNumber: "", cardExpiry: "", cvv: "", cardHolder: "", cardBrand: "", saveCard: true });
   const [categories, setCategories] = useState<CategoryOption[]>([]);
+  // "שייך ללקוח" — link a standalone entry to a customer (contact). Searchable picker.
+  const [contacts, setContacts] = useState<ContactOption[]>([]);
+  const [contactId, setContactId] = useState<number | "">(transaction?.contactId ?? "");
+  const [contactQuery, setContactQuery] = useState("");
+  const [contactOpen, setContactOpen] = useState(false);
   const [form, setForm] = useState({
     kind: transaction?.kind ?? fixedKind ?? "income",
     obligationId:
@@ -100,6 +113,14 @@ export function TransactionForm({
     api<CategoryOption[]>("/api/categories").then(setCategories).catch(() => {});
   }, [fixedObligationId]);
 
+  // Load contacts for the "שייך ללקוח" picker (only when the entry isn't already
+  // tied to a specific contact or obligation).
+  const showContactSelect = fixedContactId == null && fixedObligationId == null;
+  useEffect(() => {
+    if (!showContactSelect) return;
+    api<ContactOption[]>("/api/contacts").then(setContacts).catch(() => {});
+  }, [showContactSelect]);
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -107,7 +128,7 @@ export function TransactionForm({
     try {
       const body = {
         ...form,
-        contactId: fixedContactId ?? null,
+        contactId: fixedContactId ?? (contactId ? Number(contactId) : null),
         obligationId:
           fixedObligationId != null
             ? fixedObligationId
@@ -160,6 +181,21 @@ export function TransactionForm({
   const setC = (k: keyof typeof card, v: unknown) => setCard((c) => ({ ...c, [k]: v }));
   const showCategorySelect = fixedObligationId == null;
 
+  const contactName = (c: ContactOption) => `${c.firstName} ${c.lastName ?? ""}`.trim();
+  const selectedContact = contacts.find((c) => c.id === contactId) ?? null;
+  // Match every typed word against the name + phone (order-independent).
+  const contactMatches = (() => {
+    const q = contactQuery.trim().toLowerCase();
+    if (!q) return contacts.slice(0, 30);
+    const words = q.split(/\s+/).filter(Boolean);
+    return contacts
+      .filter((c) => {
+        const hay = `${contactName(c)} ${c.phone ?? ""}`.toLowerCase();
+        return words.every((w) => hay.includes(w));
+      })
+      .slice(0, 30);
+  })();
+
   return (
     <form onSubmit={submit} className="space-y-4">
       {isEdit && transaction?.source === "api" && (
@@ -188,6 +224,64 @@ export function TransactionForm({
                 </option>
               ))}
             </select>
+          </div>
+        )}
+        {showContactSelect && (
+          <div>
+            <label className="label">שייך ללקוח</label>
+            {selectedContact ? (
+              <div className="input flex items-center justify-between">
+                <span className="truncate">
+                  {contactName(selectedContact)}
+                  {selectedContact.phone ? <span className="mr-2 text-xs text-gray-400">{selectedContact.phone}</span> : null}
+                </span>
+                <button
+                  type="button"
+                  className="shrink-0 text-gray-400 hover:text-gray-600"
+                  onClick={() => {
+                    setContactId("");
+                    setContactQuery("");
+                  }}
+                  aria-label="הסר שיוך"
+                >
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <div className="relative">
+                <input
+                  className="input"
+                  placeholder="חיפוש לקוח לפי שם או טלפון…"
+                  value={contactQuery}
+                  onChange={(e) => {
+                    setContactQuery(e.target.value);
+                    setContactOpen(true);
+                  }}
+                  onFocus={() => setContactOpen(true)}
+                  onBlur={() => setTimeout(() => setContactOpen(false), 150)}
+                />
+                {contactOpen && contactMatches.length > 0 && (
+                  <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                    {contactMatches.map((c) => (
+                      <li key={c.id}>
+                        <button
+                          type="button"
+                          className="flex w-full items-center justify-between px-3 py-2 text-right text-sm hover:bg-brand-50"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            setContactId(c.id);
+                            setContactOpen(false);
+                          }}
+                        >
+                          <span className="truncate">{contactName(c)}</span>
+                          {c.phone && <span className="shrink-0 text-xs text-gray-400">{c.phone}</span>}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
           </div>
         )}
         {showCategorySelect && (
