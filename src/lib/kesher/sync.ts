@@ -17,7 +17,7 @@ function s(v: unknown): string | undefined {
   return String(v);
 }
 
-function currencyToCode(v: unknown): number {
+export function currencyToCode(v: unknown): number {
   const t = String(v ?? "").trim();
   const l = t.toLowerCase();
   // Canadian dollar first (so "cad"/"c$" isn't caught by the USD "$"/"dollar" rule).

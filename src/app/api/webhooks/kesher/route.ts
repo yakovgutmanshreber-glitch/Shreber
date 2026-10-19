@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { kesher } from "@/lib/kesher/client";
+import { currencyToCode } from "@/lib/kesher/sync";
 import { KESHER_OBLIGATION_STATUS_CODE } from "@/lib/constants";
 
 // ---------------------------------------------------------------------------
@@ -297,7 +298,7 @@ async function upsertObligation(body: Record<string, unknown>): Promise<"process
         kesherObligationReference: ref,
         chargeType: "recurring",
         recurringAmount: toAmount(pick(body, "Sum", "sum")) ?? 0,
-        currency: Number(pick(body, "Currency", "currency") ?? 1),
+        currency: currencyToCode(pick(body, "Currency", "currency")),
         numPayments,
         chargeDay: day ? Number(day) : null,
         startDate: parseDate(pick(body, "StartDate", "start_date", "TransactionDate", "Date")),
@@ -394,8 +395,9 @@ async function upsertTransaction(body: Record<string, unknown>): Promise<"proces
     uniqNum: uniqNum ?? null,
     // `Sum`/`Total` are decimal shekels per the API docs — no agorot conversion.
     amount: toAmount(pick(body, "Sum", "Total", "Amount", "sum")) ?? 0,
-    // Guard: Kesher sometimes sends Currency:0 — treat 0/missing as shekel (1).
-    currency: Number(pick(body, "Currency", "currency")) || 1,
+    // Robustly map Currency whether Kesher sends a numeric code (826) or text
+    // ("£"/"ליש"ט"); 0/missing/unknown falls back to shekel (1).
+    currency: currencyToCode(pick(body, "Currency", "currency")),
     transactionDate: parseDate(pick(body, "TransactionDate", "Date", "transaction_date")),
     transactionType: (toStr(pick(body, "TransactionType")) === "credit" ? "credit" : "debit") as
       | "credit"
