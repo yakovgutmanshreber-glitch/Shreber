@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
 import { api } from "@/lib/client";
 import { Modal, PageHeader, EmptyState } from "@/components/ui";
@@ -31,6 +31,33 @@ export default function ContactsPage() {
   const [options, setOptions] = useState<ListOption[]>([]);
   const [cityFilter, setCityFilter] = useState("");
   const [countryFilter, setCountryFilter] = useState("");
+
+  // Keep the search + city/country filters across navigation (open a contact and
+  // come back) for this browser tab, until the user changes them.
+  const filtersRestored = useRef(false);
+  useEffect(() => {
+    try {
+      const sq = sessionStorage.getItem("contactsQ");
+      const sc = sessionStorage.getItem("contactsCity");
+      const sk = sessionStorage.getItem("contactsCountry");
+      if (sq) setQ(sq);
+      if (sc) setCityFilter(sc);
+      if (sk) setCountryFilter(sk);
+    } catch {
+      /* ignore */
+    }
+    filtersRestored.current = true;
+  }, []);
+  useEffect(() => {
+    if (!filtersRestored.current) return;
+    try {
+      sessionStorage.setItem("contactsQ", q);
+      sessionStorage.setItem("contactsCity", cityFilter);
+      sessionStorage.setItem("contactsCountry", countryFilter);
+    } catch {
+      /* ignore */
+    }
+  }, [q, cityFilter, countryFilter]);
 
   const loadOptions = useCallback(async () => {
     setOptions(await api<ListOption[]>("/api/list-options"));
