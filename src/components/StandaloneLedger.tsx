@@ -316,7 +316,7 @@ export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
         open={!!detail}
         onClose={() => setDetail(null)}
         title={`התחייבות · ${detail?.category?.category ?? title}`}
-        wide
+        xwide
       >
         {detail && (
           <ObligationDetailModal
