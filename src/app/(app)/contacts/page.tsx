@@ -128,6 +128,33 @@ export default function ContactsPage() {
     });
   }, [contacts, q, cityFilter, countryFilter]);
 
+  // Download the CURRENTLY FILTERED list (search + city + country) to Excel.
+  // Exports `shown`, so the file always matches exactly what's on screen.
+  async function exportExcel() {
+    if (shown.length === 0) return;
+    const XLSX = await import("xlsx");
+    const rows = shown.map((c) => ({
+      "שם פרטי": c.firstName ?? "",
+      "שם משפחה": c.lastName ?? "",
+      "טלפון": c.phone ?? "",
+      "טלפון 2": c.phone2 ?? "",
+      "אימייל": c.email ?? "",
+      "עיר": c.city ?? "",
+      "מדינה": c.country ?? "",
+      "התחייבויות": c._count.obligations,
+      "עסקאות": c._count.transactions,
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws["!cols"] = [
+      { wch: 14 }, { wch: 14 }, { wch: 15 }, { wch: 15 }, { wch: 26 },
+      { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 10 },
+    ];
+    const wb = XLSX.utils.book_new();
+    wb.Workbook = { Views: [{ RTL: true }] }; // render right-to-left in Excel
+    XLSX.utils.book_append_sheet(wb, ws, "אנשי קשר");
+    XLSX.writeFile(wb, `אנשי-קשר-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  }
+
   return (
     <div>
       <PageHeader
@@ -135,6 +162,14 @@ export default function ContactsPage() {
         subtitle="ניהול לקוחות ותורמים"
         action={
           <div className="flex gap-2">
+            <button
+              className="btn-secondary"
+              onClick={exportExcel}
+              disabled={shown.length === 0}
+              title="הורדת הרשימה המסוננת לאקסל"
+            >
+              ⬇ הורד Excel
+            </button>
             <button className="btn-secondary" onClick={() => setListsOpen(true)}>
               ⚙ ניהול רשימות
             </button>
