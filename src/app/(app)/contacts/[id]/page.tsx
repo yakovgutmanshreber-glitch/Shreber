@@ -100,9 +100,8 @@ function sum(txs: Transaction[]): number {
   return txs.reduce((s, t) => s + Number(t.amount), 0);
 }
 
-// The obligation's base amount in the figure it should be read as: ₪ uses
-// recurringAmount directly; a foreign amount uses its stored ₪ value (amountIls).
-function oblAmt(o: Obligation): number {
+// The obligation's ₪ value for cross-currency summing (foreign → stored amountIls).
+function oblIlsAmt(o: Obligation): number {
   return o.currency === 1 ? Number(o.recurringAmount) : Number(o.amountIls ?? o.recurringAmount);
 }
 // "ללא הגבלה" — an ongoing standing order with no fixed end. Both 999 (Kesher's
@@ -111,19 +110,19 @@ const UNLIMITED_PAYMENTS = new Set([999, 9999]);
 function isOngoing(o: Obligation): boolean {
   return o.chargeType !== "onetime" && UNLIMITED_PAYMENTS.has(o.numPayments);
 }
-// FULL committed amount of the obligation (the "סכום מלא"):
+// FULL committed amount in the obligation's OWN currency (displayed with its symbol):
 //   one-time  = the single amount; installments = recurringAmount (already the total);
 //   recurring = monthly × payments (null when ongoing — no fixed total).
 function oblFullAmount(o: Obligation): number | null {
   if (isOngoing(o)) return null;
-  const amt = oblAmt(o);
+  const amt = Number(o.recurringAmount);
   if (o.chargeType === "installments") return amt;
   const n = o.chargeType === "onetime" ? 1 : o.numPayments;
   return amt * n;
 }
-// Single-payment amount (monthly for recurring, total/n for installments).
+// Single-payment amount in the obligation's own currency.
 function oblPerPayment(o: Obligation): number {
-  const amt = oblAmt(o);
+  const amt = Number(o.recurringAmount);
   if (o.chargeType === "installments") return o.numPayments > 0 ? amt / o.numPayments : amt;
   return amt;
 }
@@ -133,26 +132,34 @@ function oblPerPayment(o: Obligation): number {
 function ongoingSummaryFor(obligations: Obligation[], transactions: Transaction[]) {
   const ongoing = obligations.filter(isOngoing);
   if (ongoing.length === 0) return null;
+  // When all ongoing hoks share one currency, show that currency with the original
+  // amounts; a mixed-currency group is summed in ₪ (via amountIls) for comparability.
+  const currencies = new Set(ongoing.map((o) => o.currency));
+  const currency = currencies.size === 1 ? [...currencies][0] : 1;
+  const foreign = currency !== 1;
+  const oAmt = (o: Obligation) => (foreign ? Number(o.recurringAmount) : oblIlsAmt(o));
+  const tAmt = (t: Transaction) => (foreign ? Number(t.amount) : Number(t.amountIls ?? t.amount));
+
   const year = new Date().getFullYear();
   const ids = new Set(ongoing.map((o) => o.id));
   let monthly = 0; // אמור לתת (חודשי)
   let yearExpected = 0; // אמור לתת (השנה)
   for (const o of ongoing) {
     if (o.status !== "active") continue; // only active hoks are "expected to give"
-    const amt = oblAmt(o); // monthly amount
-    monthly += amt;
+    monthly += oAmt(o);
     const start = new Date(o.startDate);
     const sy = start.getFullYear();
     const months = sy > year ? 0 : sy < year ? 12 : 12 - start.getMonth();
-    yearExpected += amt * months;
+    yearExpected += oAmt(o) * months;
   }
   const yearTx = transactions.filter(
     (t) => t.obligationId != null && ids.has(t.obligationId) && new Date(t.transactionDate).getFullYear() === year,
   );
-  const collectedYear = yearTx.filter(txPassed).reduce((s, t) => s + Number(t.amountIls ?? t.amount), 0);
-  const failedYear = yearTx.filter(txFailed).reduce((s, t) => s + Number(t.amountIls ?? t.amount), 0);
+  const collectedYear = yearTx.filter(txPassed).reduce((s, t) => s + tAmt(t), 0);
+  const failedYear = yearTx.filter(txFailed).reduce((s, t) => s + tAmt(t), 0);
   return {
     year,
+    currency,
     monthly,
     yearExpected,
     collectedYear,
@@ -169,11 +176,11 @@ function OngoingSummaryStrip({ s }: { s: NonNullable<ReturnType<typeof ongoingSu
         הוראת קבע חודשיות ({s.year})
       </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
-        <SummaryCard label="אמור לתת (חודשי)" value={formatCurrency(s.monthly)} tone="blue" />
-        <SummaryCard label={`אמור לתת (${s.year})`} value={formatCurrency(s.yearExpected)} tone="blue" />
-        <SummaryCard label="נגבה השנה" value={formatCurrency(s.collectedYear)} tone="green" />
-        <SummaryCard label="לא עבר (השנה)" value={formatCurrency(s.failedYear)} tone="red" />
-        <SummaryCard label="נשאר לשנה" value={formatCurrency(s.remainingYear)} tone="red" />
+        <SummaryCard label="אמור לתת (חודשי)" value={formatCurrency(s.monthly, s.currency)} tone="blue" />
+        <SummaryCard label={`אמור לתת (${s.year})`} value={formatCurrency(s.yearExpected, s.currency)} tone="blue" />
+        <SummaryCard label="נגבה השנה" value={formatCurrency(s.collectedYear, s.currency)} tone="green" />
+        <SummaryCard label="לא עבר (השנה)" value={formatCurrency(s.failedYear, s.currency)} tone="red" />
+        <SummaryCard label="נשאר לשנה" value={formatCurrency(s.remainingYear, s.currency)} tone="red" />
       </div>
     </div>
   );
@@ -293,14 +300,21 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
   //   חוב = full plan total − amount actually paid (all still-owed, due or not).
   const money = (() => {
     const now = new Date();
+    // When all the person's (non-cancelled) obligations share one currency, show the
+    // cards in that currency with the original amounts; otherwise sum in ₪ (amountIls).
+    const active = contact.obligations.filter((o) => o.status !== "cancelled");
+    const currencies = new Set(active.map((o) => o.currency));
+    const displayCurrency = currencies.size === 1 ? [...currencies][0] : 1;
+    const foreign = displayCurrency !== 1;
+    const oAmt = (o: Obligation) => (foreign ? Number(o.recurringAmount) : oblIlsAmt(o));
+    const tAmt = (t: Transaction) => (foreign ? Number(t.amount) : Number(t.amountIls ?? t.amount));
+
     let committed = 0;
     let debt = 0; // committed - paid, per fixed-term obligation (all still owed)
     let future = 0; // amount of payments not yet due
     for (const o of contact.obligations) {
       if (o.status === "cancelled") continue;
-      // ₪ obligations always use recurringAmount (amountIls is only the ₪ value of a
-      // FOREIGN amount; a stale/garbage amountIls on a ₪ row must never be used).
-      const amt = o.currency === 1 ? Number(o.recurringAmount) : Number(o.amountIls ?? o.recurringAmount);
+      const amt = oAmt(o);
       const n = o.numPayments;
       const ongoing = isOngoing(o);
       const numPay = o.chargeType === "onetime" ? 1 : n;
@@ -312,7 +326,7 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
       if (total == null) continue;
       const paid = contact.transactions
         .filter((t) => t.obligationId === o.id && txPassed(t))
-        .reduce((s, t) => s + Number(t.amountIls ?? t.amount), 0);
+        .reduce((s, t) => s + tAmt(t), 0);
       committed += total;
       debt += Math.max(0, total - paid);
       // payments not yet due (by month) = future payments still to come
@@ -326,13 +340,9 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
       }
       future += Math.max(0, numPay - Math.min(periods, numPay)) * perPayment;
     }
-    const collected = contact.transactions
-      .filter(txPassed)
-      .reduce((s, t) => s + Number(t.amountIls ?? t.amount), 0);
-    const failed = contact.transactions
-      .filter(txFailed)
-      .reduce((s, t) => s + Number(t.amountIls ?? t.amount), 0);
-    return { committed, collected, failed, debt, future };
+    const collected = contact.transactions.filter(txPassed).reduce((s, t) => s + tAmt(t), 0);
+    const failed = contact.transactions.filter(txFailed).reduce((s, t) => s + tAmt(t), 0);
+    return { committed, collected, failed, debt, future, currency: displayCurrency };
   })();
 
   // Per-category payment breakdown (for the "דוח תשלומים" email).
@@ -420,11 +430,11 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
 
       {/* Summary */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
-        <SummaryCard label="סך הכנסות (התחייבות מלאה)" value={formatCurrency(money.committed)} tone="blue" />
-        <SummaryCard label="נגבה בפועל" value={formatCurrency(money.collected)} tone="green" />
-        <SummaryCard label="לא עבר" value={formatCurrency(money.failed)} tone="red" />
-        <SummaryCard label="חוב (יתרה לתשלום)" value={formatCurrency(money.debt)} tone="red" />
-        <SummaryCard label="תשלומים עתידיים" value={formatCurrency(money.future)} tone="blue" />
+        <SummaryCard label="סך הכנסות (התחייבות מלאה)" value={formatCurrency(money.committed, money.currency)} tone="blue" />
+        <SummaryCard label="נגבה בפועל" value={formatCurrency(money.collected, money.currency)} tone="green" />
+        <SummaryCard label="לא עבר" value={formatCurrency(money.failed, money.currency)} tone="red" />
+        <SummaryCard label="חוב (יתרה לתשלום)" value={formatCurrency(money.debt, money.currency)} tone="red" />
+        <SummaryCard label="תשלומים עתידיים" value={formatCurrency(money.future, money.currency)} tone="blue" />
       </div>
 
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-5">
