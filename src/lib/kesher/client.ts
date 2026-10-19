@@ -506,6 +506,8 @@ export const kesher = {
       StartDate: input.startDate ? dateOnly(input.startDate) : null,
       NumPayments: input.numPayments ?? null,
       ObligationRef: input.obligationReference,
+      // Suspend-until date (yyyy-MM-dd) when pausing; undefined = don't send the field.
+      PausedTill: input.pausedTill === undefined ? undefined : input.pausedTill ? dateOnly(input.pausedTill) : null,
     };
     return postLegacy("UpdateObligation", { obligDetails });
   },

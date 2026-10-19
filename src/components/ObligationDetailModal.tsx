@@ -42,6 +42,34 @@ export function ObligationDetailModal({
   // Amount to charge (defaults to the balance when the panel opens; editable).
   const [chargeAmount, setChargeAmount] = useState("");
 
+  // Pause / resume (מושהה) — syncs the status to Kesher, with an optional "עד תאריך".
+  const [pauseOpen, setPauseOpen] = useState(false);
+  const [pauseDate, setPauseDate] = useState("");
+  const [pauseBusy, setPauseBusy] = useState(false);
+  const [pauseError, setPauseError] = useState<string | null>(null);
+  const isPaused = obligation.status === "paused";
+  const pausedTill = (obligation as { pausedTill?: string | null }).pausedTill ?? null;
+  async function setPaused(paused: boolean) {
+    setPauseBusy(true);
+    setPauseError(null);
+    try {
+      await api(`/api/obligations/${obligation.id}`, {
+        method: "PATCH",
+        body: {
+          status: paused ? "paused" : "active",
+          pausedTill: paused ? pauseDate || null : null,
+          localOnly: false, // also update the hok in Kesher
+        },
+      });
+      setPauseOpen(false);
+      onChanged();
+    } catch (e) {
+      setPauseError(e instanceof Error ? e.message : "שגיאה");
+    } finally {
+      setPauseBusy(false);
+    }
+  }
+
   async function deleteTransaction(id: number) {
     await api(`/api/transactions/${id}`, { method: "DELETE" });
     onChanged();
@@ -192,6 +220,27 @@ export function ObligationDetailModal({
               💳 החלף כרטיס
             </button>
           )}
+          {isPaused ? (
+            <button
+              type="button"
+              onClick={() => setPaused(false)}
+              disabled={pauseBusy}
+              className="rounded-full border border-green-300 bg-green-50 px-4 py-1.5 text-sm font-medium text-green-700 hover:bg-green-100"
+            >
+              {pauseBusy ? "מפעיל…" : "▶ הפעל מחדש"}
+            </button>
+          ) : (
+            obligation.status !== "cancelled" &&
+            obligation.status !== "finished" && (
+              <button
+                type="button"
+                onClick={() => setPauseOpen((v) => !v)}
+                className="rounded-full border border-amber-300 bg-white px-4 py-1.5 text-sm font-medium text-amber-700 hover:bg-amber-50"
+              >
+                ⏸ השהה
+              </button>
+            )
+          )}
         </div>
         <button
           type="button"
@@ -320,6 +369,45 @@ export function ObligationDetailModal({
               {cardBusy ? "מחליף…" : "החלף כרטיס"}
             </button>
           </div>
+        </div>
+      )}
+
+      {pauseOpen && !isPaused && (
+        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50/50 p-4">
+          <div className="mb-2 text-sm font-semibold text-amber-800">⏸ השהיית ההתחייבות (מושהה)</div>
+          <p className="mb-3 text-xs text-amber-700">
+            הגבייה תיפסק. {isKesher ? "ההוראה תושהה גם בקשר. " : ""}ניתן לקבוע תאריך שבו הגבייה תתחדש
+            אוטומטית, או להשאיר ריק להשהיה עד הפעלה ידנית.
+          </p>
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <label className="label">השהה עד תאריך (לא חובה)</label>
+              <input
+                type="date"
+                className="input max-w-[12rem]"
+                value={pauseDate}
+                onChange={(e) => setPauseDate(e.target.value)}
+              />
+            </div>
+            <button className="btn-secondary !py-1.5 text-sm" onClick={() => setPauseOpen(false)} disabled={pauseBusy}>
+              ביטול
+            </button>
+            <button
+              className="rounded-lg bg-amber-500 px-4 py-1.5 text-sm font-semibold text-white hover:bg-amber-600 disabled:opacity-60"
+              onClick={() => setPaused(true)}
+              disabled={pauseBusy}
+            >
+              {pauseBusy ? "משהה…" : "אשר השהיה"}
+            </button>
+          </div>
+          {pauseError && <p className="mt-2 text-xs text-red-600">{pauseError}</p>}
+        </div>
+      )}
+
+      {isPaused && (
+        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50/50 px-4 py-2 text-sm text-amber-800">
+          ⏸ ההתחייבות מושהית{pausedTill ? ` עד ${formatDate(String(pausedTill))}` : ""}.
+          {pauseError && <span className="mr-2 text-xs text-red-600">{pauseError}</span>}
         </div>
       )}
 

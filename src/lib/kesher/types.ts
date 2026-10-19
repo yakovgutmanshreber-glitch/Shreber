@@ -73,6 +73,8 @@ export interface UpdateObligationInput {
   numPayments?: number;
   /** Kesher numeric status: 1 active / 2 paused / 3 cancelled. null/undefined = unchanged. */
   status?: string;
+  /** Suspend-until date (yyyy-MM-dd) when pausing (status 2). null clears it. */
+  pausedTill?: string | null;
 }
 
 export interface ChangeChargeOptionInput {

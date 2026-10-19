@@ -62,6 +62,7 @@ export const obligationSchema = z.object({
   numPayments: z.coerce.number().int().min(1).default(9999),
   chargeDay: z.coerce.number().int().min(1).max(31).optional().nullable(),
   startDate: z.coerce.date(),
+  pausedTill: z.coerce.date().optional().nullable(),
   status: z
     .enum([
       "active",

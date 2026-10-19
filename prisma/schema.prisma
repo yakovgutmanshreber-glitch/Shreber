@@ -225,6 +225,7 @@ model Obligation {
   creditCardId              Int?
   creditCard                CreditCard?  @relation(fields: [creditCardId], references: [id], onDelete: SetNull)
   startDate                 DateTime
+  pausedTill                DateTime? // מושהה עד — resume date while status = 'paused'
   status                    String       @default("active")
   // 'active'|'paused'|'cancelled'|'pending_bank_auth'|'bank_auth_cancelled'
   // |'payment_method_cancelled'|'finished'|'init_error'

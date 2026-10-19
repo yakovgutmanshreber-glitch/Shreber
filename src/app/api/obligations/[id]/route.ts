@@ -58,13 +58,24 @@ export const PATCH = handler(async (req, ctx) => {
     const numPaymentsChanged =
       data.numPayments !== undefined &&
       Number(data.numPayments) !== Number(existing.numPayments);
+    const pausedTillChanged =
+      data.pausedTill !== undefined &&
+      new Date(data.pausedTill ?? 0).getTime() !== new Date(existing.pausedTill ?? 0).getTime();
     const cardChanged =
       data.creditCardId !== undefined && data.creditCardId !== existing.creditCardId;
+    // Suspend-until date: send it when pausing; clear it (null) when leaving pause.
+    const asIsoDay = (d: unknown) => (d ? new Date(d as string).toISOString().slice(0, 10) : null);
+    const pausedTillForKesher: string | null | undefined =
+      !statusChanged && !pausedTillChanged
+        ? undefined
+        : targetStatus === "paused"
+          ? asIsoDay(data.pausedTill)
+          : null;
 
     // 1) amount / day / start-date / num-payments / status -> UpdateObligation.
     // Send ONLY the fields that changed; leave the rest null (= unchanged) — e.g.
     // re-sending an old StartDate is rejected by Kesher ("תאריך שגוי").
-    if (statusChanged || amountChanged || dayChanged || dateChanged || numPaymentsChanged) {
+    if (statusChanged || amountChanged || dayChanged || dateChanged || numPaymentsChanged || pausedTillChanged) {
       const res = await kesher.updateObligation({
         obligationReference: ref,
         sum: amountChanged ? Number(data.recurringAmount) : undefined,
@@ -74,6 +85,7 @@ export const PATCH = handler(async (req, ctx) => {
         status: statusChanged
           ? String(KESHER_OBLIGATION_STATUS_CODE[targetStatus] ?? 1)
           : undefined,
+        pausedTill: pausedTillForKesher,
       });
       if (!res.ok) {
         throw new ApiError(
