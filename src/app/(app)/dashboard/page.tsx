@@ -27,6 +27,8 @@ interface Dash {
     failedIncome: { sum: number; count: number };
     expenses: { sum: number; count: number };
     expectedNextMonth: number;
+    kesherIncome: { sum: number; count: number };
+    bankSettlement: { sum: number; count: number };
   };
   breakdowns: { month: Breakdown; year: Breakdown };
   trend: { ym: string; label: string; sum: number }[];
@@ -109,6 +111,35 @@ export default function DashboardPage() {
         <KpiCard label="הוצאות" value={formatCurrency(k.expenses.sum)} sub={`${k.expenses.count} תנועות · החודש`} accent="from-rose-400 to-rose-600" />
         <KpiCard label="סכום צפוי לחודש הבא" value={formatCurrency(k.expectedNextMonth)} accent="from-amber-400 to-amber-600" />
       </div>
+
+      {/* Credit-card reconciliation: charged through Kesher vs. settled to the bank.
+          Bank settlement deposits (ישראכרט…) are excluded from the income cards above
+          so the same money isn't counted twice. */}
+      {(k.kesherIncome.sum > 0 || k.bankSettlement.sum > 0) && (
+        <div className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4">
+          <div className="mb-3 text-sm font-bold text-indigo-800">התאמת סליקת אשראי · החודש</div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <KpiCard
+              label="התקבל דרך המערכת (קשר)"
+              value={formatCurrency(k.kesherIncome.sum)}
+              sub={`${k.kesherIncome.count} עסקאות אשראי`}
+              accent="from-brand-400 to-brand-600"
+            />
+            <KpiCard
+              label="התקבל בפועל מהבנק (סליקה)"
+              value={formatCurrency(k.bankSettlement.sum)}
+              sub={`${k.bankSettlement.count} הפקדות`}
+              accent="from-emerald-400 to-emerald-600"
+            />
+            <KpiCard
+              label="הפרש (קשר − בנק)"
+              value={formatCurrency(k.kesherIncome.sum - k.bankSettlement.sum)}
+              sub="כסף שחויב וטרם נגבה בבנק"
+              accent="from-amber-400 to-amber-600"
+            />
+          </div>
+        </div>
+      )}
 
       {/* Period toggle */}
       <div className="flex items-center justify-between">

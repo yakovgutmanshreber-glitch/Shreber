@@ -24,6 +24,7 @@ interface Tx {
   transactionDate: Date;
   kind: string;
   source: string;
+  transferredTo: string | null;
   categoryId: number | null;
   category: { category: string } | null;
   obligation: { category: { category: string } | null } | null;
@@ -103,13 +104,13 @@ export const GET = handler(async (req) => {
   const windowStart = trendStart < yearStart ? trendStart : yearStart;
   const windowEnd = monthEnd > yearEnd ? monthEnd : yearEnd;
 
-  const [contacts, txRows, obligations] = await Promise.all([
+  const [contacts, txRows, obligations, payerRows] = await Promise.all([
     prisma.contact.count(),
     prisma.transaction.findMany({
       where: { transactionDate: { gte: windowStart, lt: windowEnd } },
       select: {
         amount: true, amountIls: true, statusCode: true, chargeOptionType: true,
-        transactionDate: true, kind: true, source: true, categoryId: true,
+        transactionDate: true, kind: true, source: true, transferredTo: true, categoryId: true,
         category: { select: { category: true } },
         obligation: { select: { category: { select: { category: true } } } },
       },
@@ -122,9 +123,23 @@ export const GET = handler(async (req) => {
         transactions: { select: { amountIls: true, amount: true, statusCode: true } },
       },
     }),
+    prisma.listOption.findMany({ where: { listKey: "bankSettlement" }, select: { value: true } }),
   ]);
 
-  const txs = txRows as unknown as Tx[];
+  const allTxs = txRows as unknown as Tx[];
+  // Credit-card SETTLEMENT deposits: bank income lines whose "עבר מי" matches a payer
+  // configured in הגדרות (e.g. ישראכרט). These are the credit-card company paying out
+  // charges that Kesher ALREADY recorded — counting them as income double-counts, so
+  // they're excluded from every income figure and shown only in the reconciliation box.
+  const payers = payerRows.map((r) => r.value.trim().toLowerCase()).filter(Boolean);
+  const isSettlement = (t: Tx) =>
+    t.kind === "income" &&
+    t.source === "manual" &&
+    !!t.transferredTo &&
+    payers.some((p) => t.transferredTo!.toLowerCase().includes(p));
+  // All income figures use the non-settlement set; settlements are summed separately.
+  const txs = allTxs.filter((t) => !isSettlement(t));
+
   const inMonth = (t: Tx) => t.transactionDate >= monthStart && t.transactionDate < monthEnd;
   const inYear = (t: Tx) => t.transactionDate >= yearStart && t.transactionDate < yearEnd;
 
@@ -133,6 +148,9 @@ export const GET = handler(async (req) => {
   const monthExpense = txs.filter((t) => t.kind === "expense" && inMonth(t));
   const okIncome = monthIncome.filter((t) => passed(t.statusCode));
   const failIncome = monthIncome.filter((t) => !passed(t.statusCode));
+  // Reconciliation: charged via Kesher (our system) vs. actually settled to the bank.
+  const kesherIncome = okIncome.filter((t) => t.source === "api");
+  const monthSettlement = allTxs.filter((t) => isSettlement(t) && inMonth(t) && passed(t.statusCode));
 
   const newObligations = obligations.filter(
     (o) => o.startDate >= monthStart && o.startDate < monthEnd && o.status !== "cancelled",
@@ -179,6 +197,9 @@ export const GET = handler(async (req) => {
       failedIncome: { sum: sum(failIncome), count: failIncome.length },
       expenses: { sum: sum(monthExpense), count: monthExpense.length },
       expectedNextMonth,
+      // Reconciliation of credit-card money: charged through Kesher vs. settled to bank.
+      kesherIncome: { sum: sum(kesherIncome), count: kesherIncome.length },
+      bankSettlement: { sum: sum(monthSettlement), count: monthSettlement.length },
     },
     breakdowns: {
       month: breakdown(txs.filter(inMonth)),

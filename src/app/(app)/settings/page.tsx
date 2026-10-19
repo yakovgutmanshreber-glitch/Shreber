@@ -4,6 +4,7 @@ import { getKesherConfigStatus } from "@/lib/kesher/client";
 import { SettingsForm } from "./SettingsForm";
 import { KesherSyncPanel } from "./KesherSyncPanel";
 import { CurrencyRatesPanel } from "./CurrencyRatesPanel";
+import { SettlementPayersPanel } from "./SettlementPayersPanel";
 
 export default async function SettingsPage() {
   const session = await auth();
@@ -63,6 +64,18 @@ export default async function SettingsPage() {
       <div className="card p-6">
         <h2 className="mb-4 text-lg font-bold">שערי מטבע</h2>
         <CurrencyRatesPanel />
+      </div>
+
+      {/* Credit-card settlement payers (avoid double-counting in the dashboard) */}
+      <div className="card p-6">
+        <h2 className="mb-2 text-lg font-bold">זיהוי הפקדות אשראי (סליקה)</h2>
+        <p className="mb-3 text-sm text-gray-500">
+          הוסף כאן את שמות המשלמים (כפי שמופיעים בעמודת <b>עבר מי</b> בקובץ מהבנק) של חברות
+          האשראי שמעבירות אליך את כספי הסליקה — לדוגמה <b>ישראכרט</b>. הכנסה מהבנק עם שם כזה
+          <b> לא תיספר שוב</b> בלוח הבקרה, כי אותו כסף כבר נספר כעסקת האשראי שבוצעה דרך קשר.
+          (ההתאמה היא לפי הכלה — חלק מהטקסט מספיק.)
+        </p>
+        <SettlementPayersPanel />
       </div>
 
 
