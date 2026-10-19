@@ -57,6 +57,13 @@ export const POST = handler(async (req) => {
   // recurring:    Total = the per-period (monthly) amount. Kesher owns the hok.
   const chargeAmount = Number(input.recurringAmount);
   const isRecurring = input.chargeType === "recurring";
+  // Future charge date → Kesher holds the charge and executes it on that date (its own
+  // UI does this via the "תאריך חיוב" field). We just send the date; nothing is charged
+  // now, so a future charge legitimately comes back with no authorization number.
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const startAt = input.startDate ? new Date(input.startDate) : null;
+  const isFuture = Boolean(startAt && !Number.isNaN(startAt.getTime()) && startAt.getTime() > today.getTime());
   const { useCardId, cardNumber, cardExpiry, cvv, cardHolder, cardBrand, saveCard, ...oblData } = input;
 
   // Customer details so the transaction isn't anonymous in Kesher.
@@ -85,7 +92,8 @@ export const POST = handler(async (req) => {
       creditType: isRecurring ? 10 : undefined,
       numPayments:
         isRecurring || input.chargeType === "installments" ? input.numPayments : 1,
-      startDate: isRecurring ? input.startDate : undefined,
+      // Always send the date so Kesher schedules the charge for it (future = held).
+      startDate: input.startDate,
       comment: input.comment ?? undefined,
       tz: contact?.tz ?? undefined,
       firstName: contact?.firstName ?? cardHolder,
@@ -119,22 +127,27 @@ export const POST = handler(async (req) => {
   const hokCreated = isRecurring && Boolean(oblRef);
   const explicitDecline = /סירוב|נדח|declin|fail/i.test(res.message ?? "");
   const chargeApproved = Boolean(res.mock) || (Boolean(authNum) && !explicitDecline);
+  // A FUTURE-dated charge is accepted but not executed now (Kesher holds it for the
+  // date), so it legitimately returns no authorization number — that's success, not a
+  // decline. An explicit card decline ("סירוב") is still a failure.
+  const futureScheduled = isFuture && !explicitDecline;
 
   // For a הוראת קבע the hok is created in Kesher even if the FIRST charge is
   // declined — Kesher owns it now, so we still create the obligation and RECORD
   // the declined first charge (so the סירוב is visible). For one-time /
   // installments a decline means nothing was set up: surface an error, persist nothing.
-  if (!hokCreated && !chargeApproved) {
+  if (!hokCreated && !chargeApproved && !futureScheduled) {
     throw new ApiError(
       res.message ? `החיוב נדחה: ${res.message}` : "החיוב נדחה על ידי חברת האשראי",
       402,
     );
   }
 
-  // A first charge was ATTEMPTED if Kesher returned a transaction id or an
-  // explicit decline. A future-dated hok has neither (nothing charged yet) —
-  // that first transaction will arrive later via the webhook.
-  const firstChargeAttempted = chargeApproved || Boolean(numTransaction) || explicitDecline;
+  // A first charge was ATTEMPTED if Kesher returned a transaction id or an explicit
+  // decline. A future-dated charge records a SCHEDULED (pending) transaction dated to
+  // the charge date; Kesher executes it then and the webhook updates the status.
+  const firstChargeAttempted =
+    chargeApproved || Boolean(numTransaction) || explicitDecline || futureScheduled;
 
   // --- charge succeeded: save a new card from the returned token -----------
   if (newCard && saveCard && returnedToken && input.contactId) {
@@ -156,7 +169,8 @@ export const POST = handler(async (req) => {
 
   // --- create the obligation + record the first transaction ----------------
   // A one-time charge is complete once it succeeds; recurring/installments stay active.
-  const finalStatus = input.chargeType === "onetime" ? "finished" : "active";
+  // A FUTURE-dated one-time hasn't charged yet, so it stays active until the charge runs.
+  const finalStatus = input.chargeType === "onetime" && !isFuture ? "finished" : "active";
   const updated = await prisma.obligation.create({
     data: {
       ...oblData,
@@ -186,19 +200,22 @@ export const POST = handler(async (req) => {
           currency: input.currency ?? 1,
           exchangeRate: txFx.exchangeRate,
           amountIls: txFx.amountIls,
-          transactionDate: new Date(),
+          // Future charge: date the record to the scheduled charge date. Else: now.
+          transactionDate: futureScheduled && startAt ? startAt : new Date(),
           transactionType: "debit",
           chargeOptionType: "credit",
-          // Approved => Kesher's "settled" status (4 = עבר בהצלחה). Declined =>
-          // no settled code; keep Kesher's own wording ("סירוב") in statusText so
-          // the badge shows it in red. (res.code is the request-envelope code, not
-          // a transaction status — never store it here.)
+          // Approved => Kesher's "settled" status (4 = עבר בהצלחה). Future-scheduled =>
+          // pending (no settled code yet), shown as "מתוזמן לחיוב". Declined => keep
+          // Kesher's own wording ("סירוב") so the badge shows it in red. (res.code is
+          // the request-envelope code, not a transaction status — never store it here.)
           statusCode: chargeApproved ? 4 : null,
           statusText: chargeApproved
             ? res.mock
               ? "MOCK"
               : "עבר בהצלחה"
-            : res.message ?? "סירוב",
+            : futureScheduled
+              ? "מתוזמן לחיוב"
+              : res.message ?? "סירוב",
           cardLast4: cardNumber?.replace(/\D/g, "").slice(-4),
           cardExpiry: cardExpiry,
           authNum: pick(d, "AuthNum", "OKNum", "AuthCode"),

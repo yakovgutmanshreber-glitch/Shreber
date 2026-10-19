@@ -389,12 +389,9 @@ export const kesher = {
     if (creditType === 10) {
       // הוראת קבע (standing order): Kesher creates a recurring hok and charges it
       // itself every period. Total = the per-period amount; NumPayment = number of
-      // periods (9999 = ongoing/unlimited). No FirstPayment split. A future
-      // TransactionDate schedules the first charge (verified: Kesher returns an
-      // ObligationReference and defers the first charge to that date).
+      // periods (9999 = ongoing/unlimited). No FirstPayment split.
       const months = input.numPayments && input.numPayments > 0 ? input.numPayments : 9999;
       installmentFields = { NumPayment: months };
-      if (input.startDate) installmentFields.TransactionDate = dateOnly(input.startDate);
     } else {
       const n = input.numPayments && input.numPayments > 1 ? input.numPayments : 1;
       if (n > 1) {
@@ -416,6 +413,10 @@ export const kesher = {
       CreditType: creditType,
       TransactionType: "debit",
       ParamJ: "J4", // action type: J4 = actual charge (J5 = pre-auth hold, not used here)
+      // Charge date (= the "תאריך חיוב" field in Kesher's own UI). Today = charge now;
+      // a FUTURE date tells Kesher to HOLD the charge and execute it on that date.
+      // Applies to every credit type (single / installments / standing order).
+      TransactionDate: dateOnly(input.startDate),
       ...installmentFields,
       Comment1: input.comment,
       // Charge under the chosen Kesher project (פרויקט), else the default one.

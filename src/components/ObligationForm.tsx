@@ -860,11 +860,11 @@ export function ObligationForm({
 
       {chargesViaKesher && (
         <p className="text-xs text-amber-600">
-          {isRecurringCredit && startsInFuture
-            ? "⚠️ שמירה תקים הוראת קבע בקשר. החיוב הראשון יתבצע אוטומטית בתאריך ההתחלה שנבחר (לא כעת)."
+          {startsInFuture
+            ? "⚠️ שמירה תשלח את החיוב לקשר עם תאריך החיוב שנבחר — קשר תבצע אותו אוטומטית באותו תאריך (לא כעת)."
             : isRecurringCredit
               ? "⚠️ שמירה תקים הוראת קבע בקשר. החיוב הראשון יתבצע מיד (תאריך ההתחלה הוא היום)."
-              : "⚠️ שמירה תבצע חיוב בפועל בקשר כעת (גם אם תאריך החיוב עתידי) ותרשום את העסקה."}
+              : "⚠️ שמירה תבצע חיוב בפועל בקשר כעת ותרשום את העסקה."}
         </p>
       )}
 
@@ -894,13 +894,13 @@ export function ObligationForm({
           </button>
           <button
             type="submit"
-            className={`!px-6 ${(chargesViaKesher && !(isRecurringCredit && startsInFuture)) || (editCreditCharge && chargeNow) ? "btn-danger" : "btn-primary"}`}
+            className={`!px-6 ${(chargesViaKesher && !startsInFuture) || (editCreditCharge && chargeNow) ? "btn-danger" : "btn-primary"}`}
             disabled={saving}
           >
             {saving
               ? "מעבד…"
-              : isRecurringCredit && startsInFuture
-                ? "הקם הוראת קבע לתאריך"
+              : startsInFuture && chargesViaKesher
+                ? "קבע חיוב בקשר לתאריך"
                 : isRecurringCredit
                   ? "הקם הוראת קבע בקשר"
                   : chargesViaKesher
