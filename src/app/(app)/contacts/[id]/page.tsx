@@ -105,13 +105,19 @@ function sum(txs: Transaction[]): number {
 function oblAmt(o: Obligation): number {
   return o.currency === 1 ? Number(o.recurringAmount) : Number(o.amountIls ?? o.recurringAmount);
 }
+// "ללא הגבלה" — an ongoing standing order with no fixed end. Both 999 (Kesher's
+// unlimited sentinel) and 9999 (the system's) mean the same thing.
+const UNLIMITED_PAYMENTS = new Set([999, 9999]);
+function isOngoing(o: Obligation): boolean {
+  return o.chargeType !== "onetime" && UNLIMITED_PAYMENTS.has(o.numPayments);
+}
 // FULL committed amount of the obligation (the "סכום מלא"):
 //   one-time  = the single amount; installments = recurringAmount (already the total);
-//   recurring = monthly × payments (null when ongoing/9999 — no fixed total).
+//   recurring = monthly × payments (null when ongoing — no fixed total).
 function oblFullAmount(o: Obligation): number | null {
+  if (isOngoing(o)) return null;
   const amt = oblAmt(o);
   if (o.chargeType === "installments") return amt;
-  if (o.chargeType === "recurring" && o.numPayments === 9999) return null;
   const n = o.chargeType === "onetime" ? 1 : o.numPayments;
   return amt * n;
 }
@@ -245,11 +251,14 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
       // FOREIGN amount; a stale/garbage amountIls on a ₪ row must never be used).
       const amt = o.currency === 1 ? Number(o.recurringAmount) : Number(o.amountIls ?? o.recurringAmount);
       const n = o.numPayments;
-      const ongoing = o.chargeType === "recurring" && n === 9999;
+      const ongoing = isOngoing(o);
       const numPay = o.chargeType === "onetime" ? 1 : n;
       const perPayment = o.chargeType === "installments" ? (n > 0 ? amt / n : amt) : amt;
       const total = ongoing ? null : o.chargeType === "installments" ? amt : perPayment * numPay;
-      if (total == null) continue; // ongoing hoks have no fixed total
+      // ללא הגבלה (ongoing) hoks have no fixed total → excluded from סך הכנסות / חוב /
+      // תשלומים עתידיים. Their actual collected/failed still count (summed below from
+      // all transactions), and they get their own yearly summary card.
+      if (total == null) continue;
       const paid = contact.transactions
         .filter((t) => t.obligationId === o.id && txPassed(t))
         .reduce((s, t) => s + Number(t.amountIls ?? t.amount), 0);
@@ -275,6 +284,45 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
     return { committed, collected, failed, debt, future };
   })();
 
+  // Separate yearly summary for ללא הגבלה (ongoing) standing orders — they have no
+  // fixed total, so they're excluded from the main התחייבות-מלאה cards and get this
+  // own dashboard instead (אמור לתת חודשי / השנה, נגבה השנה, לא עבר השנה, נשאר לשנה).
+  const ongoingSummary = (() => {
+    const ongoingObls = contact.obligations.filter(isOngoing);
+    if (ongoingObls.length === 0) return null;
+    const year = new Date().getFullYear();
+    const ids = new Set(ongoingObls.map((o) => o.id));
+    let monthly = 0;
+    let yearExpected = 0;
+    for (const o of ongoingObls) {
+      if (o.status !== "active") continue; // only active hoks are "expected to give"
+      const amt = oblAmt(o); // the monthly amount
+      monthly += amt;
+      // How many of this year's months this hok is active for.
+      const start = new Date(o.startDate);
+      const sy = start.getFullYear();
+      const months = sy > year ? 0 : sy < year ? 12 : 12 - start.getMonth();
+      yearExpected += amt * months;
+    }
+    const yearTx = contact.transactions.filter(
+      (t) =>
+        t.obligationId != null &&
+        ids.has(t.obligationId) &&
+        new Date(t.transactionDate).getFullYear() === year,
+    );
+    const collectedYear = yearTx.filter(txPassed).reduce((s, t) => s + Number(t.amountIls ?? t.amount), 0);
+    const failedYear = yearTx.filter(txFailed).reduce((s, t) => s + Number(t.amountIls ?? t.amount), 0);
+    return {
+      year,
+      count: ongoingObls.length,
+      monthly,
+      yearExpected,
+      collectedYear,
+      failedYear,
+      remainingYear: Math.max(0, yearExpected - collectedYear),
+    };
+  })();
+
   // Per-category payment breakdown (for the "דוח תשלומים" email).
   const statementRows = (() => {
     const byCat = new Map<string, { category: string; committed: number; paid: number }>();
@@ -283,7 +331,7 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
       const cat = o.category?.category ?? "ללא קטגוריה";
       const amt = o.currency === 1 ? Number(o.recurringAmount) : Number(o.amountIls ?? o.recurringAmount);
       const n = o.numPayments;
-      const ongoing = o.chargeType === "recurring" && n === 9999;
+      const ongoing = isOngoing(o);
       const numPay = o.chargeType === "onetime" ? 1 : n;
       const perPayment = o.chargeType === "installments" ? (n > 0 ? amt / n : amt) : amt;
       const total = ongoing ? null : o.chargeType === "installments" ? amt : perPayment * numPay;
@@ -366,6 +414,25 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
         <SummaryCard label="חוב (יתרה לתשלום)" value={formatCurrency(money.debt)} tone="red" />
         <SummaryCard label="תשלומים עתידיים" value={formatCurrency(money.future)} tone="blue" />
       </div>
+
+      {/* ללא הגבלה (ongoing) standing orders — their own yearly dashboard. They have
+          no fixed total, so they're kept out of the cards above (only their actual
+          נגבה/לא עבר feed into נגבה בפועל/לא עבר there). */}
+      {ongoingSummary && (
+        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/40 p-4">
+          <div className="mb-3 flex items-center gap-2 text-sm font-bold text-amber-800">
+            🔁 הוראת קבע ללא הגבלה · {ongoingSummary.year}
+            <span className="text-xs font-normal text-amber-600">({ongoingSummary.count} הוראות)</span>
+          </div>
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
+            <SummaryCard label="אמור לתת (חודשי)" value={formatCurrency(ongoingSummary.monthly)} tone="blue" />
+            <SummaryCard label={`אמור לתת (${ongoingSummary.year})`} value={formatCurrency(ongoingSummary.yearExpected)} tone="blue" />
+            <SummaryCard label="נגבה השנה" value={formatCurrency(ongoingSummary.collectedYear)} tone="green" />
+            <SummaryCard label="לא עבר (השנה)" value={formatCurrency(ongoingSummary.failedYear)} tone="red" />
+            <SummaryCard label="נשאר לשנה" value={formatCurrency(ongoingSummary.remainingYear)} tone="red" />
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-5">
         {/* Details — sticky, right column (RTL) — 2/5 width */}
@@ -527,7 +594,7 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
                                     </span>
                                   )}
                                 </td>
-                                <td className="td">{o.numPayments === 9999 ? "ללא הגבלה" : o.numPayments}</td>
+                                <td className="td">{isOngoing(o) ? "ללא הגבלה" : o.numPayments}</td>
                                 <td className="td">{statusLabel(PAYMENT_METHOD, o.paymentMethod)}</td>
                                 <td className="td">
                                   {passedTxs.length > 0 ? (
