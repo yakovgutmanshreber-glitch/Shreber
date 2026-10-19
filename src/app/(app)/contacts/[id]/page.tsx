@@ -128,6 +128,57 @@ function oblPerPayment(o: Obligation): number {
   return amt;
 }
 
+// Yearly summary of the ללא-הגבלה (ongoing) hoks in a set of obligations — for the
+// "הוראת קבע חודשיות" strip shown inside a category group. null when none are ongoing.
+function ongoingSummaryFor(obligations: Obligation[], transactions: Transaction[]) {
+  const ongoing = obligations.filter(isOngoing);
+  if (ongoing.length === 0) return null;
+  const year = new Date().getFullYear();
+  const ids = new Set(ongoing.map((o) => o.id));
+  let monthly = 0; // אמור לתת (חודשי)
+  let yearExpected = 0; // אמור לתת (השנה)
+  for (const o of ongoing) {
+    if (o.status !== "active") continue; // only active hoks are "expected to give"
+    const amt = oblAmt(o); // monthly amount
+    monthly += amt;
+    const start = new Date(o.startDate);
+    const sy = start.getFullYear();
+    const months = sy > year ? 0 : sy < year ? 12 : 12 - start.getMonth();
+    yearExpected += amt * months;
+  }
+  const yearTx = transactions.filter(
+    (t) => t.obligationId != null && ids.has(t.obligationId) && new Date(t.transactionDate).getFullYear() === year,
+  );
+  const collectedYear = yearTx.filter(txPassed).reduce((s, t) => s + Number(t.amountIls ?? t.amount), 0);
+  const failedYear = yearTx.filter(txFailed).reduce((s, t) => s + Number(t.amountIls ?? t.amount), 0);
+  return {
+    year,
+    monthly,
+    yearExpected,
+    collectedYear,
+    failedYear,
+    remainingYear: Math.max(0, yearExpected - collectedYear),
+  };
+}
+
+// The "הוראת קבע חודשיות" summary strip rendered inside a category group.
+function OngoingSummaryStrip({ s }: { s: NonNullable<ReturnType<typeof ongoingSummaryFor>> }) {
+  return (
+    <div className="border-t border-gray-200 bg-amber-50/40 px-3 py-3">
+      <div className="mb-2 text-right text-xs font-bold text-amber-700">
+        הוראת קבע חודשיות ({s.year})
+      </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+        <SummaryCard label="אמור לתת (חודשי)" value={formatCurrency(s.monthly)} tone="blue" />
+        <SummaryCard label={`אמור לתת (${s.year})`} value={formatCurrency(s.yearExpected)} tone="blue" />
+        <SummaryCard label="נגבה השנה" value={formatCurrency(s.collectedYear)} tone="green" />
+        <SummaryCard label="לא עבר (השנה)" value={formatCurrency(s.failedYear)} tone="red" />
+        <SummaryCard label="נשאר לשנה" value={formatCurrency(s.remainingYear)} tone="red" />
+      </div>
+    </div>
+  );
+}
+
 export default function ContactProfile({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
@@ -284,45 +335,6 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
     return { committed, collected, failed, debt, future };
   })();
 
-  // Separate yearly summary for ללא הגבלה (ongoing) standing orders — they have no
-  // fixed total, so they're excluded from the main התחייבות-מלאה cards and get this
-  // own dashboard instead (אמור לתת חודשי / השנה, נגבה השנה, לא עבר השנה, נשאר לשנה).
-  const ongoingSummary = (() => {
-    const ongoingObls = contact.obligations.filter(isOngoing);
-    if (ongoingObls.length === 0) return null;
-    const year = new Date().getFullYear();
-    const ids = new Set(ongoingObls.map((o) => o.id));
-    let monthly = 0;
-    let yearExpected = 0;
-    for (const o of ongoingObls) {
-      if (o.status !== "active") continue; // only active hoks are "expected to give"
-      const amt = oblAmt(o); // the monthly amount
-      monthly += amt;
-      // How many of this year's months this hok is active for.
-      const start = new Date(o.startDate);
-      const sy = start.getFullYear();
-      const months = sy > year ? 0 : sy < year ? 12 : 12 - start.getMonth();
-      yearExpected += amt * months;
-    }
-    const yearTx = contact.transactions.filter(
-      (t) =>
-        t.obligationId != null &&
-        ids.has(t.obligationId) &&
-        new Date(t.transactionDate).getFullYear() === year,
-    );
-    const collectedYear = yearTx.filter(txPassed).reduce((s, t) => s + Number(t.amountIls ?? t.amount), 0);
-    const failedYear = yearTx.filter(txFailed).reduce((s, t) => s + Number(t.amountIls ?? t.amount), 0);
-    return {
-      year,
-      count: ongoingObls.length,
-      monthly,
-      yearExpected,
-      collectedYear,
-      failedYear,
-      remainingYear: Math.max(0, yearExpected - collectedYear),
-    };
-  })();
-
   // Per-category payment breakdown (for the "דוח תשלומים" email).
   const statementRows = (() => {
     const byCat = new Map<string, { category: string; committed: number; paid: number }>();
@@ -414,25 +426,6 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
         <SummaryCard label="חוב (יתרה לתשלום)" value={formatCurrency(money.debt)} tone="red" />
         <SummaryCard label="תשלומים עתידיים" value={formatCurrency(money.future)} tone="blue" />
       </div>
-
-      {/* ללא הגבלה (ongoing) standing orders — their own yearly dashboard. They have
-          no fixed total, so they're kept out of the cards above (only their actual
-          נגבה/לא עבר feed into נגבה בפועל/לא עבר there). */}
-      {ongoingSummary && (
-        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/40 p-4">
-          <div className="mb-3 flex items-center gap-2 text-sm font-bold text-amber-800">
-            🔁 הוראת קבע ללא הגבלה · {ongoingSummary.year}
-            <span className="text-xs font-normal text-amber-600">({ongoingSummary.count} הוראות)</span>
-          </div>
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
-            <SummaryCard label="אמור לתת (חודשי)" value={formatCurrency(ongoingSummary.monthly)} tone="blue" />
-            <SummaryCard label={`אמור לתת (${ongoingSummary.year})`} value={formatCurrency(ongoingSummary.yearExpected)} tone="blue" />
-            <SummaryCard label="נגבה השנה" value={formatCurrency(ongoingSummary.collectedYear)} tone="green" />
-            <SummaryCard label="לא עבר (השנה)" value={formatCurrency(ongoingSummary.failedYear)} tone="red" />
-            <SummaryCard label="נשאר לשנה" value={formatCurrency(ongoingSummary.remainingYear)} tone="red" />
-          </div>
-        </div>
-      )}
 
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-5">
         {/* Details — sticky, right column (RTL) — 2/5 width */}
@@ -539,9 +532,14 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
                     </span>
                   </button>
 
-                  {/* Card body — the obligation rows, inside the same card */}
+                  {/* Card body — ongoing-hok summary strip + the obligation rows */}
                   {!collapsed && (
-                    <div className="overflow-x-auto border-t border-gray-200">
+                    <>
+                      {(() => {
+                        const s = ongoingSummaryFor(group.obligations, contact.transactions);
+                        return s ? <OngoingSummaryStrip s={s} /> : null;
+                      })()}
+                      <div className="overflow-x-auto border-t border-gray-200">
                       <table className="w-full">
                         <thead className="border-b border-gray-200">
                           <tr>
@@ -640,7 +638,8 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
                           })}
                         </tbody>
                       </table>
-                    </div>
+                      </div>
+                    </>
                   )}
                 </div>
               );
