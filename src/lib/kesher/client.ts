@@ -386,25 +386,15 @@ export const kesher = {
     const totalAgorot = Math.round(input.amount * 100);
     let creditType = input.creditType ?? 1; // 1 = regular
     let installmentFields: Record<string, unknown> = {};
-    // ParamJ controls the action: "J4" = charge in actual NOW; "J5" = set up the
-    // standing order WITHOUT charging now (Kesher bills on schedule). Default: J4.
-    let paramJ = "J4";
     if (creditType === 10) {
       // הוראת קבע (standing order): Kesher creates a recurring hok and charges it
       // itself every period. Total = the per-period amount; NumPayment = number of
-      // periods (9999 = ongoing/unlimited). No FirstPayment split.
+      // periods (9999 = ongoing/unlimited). No FirstPayment split. A future
+      // TransactionDate schedules the first charge (verified: Kesher returns an
+      // ObligationReference and defers the first charge to that date).
       const months = input.numPayments && input.numPayments > 0 ? input.numPayments : 9999;
       installmentFields = { NumPayment: months };
-      const td = dateOnly(input.startDate);
-      if (td) {
-        installmentFields.TransactionDate = td;
-        // Future start date => DON'T charge now. Set the hok up (J5); Kesher holds
-        // it and makes the first charge on the start date, then bills monthly —
-        // exactly like creating a hok with a future תאריך התחלה in Kesher's UI.
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        if (new Date(td).getTime() > today.getTime()) paramJ = "J5";
-      }
+      if (input.startDate) installmentFields.TransactionDate = dateOnly(input.startDate);
     } else {
       const n = input.numPayments && input.numPayments > 1 ? input.numPayments : 1;
       if (n > 1) {
@@ -425,7 +415,7 @@ export const kesher = {
       Currency: input.currency ?? 1,
       CreditType: creditType,
       TransactionType: "debit",
-      ParamJ: paramJ, // J4 = charge now; J5 = set up a future-dated hok without charging now
+      ParamJ: "J4", // action type: J4 = actual charge (J5 = pre-auth hold, not used here)
       ...installmentFields,
       Comment1: input.comment,
       // Charge under the chosen Kesher project (פרויקט), else the default one.
