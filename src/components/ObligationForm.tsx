@@ -152,6 +152,14 @@ export function ObligationForm({
   const isCredit = form.paymentMethod === "credit";
   const chargesViaKesher = !isEdit && isCredit; // new credit obligation → charge/set up in Kesher
   const isRecurringCredit = chargesViaKesher && form.chargeType === "recurring";
+  // Start date after today → Kesher holds the charge for that date (no charge now).
+  const startsInFuture = (() => {
+    if (!form.startDate) return false;
+    const t = new Date();
+    t.setHours(0, 0, 0, 0);
+    const s = new Date(form.startDate);
+    return !Number.isNaN(s.getTime()) && s.getTime() > t.getTime();
+  })();
   // A hok Kesher owns (imported or created via Kesher). Kesher's UpdateObligation
   // can change only Sum / Day / StartDate / NumPayments / status — NOT the charge
   // type or payment method. So lock those two when editing such an obligation.
@@ -852,9 +860,11 @@ export function ObligationForm({
 
       {chargesViaKesher && (
         <p className="text-xs text-amber-600">
-          {isRecurringCredit
-            ? "⚠️ שמירה תקים הוראת קבע בקשר. אם תאריך ההתחלה הוא היום — יבוצע חיוב ראשון מיד."
-            : "⚠️ שמירה תבצע חיוב בפועל בקשר (או חיוב הדמיה במצב Mock) ותרשום את העסקה הראשונה."}
+          {startsInFuture
+            ? "⚠️ שמירה תקבע את החיוב בקשר לתאריך ההתחלה — לא יבוצע חיוב כעת. החיוב הראשון יתבצע אוטומטית בתאריך שנבחר."
+            : isRecurringCredit
+              ? "⚠️ שמירה תקים הוראת קבע בקשר. החיוב הראשון יתבצע מיד (תאריך ההתחלה הוא היום)."
+              : "⚠️ שמירה תבצע חיוב בפועל בקשר (או חיוב הדמיה במצב Mock) ותרשום את העסקה הראשונה."}
         </p>
       )}
 
@@ -884,18 +894,20 @@ export function ObligationForm({
           </button>
           <button
             type="submit"
-            className={`!px-6 ${chargesViaKesher || (editCreditCharge && chargeNow) ? "btn-danger" : "btn-primary"}`}
+            className={`!px-6 ${(chargesViaKesher && !startsInFuture) || (editCreditCharge && chargeNow) ? "btn-danger" : "btn-primary"}`}
             disabled={saving}
           >
             {saving
               ? "מעבד…"
-              : isRecurringCredit
-                ? "הקם הוראת קבע בקשר"
-                : chargesViaKesher
-                  ? "בצע עסקה"
-                  : editCreditCharge && chargeNow
-                    ? "שמור וחייב בכרטיס"
-                    : "שמירה"}
+              : startsInFuture && chargesViaKesher
+                ? "קבע חיוב בקשר לתאריך"
+                : isRecurringCredit
+                  ? "הקם הוראת קבע בקשר"
+                  : chargesViaKesher
+                    ? "בצע עסקה"
+                    : editCreditCharge && chargeNow
+                      ? "שמור וחייב בכרטיס"
+                      : "שמירה"}
           </button>
         </div>
       )}

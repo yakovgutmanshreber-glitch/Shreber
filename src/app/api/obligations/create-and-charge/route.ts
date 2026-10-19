@@ -57,6 +57,24 @@ export const POST = handler(async (req) => {
   // recurring:    Total = the per-period (monthly) amount. Kesher owns the hok.
   const chargeAmount = Number(input.recurringAmount);
   const isRecurring = input.chargeType === "recurring";
+  // Future-dated obligation (start date after today): Kesher must HOLD it and make
+  // the first charge ON the start date — like creating a hok with a future start in
+  // Kesher's own UI. We route ANY future-dated charge through the standing-order path
+  // (CreditType 10), the mechanism Kesher schedules by date; nothing is charged now.
+  // Today/past start dates charge immediately, exactly as before.
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const startAt = input.startDate ? new Date(input.startDate) : null;
+  const isFuture = Boolean(startAt && !Number.isNaN(startAt.getTime()) && startAt.getTime() > today.getTime());
+  const useHok = isRecurring || isFuture; // sent as CreditType 10
+  // Number of scheduled charges: one-time = a single charge on the start date;
+  // installments/recurring = their payment count (9999 = ongoing).
+  const hokNumPayments = input.chargeType === "onetime" ? 1 : (input.numPayments && input.numPayments > 0 ? input.numPayments : 9999);
+  // CreditType 10's Total is the PER-PERIOD amount: recurring/one-time charge the
+  // amount as-is; installments split the total across the payments.
+  const hokPerPeriod = input.chargeType === "installments" && hokNumPayments > 0
+    ? Math.round((chargeAmount / hokNumPayments) * 100) / 100
+    : chargeAmount;
   const { useCardId, cardNumber, cardExpiry, cvv, cardHolder, cardBrand, saveCard, ...oblData } = input;
 
   // Customer details so the transaction isn't anonymous in Kesher.
@@ -69,7 +87,7 @@ export const POST = handler(async (req) => {
   let res;
   try {
     res = await kesher.sendTransaction({
-      amount: chargeAmount,
+      amount: useHok ? hokPerPeriod : chargeAmount,
       currency: input.currency ?? 1, // charge in the obligation's own currency
       projectNumber: input.projectNumber || undefined, // Kesher project (פרויקט)
       uniqNum,
@@ -77,14 +95,16 @@ export const POST = handler(async (req) => {
       cardNumber: newCard ? cardNumber : undefined,
       cardExpiry: newCard ? cardExpiry : savedCardExpiry,
       cvv: newCard ? cvv : undefined,
-      // recurring (הוראת קבע): CreditType 10 — Kesher creates the hok and charges
-      //   the monthly amount itself every period (numPayments = months, 9999=ongoing).
-      // installments: split the total into numPayments.
-      // one-time: a single charge.
-      creditType: isRecurring ? 10 : undefined,
-      numPayments:
-        isRecurring || input.chargeType === "installments" ? input.numPayments : 1,
-      startDate: isRecurring ? input.startDate : undefined,
+      // CreditType 10 (standing order) for recurring OR any future-dated charge:
+      //   Kesher owns the hok and charges per period (Total = per-period amount,
+      //   NumPayment = count, startDate schedules the first charge; a future date
+      //   defers it — client.ts then uses ParamJ "J5" so nothing is charged now).
+      // Immediate (today/past, non-recurring): regular charge / installments split.
+      creditType: useHok ? 10 : undefined,
+      numPayments: useHok
+        ? hokNumPayments
+        : input.chargeType === "installments" ? input.numPayments : 1,
+      startDate: useHok ? input.startDate : undefined,
       comment: input.comment ?? undefined,
       tz: contact?.tz ?? undefined,
       firstName: contact?.firstName ?? cardHolder,
@@ -115,7 +135,7 @@ export const POST = handler(async (req) => {
 
   // Kesher returns Status:true even for DECLINES ("סירוב") — a real approval has
   // an authorization number. No auth (or an explicit decline) = the charge failed.
-  const hokCreated = isRecurring && Boolean(oblRef);
+  const hokCreated = useHok && Boolean(oblRef);
   const explicitDecline = /סירוב|נדח|declin|fail/i.test(res.message ?? "");
   const chargeApproved = Boolean(res.mock) || (Boolean(authNum) && !explicitDecline);
 
@@ -155,7 +175,9 @@ export const POST = handler(async (req) => {
 
   // --- create the obligation + record the first transaction ----------------
   // A one-time charge is complete once it succeeds; recurring/installments stay active.
-  const finalStatus = input.chargeType === "onetime" ? "finished" : "active";
+  // A one-time charge is done once it succeeds — EXCEPT a future-dated one, which
+  // hasn't charged yet (Kesher will, on the start date), so it stays active.
+  const finalStatus = input.chargeType === "onetime" && !isFuture ? "finished" : "active";
   const updated = await prisma.obligation.create({
     data: {
       ...oblData,
