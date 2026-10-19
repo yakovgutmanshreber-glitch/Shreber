@@ -100,6 +100,28 @@ function sum(txs: Transaction[]): number {
   return txs.reduce((s, t) => s + Number(t.amount), 0);
 }
 
+// The obligation's base amount in the figure it should be read as: ₪ uses
+// recurringAmount directly; a foreign amount uses its stored ₪ value (amountIls).
+function oblAmt(o: Obligation): number {
+  return o.currency === 1 ? Number(o.recurringAmount) : Number(o.amountIls ?? o.recurringAmount);
+}
+// FULL committed amount of the obligation (the "סכום מלא"):
+//   one-time  = the single amount; installments = recurringAmount (already the total);
+//   recurring = monthly × payments (null when ongoing/9999 — no fixed total).
+function oblFullAmount(o: Obligation): number | null {
+  const amt = oblAmt(o);
+  if (o.chargeType === "installments") return amt;
+  if (o.chargeType === "recurring" && o.numPayments === 9999) return null;
+  const n = o.chargeType === "onetime" ? 1 : o.numPayments;
+  return amt * n;
+}
+// Single-payment amount (monthly for recurring, total/n for installments).
+function oblPerPayment(o: Obligation): number {
+  const amt = oblAmt(o);
+  if (o.chargeType === "installments") return o.numPayments > 0 ? amt / o.numPayments : amt;
+  return amt;
+}
+
 export default function ContactProfile({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
@@ -472,12 +494,12 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
                             const txs = contact.transactions.filter((t) => t.obligationId === o.id);
                             const passedTxs = txs.filter(txPassed);
                             const failedTxs = txs.filter(txFailed);
-                            // נשאר = full commitment (סכום × תשלומים) − מה שעבר.
-                            // ריק כשמספר התשלומים ללא הגבלה (אין סכום כולל).
+                            // נשאר = full commitment − מה שעבר. ריק כשאין סכום כולל
+                            // קבוע (הוראת קבע ללא הגבלה).
+                            const fullAmount = oblFullAmount(o);
                             const remaining =
-                              o.numPayments === 9999
-                                ? null
-                                : Math.max(0, Number(o.recurringAmount) * o.numPayments - sum(passedTxs));
+                              fullAmount === null ? null : Math.max(0, fullAmount - sum(passedTxs));
+                            const multiPayment = o.chargeType !== "onetime" && o.numPayments > 1;
                             return (
                               <tr
                                 key={o.id}
@@ -487,7 +509,24 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
                                 <td className="td num text-gray-500">
                                   {o.kesherObligationReference ?? <span className="text-gray-400">ידני</span>}
                                 </td>
-                                <td className="td">{showMoney(o.recurringAmount, o.currency, o.amountIls)}</td>
+                                <td className="td">
+                                  {fullAmount === null ? (
+                                    // ongoing הוראת קבע — no fixed total; show the monthly amount
+                                    <span>
+                                      {showMoney(oblPerPayment(o), o.currency)}
+                                      <span className="mr-1 text-xs text-gray-400">/ חודש</span>
+                                    </span>
+                                  ) : (
+                                    <span>
+                                      {showMoney(fullAmount, o.currency)}
+                                      {multiPayment && (
+                                        <span className="block text-xs text-gray-400">
+                                          {showMoney(oblPerPayment(o), o.currency)} × {o.numPayments}
+                                        </span>
+                                      )}
+                                    </span>
+                                  )}
+                                </td>
                                 <td className="td">{o.numPayments === 9999 ? "ללא הגבלה" : o.numPayments}</td>
                                 <td className="td">{statusLabel(PAYMENT_METHOD, o.paymentMethod)}</td>
                                 <td className="td">
