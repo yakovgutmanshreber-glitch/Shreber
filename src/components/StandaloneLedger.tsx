@@ -57,7 +57,6 @@ export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
   const [oblOpen, setOblOpen] = useState(false);
   const [txOpen, setTxOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
-  const [bankOpen, setBankOpen] = useState(false);
   const [catFilter, setCatFilter] = useState("");
   const [editTx, setEditTx] = useState<Transaction | null>(null);
   // The obligation whose transactions are being viewed (fetched on click).
@@ -117,14 +116,9 @@ export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
         action={
           <div className="flex gap-2">
             {kind === "income" && (
-              <>
-                <button className="btn-secondary" onClick={() => setBankOpen(true)}>
-                  🏦 ייבוא מהבנק (Excel)
-                </button>
-                <button className="btn-secondary" onClick={() => setBulkOpen(true)}>
-                  🔗 ייבוא מרוכז מקשר (Excel)
-                </button>
-              </>
+              <button className="btn-secondary" onClick={() => setBulkOpen(true)}>
+                🔗 ייבוא מרוכז מקשר (Excel)
+              </button>
             )}
             <button className="btn-primary" onClick={() => setTxOpen(true)}>
               + עסקה ידנית
@@ -278,15 +272,6 @@ export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
           <BulkImport mode="byCategory" onDone={load} />
         </Modal>
       )}
-      {kind === "income" && (
-        <Modal open={bankOpen} onClose={() => setBankOpen(false)} title="ייבוא מהבנק (Excel)" wide>
-          <BankImport
-            onDone={() => {
-              load();
-            }}
-          />
-        </Modal>
-      )}
       <Modal open={oblOpen} onClose={() => setOblOpen(false)} title={`התחייבות ${title} חדשה`} wide>
         <ObligationForm
           fixedKind={kind}
@@ -353,77 +338,3 @@ export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
   );
 }
 
-// Import a bank Excel (עובר ושב) as income transactions — columns תאריך / עבר מי /
-// סכום / קטגוריה. Each row becomes a manual income entry; duplicates are skipped.
-function BankImport({ onDone }: { onDone: () => void }) {
-  const [file, setFile] = useState<File | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{
-    total: number;
-    created: number;
-    skippedDup: number;
-    skippedInvalid: number;
-    newCategories: number;
-  } | null>(null);
-
-  async function run() {
-    if (!file) return;
-    setError(null);
-    setBusy(true);
-    try {
-      const fileBase64 = await new Promise<string>((resolve, reject) => {
-        const fr = new FileReader();
-        fr.onload = () => resolve(String(fr.result));
-        fr.onerror = () => reject(new Error("קריאת הקובץ נכשלה"));
-        fr.readAsDataURL(file);
-      });
-      const res = await api<{ total: number; created: number; skippedDup: number; skippedInvalid: number; newCategories: number }>(
-        "/api/transactions/bank-import",
-        { method: "POST", body: { fileBase64 } },
-      );
-      setResult(res);
-      onDone();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "שגיאה");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (result) {
-    return (
-      <div className="rounded-lg bg-green-50 px-4 py-3 text-sm text-green-800">
-        <div className="font-semibold">הייבוא הושלם ✓</div>
-        <ul className="mt-1 space-y-0.5">
-          <li>שורות בקובץ: {result.total}</li>
-          <li>נוצרו עסקאות חדשות: {result.created}</li>
-          {result.skippedDup > 0 && <li>דילוג (כבר קיימות): {result.skippedDup}</li>}
-          {result.skippedInvalid > 0 && <li>דילוג (שורות לא תקינות): {result.skippedInvalid}</li>}
-          {result.newCategories > 0 && <li>קטגוריות חדשות שנוצרו: {result.newCategories}</li>}
-        </ul>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      <p className="text-sm text-gray-500">
-        העלה קובץ אקסל מהבנק עם העמודות <b>תאריך</b>, <b>עבר מי</b>, <b>סכום</b> ו-<b>קטגוריה</b>. כל
-        שורה תיווצר כעסקת הכנסה. שורות שכבר יובאו (אותו תאריך, סכום ועבר מי) לא ייווצרו שוב.
-      </p>
-      <input
-        type="file"
-        accept=".xlsx,.xls,.csv"
-        className="input"
-        onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-      />
-      {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-      <div className="flex justify-end">
-        <button className="btn-primary" onClick={run} disabled={!file || busy}>
-          {busy ? "מייבא…" : "ייבא"}
-        </button>
-      </div>
-    </div>
-  );
-}
