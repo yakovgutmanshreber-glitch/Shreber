@@ -3,6 +3,7 @@ import { handler, serialize, ApiError } from "@/lib/api";
 import { obligationSchema } from "@/lib/schemas";
 import { kesher, KesherConfigError, looksLikeCardNumber } from "@/lib/kesher/client";
 import { KESHER_OBLIGATION_STATUS_CODE } from "@/lib/constants";
+import { convertToIls } from "@/lib/currency";
 
 async function getId(ctx: { params: Promise<Record<string, string>> }) {
   const { id } = await ctx.params;
@@ -118,9 +119,19 @@ export const PATCH = handler(async (req, ctx) => {
     }
   }
 
+  // Recompute the ₪ value (amountIls/exchangeRate) whenever the amount or currency
+  // changes — otherwise a stale amountIls lingers and inflates every total that uses
+  // it (e.g. lowering 3600→300 left amountIls=3600 → committed = 3600×payments).
+  let fx: { exchangeRate: number | null; amountIls: number | null } | undefined;
+  if (data.recurringAmount !== undefined || data.currency !== undefined) {
+    const newAmount = Number(data.recurringAmount ?? existing.recurringAmount);
+    const newCurrency = data.currency ?? existing.currency;
+    fx = await convertToIls(newAmount, newCurrency);
+  }
+
   const obligation = await prisma.obligation.update({
     where: { id },
-    data,
+    data: fx ? { ...data, exchangeRate: fx.exchangeRate, amountIls: fx.amountIls } : data,
     include: { category: true, contact: true },
   });
   return serialize(obligation);

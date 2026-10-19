@@ -219,7 +219,9 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
     let future = 0; // amount of payments not yet due
     for (const o of contact.obligations) {
       if (o.status === "cancelled") continue;
-      const amt = Number(o.amountIls ?? o.recurringAmount);
+      // ₪ obligations always use recurringAmount (amountIls is only the ₪ value of a
+      // FOREIGN amount; a stale/garbage amountIls on a ₪ row must never be used).
+      const amt = o.currency === 1 ? Number(o.recurringAmount) : Number(o.amountIls ?? o.recurringAmount);
       const n = o.numPayments;
       const ongoing = o.chargeType === "recurring" && n === 9999;
       const numPay = o.chargeType === "onetime" ? 1 : n;
@@ -257,7 +259,7 @@ export default function ContactProfile({ params }: { params: Promise<{ id: strin
     for (const o of contact.obligations) {
       if (o.status === "cancelled") continue;
       const cat = o.category?.category ?? "ללא קטגוריה";
-      const amt = Number(o.amountIls ?? o.recurringAmount);
+      const amt = o.currency === 1 ? Number(o.recurringAmount) : Number(o.amountIls ?? o.recurringAmount);
       const n = o.numPayments;
       const ongoing = o.chargeType === "recurring" && n === 9999;
       const numPay = o.chargeType === "onetime" ? 1 : n;
