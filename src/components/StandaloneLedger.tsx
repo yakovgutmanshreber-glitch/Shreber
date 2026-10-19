@@ -221,7 +221,7 @@ export function StandaloneLedger({ kind }: { kind: "income" | "expense" }) {
                   <th className="th">לקוח</th>
                   <th className="th">קטגוריה</th>
                   <th className="th">סכום</th>
-                  <th className="th">עבר ל</th>
+                  <th className="th">{kind === "expense" ? "עבר ל" : "עבר מי"}</th>
                   <th className="th">אמצעי</th>
                   <th className="th">הערה</th>
                   <th className="th"></th>

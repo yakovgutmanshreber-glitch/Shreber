@@ -113,9 +113,9 @@ export function TransactionForm({
     api<CategoryOption[]>("/api/categories").then(setCategories).catch(() => {});
   }, [fixedObligationId]);
 
-  // Load contacts for the "שייך ללקוח" picker (only when the entry isn't already
-  // tied to a specific contact or obligation).
-  const showContactSelect = fixedContactId == null && fixedObligationId == null;
+  // "שייך ללקוח" is offered only when EDITING an existing standalone record — not
+  // while first creating it via "+ עסקה ידנית" (link a customer afterwards).
+  const showContactSelect = isEdit && fixedContactId == null && fixedObligationId == null;
   useEffect(() => {
     if (!showContactSelect) return;
     api<ContactOption[]>("/api/contacts").then(setContacts).catch(() => {});
@@ -349,16 +349,15 @@ export function TransactionForm({
             ))}
           </select>
         </div>
-        {isExpense && (
-          <div>
-            <label className="label">עבר ל</label>
-            <input
-              className="input"
-              value={form.transferredTo ?? ""}
-              onChange={(e) => set("transferredTo", e.target.value)}
-            />
-          </div>
-        )}
+        <div>
+          {/* income: from whom the money came; expense: to whom it went */}
+          <label className="label">{isExpense ? "עבר ל" : "עבר מי"}</label>
+          <input
+            className="input"
+            value={form.transferredTo ?? ""}
+            onChange={(e) => set("transferredTo", e.target.value)}
+          />
+        </div>
       </div>
 
       {isBank && (
