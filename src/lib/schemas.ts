@@ -191,7 +191,7 @@ export const specialDonationSchema = z.object({
 
 // Editable dropdown list option (לרגל / סוג).
 export const listOptionSchema = z.object({
-  listKey: z.enum(["leregel", "donationType", "city", "country"]),
+  listKey: z.enum(["leregel", "donationType", "city", "country", "bankSettlement"]),
   value: z.string().trim().min(1, "ערך חובה"),
 });
 
