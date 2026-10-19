@@ -6,10 +6,11 @@ import { handler, serialize, ApiError } from "@/lib/api";
 export const GET = handler(async () => {
   const [obligations, transactions] = await Promise.all([
     prisma.obligation.findMany({
-      // Truly unhandled: from Kesher, with NO contact AND NO category. Standalone
-      // income obligations already have a category and show in הכנסות, so they're
-      // excluded here to avoid appearing in both places.
-      where: { contactId: null, categoryId: null, kesherObligationReference: { not: null } },
+      // Unmatched Kesher payers: NO contact but we DO have a payer snapshot
+      // (payerName) from Kesher that wasn't matched to a contact → needs review.
+      // "→ העבר להכנסות" clears the snapshot (confirms it as standalone income),
+      // which removes it from here while it stays in the הכנסות tab.
+      where: { contactId: null, payerName: { not: null } },
       include: { category: { select: { category: true } }, _count: { select: { transactions: true } } },
       orderBy: { createdAt: "desc" },
       take: 500,
@@ -63,12 +64,23 @@ export const GET = handler(async () => {
 //  • send an unlinked transaction to הכנסות (standalone income, no customer) by
 //    creating a one-time income obligation under a category and linking it.
 export const POST = handler(async (req) => {
-  const { obligationId, transactionId, contactId, categoryId } = (await req.json()) as {
+  const { obligationId, transactionId, contactId, categoryId, toIncome } = (await req.json()) as {
     obligationId?: number;
     transactionId?: number;
     contactId?: number;
     categoryId?: number;
+    toIncome?: boolean;
   };
+
+  // Send an unlinked OBLIGATION to הכנסות as standalone income (no customer): just
+  // clear its payer snapshot so it leaves this review; it stays standalone in הכנסות.
+  if (toIncome && obligationId) {
+    await prisma.obligation.update({
+      where: { id: obligationId },
+      data: { payerName: null, payerPhone: null },
+    });
+    return { ok: true };
+  }
 
   // A transaction + a category → wrap it in a one-time income obligation under
   // that category (optionally linked to a contact) and attach the transaction.

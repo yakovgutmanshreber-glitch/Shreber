@@ -681,6 +681,11 @@ function UnlinkedReport() {
     load();
   }
 
+  async function obligationToIncome(id: number) {
+    await api("/api/reports/unlinked", { method: "POST", body: { obligationId: id, toIncome: true } });
+    load();
+  }
+
   async function sendToIncome() {
     if (!incomeTx || !incomeCat) return;
     setIncomeBusy(true);
@@ -733,12 +738,20 @@ function UnlinkedReport() {
                     <td className="td num">{formatMoney(o.amount, o.currency)}</td>
                     <td className="td num">{o.transactions}</td>
                     <td className="td text-left">
-                      <button
-                        className="btn-primary !py-1.5 text-xs"
-                        onClick={() => setPick({ obligationId: o.id, label: `אסמכתא ${o.reference}` })}
-                      >
-                        שייך לאיש קשר
-                      </button>
+                      <div className="flex flex-col items-end gap-1">
+                        <button
+                          className="text-xs font-medium text-emerald-600 hover:underline"
+                          onClick={() => obligationToIncome(o.id)}
+                        >
+                          → העבר להכנסות
+                        </button>
+                        <button
+                          className="text-xs text-brand-600 hover:underline"
+                          onClick={() => setPick({ obligationId: o.id, label: `אסמכתא ${o.reference}` })}
+                        >
+                          שייך לאיש קשר
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

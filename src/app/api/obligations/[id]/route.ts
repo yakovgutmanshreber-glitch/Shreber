@@ -146,6 +146,13 @@ export const PATCH = handler(async (req, ctx) => {
     data: fx ? { ...data, exchangeRate: fx.exchangeRate, amountIls: fx.amountIls } : data,
     include: { category: true, contact: true },
   });
+
+  // Unlinking an obligation from a contact (→ הכנסות, standalone): detach its
+  // transactions too, so the record no longer shows under that customer.
+  if (data.contactId === null && existing.contactId !== null) {
+    await prisma.transaction.updateMany({ where: { obligationId: id }, data: { contactId: null } });
+  }
+
   return serialize(obligation);
 });
 

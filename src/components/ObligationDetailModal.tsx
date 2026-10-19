@@ -42,6 +42,20 @@ export function ObligationDetailModal({
   // Amount to charge (defaults to the balance when the panel opens; editable).
   const [chargeAmount, setChargeAmount] = useState("");
 
+  // Move to הכנסות — unlink this obligation from its contact (becomes standalone).
+  const oblContactId = (obligation as { contactId?: number | null }).contactId ?? contactId ?? null;
+  const [unlinkBusy, setUnlinkBusy] = useState(false);
+  async function moveToIncome() {
+    if (!window.confirm("להעביר את ההתחייבות להכנסות? השיוך לאיש הקשר יבוטל והיא תהפוך לרשומה עצמאית.")) return;
+    setUnlinkBusy(true);
+    try {
+      await api(`/api/obligations/${obligation.id}`, { method: "PATCH", body: { contactId: null, localOnly: true } });
+      onClose();
+    } finally {
+      setUnlinkBusy(false);
+    }
+  }
+
   // Pause / resume (מושהה) — syncs the status to Kesher, with an optional "עד תאריך".
   const [pauseOpen, setPauseOpen] = useState(false);
   const [pauseDate, setPauseDate] = useState("");
@@ -218,6 +232,16 @@ export function ObligationDetailModal({
               className="rounded-full border border-brand-200 bg-white px-4 py-1.5 text-sm font-medium text-brand-600 hover:bg-brand-50"
             >
               💳 החלף כרטיס
+            </button>
+          )}
+          {oblContactId != null && (
+            <button
+              type="button"
+              onClick={moveToIncome}
+              disabled={unlinkBusy}
+              className="rounded-full border border-emerald-300 bg-white px-4 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50"
+            >
+              {unlinkBusy ? "מעביר…" : "→ העבר להכנסות"}
             </button>
           )}
           {isPaused ? (
