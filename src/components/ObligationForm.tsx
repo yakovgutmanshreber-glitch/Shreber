@@ -21,6 +21,13 @@ export interface SavedCard {
   isDefault: boolean;
 }
 
+interface ContactOption {
+  id: number;
+  firstName: string;
+  lastName: string | null;
+  phone: string | null;
+}
+
 export interface ObligationData {
   id?: number;
   kind?: "income" | "expense";
@@ -106,6 +113,10 @@ export function ObligationForm({
   });
   // Converting an existing (non-Kesher) obligation to credit → charge the card now?
   const [chargeNow, setChargeNow] = useState(true);
+  // "שייך לאיש קשר" — link a standalone obligation to a customer. Searchable picker.
+  const [contacts, setContacts] = useState<ContactOption[]>([]);
+  const [contactQuery, setContactQuery] = useState("");
+  const [contactOpen, setContactOpen] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -136,6 +147,13 @@ export function ObligationForm({
       .catch(() => {});
   }, []);
 
+  // Contacts for the "שייך לאיש קשר" picker — only when not already tied to a contact.
+  const showContactSelect = fixedContactId == null;
+  useEffect(() => {
+    if (!showContactSelect) return;
+    api<ContactOption[]>("/api/contacts").then(setContacts).catch(() => {});
+  }, [showContactSelect]);
+
   // Live currency conversion for the selected foreign currency.
   const currencyNum = Number(form.currency ?? 1);
   const rate = currencyNum !== 1 ? rates[currencyIso(currencyNum)] : undefined;
@@ -148,6 +166,20 @@ export function ObligationForm({
   function setC(k: keyof typeof card, v: unknown) {
     setCard((c) => ({ ...c, [k]: v }));
   }
+
+  const contactName = (c: ContactOption) => `${c.firstName} ${c.lastName ?? ""}`.trim();
+  const selectedContact = contacts.find((c) => c.id === form.contactId) ?? null;
+  const contactMatches = (() => {
+    const q = contactQuery.trim().toLowerCase();
+    if (!q) return contacts.slice(0, 30);
+    const words = q.split(/\s+/).filter(Boolean);
+    return contacts
+      .filter((c) => {
+        const hay = `${contactName(c)} ${c.phone ?? ""}`.toLowerCase();
+        return words.every((w) => hay.includes(w));
+      })
+      .slice(0, 30);
+  })();
 
   const isCredit = form.paymentMethod === "credit";
   const chargesViaKesher = !isEdit && isCredit; // new credit obligation → charge/set up in Kesher
@@ -356,6 +388,65 @@ export function ObligationForm({
               ))}
           </select>
         </div>
+
+        {showContactSelect && (
+          <div>
+            <label className="label">שייך לאיש קשר</label>
+            {selectedContact ? (
+              <div className="input flex items-center justify-between">
+                <span className="truncate">
+                  {contactName(selectedContact)}
+                  {selectedContact.phone ? <span className="mr-2 text-xs text-gray-400">{selectedContact.phone}</span> : null}
+                </span>
+                <button
+                  type="button"
+                  className="shrink-0 text-gray-400 hover:text-gray-600"
+                  onClick={() => {
+                    set("contactId", null);
+                    setContactQuery("");
+                  }}
+                  aria-label="הסר שיוך"
+                >
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <div className="relative">
+                <input
+                  className="input"
+                  placeholder="חיפוש איש קשר לפי שם או טלפון…"
+                  value={contactQuery}
+                  onChange={(e) => {
+                    setContactQuery(e.target.value);
+                    setContactOpen(true);
+                  }}
+                  onFocus={() => setContactOpen(true)}
+                  onBlur={() => setTimeout(() => setContactOpen(false), 150)}
+                />
+                {contactOpen && contactMatches.length > 0 && (
+                  <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                    {contactMatches.map((c) => (
+                      <li key={c.id}>
+                        <button
+                          type="button"
+                          className="flex w-full items-center justify-between px-3 py-2 text-right text-sm hover:bg-brand-50"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            set("contactId", c.id);
+                            setContactOpen(false);
+                          }}
+                        >
+                          <span className="truncate">{contactName(c)}</span>
+                          {c.phone && <span className="shrink-0 text-xs text-gray-400">{c.phone}</span>}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {isCredit && projects.length > 0 && (
           <div className="sm:col-span-2">
