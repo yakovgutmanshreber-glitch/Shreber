@@ -422,7 +422,8 @@ export function ObligationForm({
                     c.mainCategory === mainCat &&
                     (!categoryScope || (c.scopes?.includes(categoryScope) ?? true)),
                 )
-                .sort((a, b) => a.category.localeCompare(b.category, "he", { numeric: true }))
+                // Sort descending (z→a / 400→240).
+                .sort((a, b) => b.category.localeCompare(a.category, "he", { numeric: true }))
                 .map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.category}
