@@ -186,6 +186,10 @@ export function TransactionForm({
   const isExpense = (fixedKind ?? form.kind) === "expense";
   const categoryScope = isExpense ? "expense" : "income";
   const visibleCategories = categories.filter((c) => c.scopes?.includes(categoryScope) ?? true);
+  // Two-step category: a main with >1 entry opens the sub dropdown; a single-entry
+  // main IS the category (selected directly, no sub dropdown).
+  const subsOfMain = mainCat ? visibleCategories.filter((c) => c.mainCategory === mainCat) : [];
+  const showSubDropdown = subsOfMain.length > 1;
   // Credit on an obligation → charge via Kesher (needs an obligation to attach to).
   const chargesViaKesher = !isEdit && isCredit && fixedObligationId != null;
   const setC = (k: keyof typeof card, v: unknown) => setCard((c) => ({ ...c, [k]: v }));
@@ -301,8 +305,10 @@ export function TransactionForm({
               className="input"
               value={mainCat}
               onChange={(e) => {
-                setMainCat(e.target.value);
-                set("categoryId", "");
+                const m = e.target.value;
+                setMainCat(m);
+                const subs = visibleCategories.filter((c) => c.mainCategory === m);
+                set("categoryId", subs.length === 1 ? String(subs[0].id) : "");
               }}
             >
               <option value="">— בחר —</option>
@@ -316,7 +322,7 @@ export function TransactionForm({
             </select>
           </div>
         )}
-        {showCategorySelect && mainCat && (
+        {showCategorySelect && showSubDropdown && (
           <div>
             <label className="label">שייך לקטגוריה</label>
             <select
@@ -325,8 +331,7 @@ export function TransactionForm({
               onChange={(e) => set("categoryId", e.target.value)}
             >
               <option value="">— בחר —</option>
-              {visibleCategories
-                .filter((c) => c.mainCategory === mainCat)
+              {subsOfMain
                 .sort((a, b) => a.category.localeCompare(b.category, "he", { numeric: true }))
                 .map((c) => (
                   <option key={c.id} value={c.id}>

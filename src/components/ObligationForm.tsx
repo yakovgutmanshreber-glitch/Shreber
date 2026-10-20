@@ -191,6 +191,13 @@ export function ObligationForm({
       .slice(0, 30);
   })();
 
+  // Category (two-step): some main categories have real sub-categories, some don't.
+  // A main with >1 entry under it opens the second (קטגוריה) dropdown; a main with a
+  // single entry IS the category — selecting it sets it directly, no second dropdown.
+  const catInScope = (c: Category) => !categoryScope || (c.scopes?.includes(categoryScope) ?? true);
+  const subsOfMain = mainCat ? categories.filter((c) => c.mainCategory === mainCat && catInScope(c)) : [];
+  const showSubDropdown = subsOfMain.length > 1;
+
   const isCredit = form.paymentMethod === "credit";
   const chargesViaKesher = !isEdit && isCredit; // new credit obligation → charge/set up in Kesher
   const isRecurringCredit = chargesViaKesher && form.chargeType === "recurring";
@@ -382,8 +389,16 @@ export function ObligationForm({
             className="input"
             value={mainCat}
             onChange={(e) => {
-              setMainCat(e.target.value);
-              set("categoryId", null); // reset the sub-category when the main changes
+              const m = e.target.value;
+              setMainCat(m);
+              // If this main has a single entry, select it directly (no sub dropdown).
+              const subs = categories.filter((c) => c.mainCategory === m && catInScope(c));
+              if (subs.length === 1) {
+                set("categoryId", subs[0].id);
+                if (!form.recurringAmount) set("recurringAmount", Number(subs[0].defaultPrice));
+              } else {
+                set("categoryId", null);
+              }
             }}
           >
             <option value="">— בחר —</option>
@@ -402,7 +417,7 @@ export function ObligationForm({
               ))}
           </select>
         </div>
-        {mainCat && (
+        {showSubDropdown && (
           <div>
             <label className="label">קטגוריה</label>
             <select
@@ -416,12 +431,7 @@ export function ObligationForm({
               }}
             >
               <option value="">— בחר —</option>
-              {categories
-                .filter(
-                  (c) =>
-                    c.mainCategory === mainCat &&
-                    (!categoryScope || (c.scopes?.includes(categoryScope) ?? true)),
-                )
+              {subsOfMain
                 // Sort descending (z→a / 400→240).
                 .sort((a, b) => b.category.localeCompare(a.category, "he", { numeric: true }))
                 .map((c) => (
