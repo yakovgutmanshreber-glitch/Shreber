@@ -1,7 +1,18 @@
+import { readFileSync } from "node:fs";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
+
+// Bundled seed data (exported from the live DB) — kept in prisma/seed-data/ so a
+// fresh instance comes up with the same email templates and dropdown values.
+type SeedEmailTemplate = { name: string; subject: string; slug: string | null; html: string };
+type SeedListOption = { listKey: string; value: string };
+
+function readSeedJson<T>(fileName: string): T {
+  const url = new URL(`./seed-data/${fileName}`, import.meta.url);
+  return JSON.parse(readFileSync(url, "utf8")) as T;
+}
 
 // Kesher internal status codes (spec §1 KesherStatus lookup table)
 const KESHER_STATUSES: { code: number; description: string }[] = [
@@ -51,6 +62,52 @@ async function main() {
     });
   }
 
+  console.log("Seeding EmailTemplates…");
+  {
+    const templates = readSeedJson<SeedEmailTemplate[]>("email-templates.json");
+    let created = 0;
+    let updated = 0;
+    let kept = 0;
+    for (const t of templates) {
+      if (t.slug) {
+        // Built-in system template — keyed by its stable slug.
+        const before = await prisma.emailTemplate.findUnique({ where: { slug: t.slug } });
+        await prisma.emailTemplate.upsert({
+          where: { slug: t.slug },
+          create: { name: t.name, subject: t.subject, html: t.html, slug: t.slug },
+          update: { name: t.name, subject: t.subject, html: t.html },
+        });
+        if (before) updated++;
+        else created++;
+      } else {
+        // Slug-less template — match by name; never overwrite so customer edits survive.
+        const existing = await prisma.emailTemplate.findFirst({ where: { name: t.name } });
+        if (existing) {
+          kept++;
+        } else {
+          await prisma.emailTemplate.create({
+            data: { name: t.name, subject: t.subject, html: t.html },
+          });
+          created++;
+        }
+      }
+    }
+    console.log(`  → ${created} created, ${updated} updated, ${kept} left as-is`);
+  }
+
+  console.log("Seeding ListOptions…");
+  {
+    const options = readSeedJson<SeedListOption[]>("list-options.json");
+    for (const o of options) {
+      await prisma.listOption.upsert({
+        where: { listKey_value: { listKey: o.listKey, value: o.value } },
+        create: { listKey: o.listKey, value: o.value },
+        update: {},
+      });
+    }
+    console.log(`  → ${options.length} list options ensured`);
+  }
+
   console.log("Ensuring KesherSettings row…");
   const settings = await prisma.kesherSettings.findFirst();
   if (!settings) {
@@ -73,8 +130,9 @@ async function main() {
   }
 
   // A little demo data so the UI isn't empty on first run.
+  // Opt-in only: real new customers start empty. Set SEED_DEMO=true to include it.
   const demoContactCount = await prisma.contact.count();
-  if (demoContactCount === 0) {
+  if (process.env.SEED_DEMO === "true" && demoContactCount === 0) {
     console.log("Seeding demo contact + obligation + transaction…");
     const category = await prisma.category.findFirst({ where: { category: "הוראת קבע חודשית" } });
     const contact = await prisma.contact.create({
