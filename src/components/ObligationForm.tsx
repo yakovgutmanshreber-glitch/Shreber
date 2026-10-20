@@ -117,6 +117,8 @@ export function ObligationForm({
   const [contacts, setContacts] = useState<ContactOption[]>([]);
   const [contactQuery, setContactQuery] = useState("");
   const [contactOpen, setContactOpen] = useState(false);
+  // Two-step category picker: pick קטגוריה ראשית, then the קטגוריה under it.
+  const [mainCat, setMainCat] = useState("");
 
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -153,6 +155,14 @@ export function ObligationForm({
     if (!showContactSelect) return;
     api<ContactOption[]>("/api/contacts").then(setContacts).catch(() => {});
   }, [showContactSelect]);
+
+  // When editing, preselect the main category from the already-chosen category.
+  useEffect(() => {
+    if (!mainCat && form.categoryId) {
+      const cat = categories.find((c) => c.id === form.categoryId);
+      if (cat) setMainCat(cat.mainCategory);
+    }
+  }, [categories, form.categoryId, mainCat]);
 
   // Live currency conversion for the selected foreign currency.
   const currencyNum = Number(form.currency ?? 1);
@@ -367,27 +377,60 @@ export function ObligationForm({
           </div>
         )}
         <div>
-          <label className="label">קטגוריה</label>
+          <label className="label">קטגוריה ראשית</label>
           <select
             className="input"
-            value={form.categoryId ?? ""}
+            value={mainCat}
             onChange={(e) => {
-              const cid = e.target.value ? Number(e.target.value) : null;
-              set("categoryId", cid);
-              const cat = categories.find((c) => c.id === cid);
-              if (cat && !form.recurringAmount) set("recurringAmount", Number(cat.defaultPrice));
+              setMainCat(e.target.value);
+              set("categoryId", null); // reset the sub-category when the main changes
             }}
           >
-            <option value="">— ללא —</option>
-            {categories
-              .filter((c) => !categoryScope || (c.scopes?.includes(categoryScope) ?? true))
-              .map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.mainCategory} › {c.category}
+            <option value="">— בחר —</option>
+            {[
+              ...new Set(
+                categories
+                  .filter((c) => !categoryScope || (c.scopes?.includes(categoryScope) ?? true))
+                  .map((c) => c.mainCategory),
+              ),
+            ]
+              .sort((a, b) => a.localeCompare(b, "he", { numeric: true }))
+              .map((m) => (
+                <option key={m} value={m}>
+                  {m}
                 </option>
               ))}
           </select>
         </div>
+        {mainCat && (
+          <div>
+            <label className="label">קטגוריה</label>
+            <select
+              className="input"
+              value={form.categoryId ?? ""}
+              onChange={(e) => {
+                const cid = e.target.value ? Number(e.target.value) : null;
+                set("categoryId", cid);
+                const cat = categories.find((c) => c.id === cid);
+                if (cat && !form.recurringAmount) set("recurringAmount", Number(cat.defaultPrice));
+              }}
+            >
+              <option value="">— בחר —</option>
+              {categories
+                .filter(
+                  (c) =>
+                    c.mainCategory === mainCat &&
+                    (!categoryScope || (c.scopes?.includes(categoryScope) ?? true)),
+                )
+                .sort((a, b) => a.category.localeCompare(b.category, "he", { numeric: true }))
+                .map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.category}
+                  </option>
+                ))}
+            </select>
+          </div>
+        )}
 
         {showContactSelect && (
           <div>

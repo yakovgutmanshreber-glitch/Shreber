@@ -79,6 +79,8 @@ export function TransactionForm({
   const [contactId, setContactId] = useState<number | "">(transaction?.contactId ?? "");
   const [contactQuery, setContactQuery] = useState("");
   const [contactOpen, setContactOpen] = useState(false);
+  // Two-step category picker: pick קטגוריה ראשית, then the קטגוריה under it.
+  const [mainCat, setMainCat] = useState("");
   const [form, setForm] = useState({
     kind: transaction?.kind ?? fixedKind ?? "income",
     obligationId:
@@ -112,6 +114,14 @@ export function TransactionForm({
     if (fixedObligationId != null) return;
     api<CategoryOption[]>("/api/categories").then(setCategories).catch(() => {});
   }, [fixedObligationId]);
+
+  // When editing, preselect the main category from the already-chosen category.
+  useEffect(() => {
+    if (!mainCat && form.categoryId) {
+      const cat = categories.find((c) => String(c.id) === String(form.categoryId));
+      if (cat) setMainCat(cat.mainCategory);
+    }
+  }, [categories, form.categoryId, mainCat]);
 
   // "שייך ללקוח" is offered only when EDITING an existing standalone record — not
   // while first creating it via "+ עסקה ידנית" (link a customer afterwards).
@@ -286,18 +296,43 @@ export function TransactionForm({
         )}
         {showCategorySelect && (
           <div>
+            <label className="label">קטגוריה ראשית</label>
+            <select
+              className="input"
+              value={mainCat}
+              onChange={(e) => {
+                setMainCat(e.target.value);
+                set("categoryId", "");
+              }}
+            >
+              <option value="">— בחר —</option>
+              {[...new Set(visibleCategories.map((c) => c.mainCategory))]
+                .sort((a, b) => a.localeCompare(b, "he", { numeric: true }))
+                .map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+            </select>
+          </div>
+        )}
+        {showCategorySelect && mainCat && (
+          <div>
             <label className="label">שייך לקטגוריה</label>
             <select
               className="input"
               value={form.categoryId}
               onChange={(e) => set("categoryId", e.target.value)}
             >
-              <option value="">— ללא —</option>
-              {visibleCategories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.category}
-                </option>
-              ))}
+              <option value="">— בחר —</option>
+              {visibleCategories
+                .filter((c) => c.mainCategory === mainCat)
+                .sort((a, b) => a.category.localeCompare(b.category, "he", { numeric: true }))
+                .map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.category}
+                  </option>
+                ))}
             </select>
           </div>
         )}
